@@ -8,7 +8,7 @@ COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @jcsoftdev/api...
 
 # Stage 2: Compile with Bun
-FROM oven/bun:1.4-alpine AS build
+FROM oven/bun:1-alpine AS build
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/packages/config ./packages/config
