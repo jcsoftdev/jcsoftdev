@@ -2,8 +2,79 @@ import { createCursorOrbTimeline, createHeroFadeTimeline, initLenis } from '@jcs
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
+
+/** Inline icon components — match HUD aesthetic (cyan stroke, currentColor). */
+const GitHubIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    role="img"
+    aria-label="GitHub"
+  >
+    <title>GitHub</title>
+    <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1-.02-1.96-3.2.7-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.18a10.97 10.97 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.13 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.79.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z" />
+  </svg>
+);
+
+const LinkedInIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    role="img"
+    aria-label="LinkedIn"
+  >
+    <title>LinkedIn</title>
+    <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
+  </svg>
+);
+
+/** Bordered social icon link — uses the brand accent (now the circuit cyan
+ *  from the planet). Hover boosts brightness + glow. */
+function SocialIconButton({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="group flex h-11 w-11 items-center justify-center bg-black/40 backdrop-blur-sm"
+      style={{
+        border: '1px solid var(--color-accent-muted)',
+        color: 'var(--color-accent)',
+        boxShadow: '0 0 0 0 transparent',
+        transition: 'box-shadow 200ms, border-color 200ms, color 200ms',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--color-accent)';
+        e.currentTarget.style.color = 'var(--color-accent-hover)';
+        e.currentTarget.style.boxShadow =
+          '0 0 20px var(--color-accent-glow), 0 0 4px var(--color-accent-muted)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--color-accent-muted)';
+        e.currentTarget.style.color = 'var(--color-accent)';
+        e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+      }}
+    >
+      {children}
+    </a>
+  );
+}
 
 // Code-split Three.js out of the initial bundle. HeroMesh is the heaviest
 // dependency (~720KB) so it ships in its own chunk that the browser fetches
@@ -23,7 +94,7 @@ function HeroMeshPlaceholder() {
       className="absolute inset-0"
       style={{
         background:
-          'radial-gradient(circle at 75% 50%, oklch(0.18 0.08 280 / 0.45) 0%, oklch(0.04 0.005 270) 70%)',
+          'radial-gradient(circle at 75% 50%, oklch(0.18 0.09 249 / 0.45) 0%, oklch(0.04 0.005 270) 70%)',
       }}
     />
   );
@@ -67,6 +138,7 @@ export default function HeroIsland() {
   const rootRef = useRef<HTMLElement>(null);
   const orbRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const meshLayerRef = useRef<HTMLDivElement>(null);
   const [meshReady, setMeshReady] = useState(false);
 
   useEffect(() => {
@@ -82,6 +154,7 @@ export default function HeroIsland() {
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let parallax: gsap.core.Tween | null = null;
+    let meshParallax: gsap.core.Tween | null = null;
     let entrance: gsap.core.Timeline | null = null;
 
     if (!reduced && contentRef.current) {
@@ -114,19 +187,40 @@ export default function HeroIsland() {
         entrance.to(svgPath, { strokeDashoffset: 0, duration: 0.8, ease: 'expo.out' }, 1.9);
       }
 
-      // Scroll parallax
+      // Scroll parallax. Text (foreground) translates up ~25% of its own
+      // height. Planet layer (background) translates only ~8% in the same
+      // direction and scales up slightly — that delta is what creates the
+      // depth illusion. Using yPercent so the effect is consistent across
+      // viewport sizes. Both tweens share one ScrollTrigger to stay locked.
       if (rootRef.current) {
         parallax = gsap.to(contentRef.current, {
-          y: -80,
+          yPercent: -70,
           opacity: 0,
           ease: 'none',
           scrollTrigger: {
             trigger: rootRef.current,
             start: 'top top',
             end: 'bottom top',
-            scrub: 0.6,
+            scrub: 0.2,
           },
         });
+
+        if (meshLayerRef.current) {
+          // Planet drifts DOWN slightly while zooming in — opposite direction
+          // to the text creates the strongest depth feel ("camera diving").
+          meshParallax = gsap.to(meshLayerRef.current, {
+            yPercent: 10,
+            scale: 1.2,
+            opacity: 0.4,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: rootRef.current,
+              start: 'top top',
+              end: 'bottom top',
+              scrub: 0.2,
+            },
+          });
+        }
       }
     }
 
@@ -134,6 +228,8 @@ export default function HeroIsland() {
       cancelAnimationFrame(meshFrame);
       parallax?.scrollTrigger?.kill();
       parallax?.kill();
+      meshParallax?.scrollTrigger?.kill();
+      meshParallax?.kill();
       entrance?.kill();
       lenis?.destroy();
       fade?.kill();
@@ -146,15 +242,22 @@ export default function HeroIsland() {
       ref={rootRef}
       className="relative flex min-h-[calc(100svh_-_var(--header-height))] items-center overflow-hidden"
     >
-      {/* CSS placeholder stays as a layer behind the WebGL canvas so the LCP
-          candidate is stable across the upgrade. The canvas crossfades over
-          it via HeroMeshFadeIn once the lazy chunk arrives — no pop-in. */}
-      <HeroMeshPlaceholder />
-      {meshReady && (
-        <Suspense fallback={null}>
-          <HeroMeshFadeIn />
-        </Suspense>
-      )}
+      {/* Mesh layer — wraps placeholder + lazy WebGL canvas. The wrapper
+          gets a slow scroll parallax (y / scale / opacity) so the planet
+          drifts behind the text as the user scrolls. Placeholder stays as
+          the LCP candidate; HeroMeshFadeIn crossfades the canvas over it. */}
+      <div
+        ref={meshLayerRef}
+        className="absolute inset-0 will-change-transform"
+        style={{ transformOrigin: 'center center' }}
+      >
+        <HeroMeshPlaceholder />
+        {meshReady && (
+          <Suspense fallback={null}>
+            <HeroMeshFadeIn />
+          </Suspense>
+        )}
+      </div>
 
       {/* Readability scrim — absolute pixel stops so the dark zone always
           covers the text reading area regardless of viewport width.
@@ -183,6 +286,20 @@ export default function HeroIsland() {
           mixBlendMode: 'screen',
         }}
       />
+
+      {/* Social icons — desktop right edge (vertical strip, HUD-coherent) */}
+      <nav
+        aria-label="Social links"
+        className="pointer-events-auto absolute right-6 top-1/2 hidden -translate-y-1/2 flex-col gap-3 md:flex"
+        style={{ zIndex: 'var(--z-content)' as string }}
+      >
+        <SocialIconButton href={AUTHOR_GITHUB} label="GitHub">
+          <GitHubIcon />
+        </SocialIconButton>
+        <SocialIconButton href={AUTHOR_LINKEDIN} label="LinkedIn">
+          <LinkedInIcon />
+        </SocialIconButton>
+      </nav>
 
       {/* SVG noise overlay */}
       <svg
@@ -277,7 +394,7 @@ export default function HeroIsland() {
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--text-base)',
-                color: 'oklch(0.82 0.13 280)',
+                color: 'var(--color-accent-hover)',
                 letterSpacing: '0.05em',
                 margin: 0,
                 textShadow:
@@ -303,8 +420,8 @@ export default function HeroIsland() {
                 '0 0 6px oklch(0.04 0 0 / 0.95), 0 1px 14px oklch(0.04 0 0 / 0.95), 0 0 32px oklch(0.04 0 0 / 0.75)',
             }}
           >
-            You're in. I build software that doesn't fight you. SaaS, telecom, e-commerce,
-            education.
+            You're in. I build software that doesn't fight you — from interface to insight. SaaS,
+            telecom, e-commerce, education, and more.
           </p>
 
           {/* CTAs */}
@@ -331,7 +448,7 @@ export default function HeroIsland() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.filter = 'brightness(1.08)';
-                  e.currentTarget.style.boxShadow = '0 8px 32px -8px oklch(0.74 0.16 280 / 0.45)';
+                  e.currentTarget.style.boxShadow = '0 8px 32px -8px var(--color-accent-muted)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.filter = 'brightness(1)';
@@ -406,6 +523,16 @@ export default function HeroIsland() {
             </a>{' '}
             — web monitoring SaaS with AI insights.
           </div>
+
+          {/* Social icons — mobile only, below now-line */}
+          <nav data-hero-reveal aria-label="Social links" className="mt-4 flex gap-3 md:hidden">
+            <SocialIconButton href={AUTHOR_GITHUB} label="GitHub">
+              <GitHubIcon />
+            </SocialIconButton>
+            <SocialIconButton href={AUTHOR_LINKEDIN} label="LinkedIn">
+              <LinkedInIcon />
+            </SocialIconButton>
+          </nav>
         </div>
       </div>
     </section>
