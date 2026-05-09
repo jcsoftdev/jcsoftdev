@@ -13,16 +13,10 @@ COPY packages/db ./packages/db
 COPY packages/mdx-runtime ./packages/mdx-runtime
 COPY apps/api ./apps/api
 
-# Stage 2: Build with Bun (compile to binary)
-FROM oven/bun:1-alpine AS build
+# Stage 2: Runtime with Bun
+FROM oven/bun:1-alpine AS runtime
 WORKDIR /repo
 COPY --from=deps /repo /repo
 WORKDIR /repo/apps/api
-RUN bun build --compile --minify ./src/index.ts --outfile /api-bin
-
-# Stage 3: Minimal runtime
-FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=build /api-bin /api
 EXPOSE 3000
-CMD ["/api"]
+CMD ["bun", "run", "src/index.ts"]
