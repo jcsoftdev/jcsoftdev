@@ -1,12 +1,59 @@
 import { createCursorOrbTimeline, createHeroFadeTimeline, initLenis } from '@jcsoftdev/animations';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useEffect, useRef } from 'react';
-import HeroMesh from './islands/HeroMesh';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
 
+// Code-split Three.js out of the initial bundle. HeroMesh is the heaviest
+// dependency (~720KB) so it ships in its own chunk that the browser fetches
+// in parallel with the rest of the page. The H1 (LCP candidate) is plain
+// SSR HTML so it paints at FCP regardless of when this chunk arrives.
+const HeroMesh = lazy(() => import('./islands/HeroMesh'));
+
 gsap.registerPlugin(ScrollTrigger);
+
+/** Static gradient that matches the steady-state HeroMesh look. Renders
+ * during the idle window before the mesh chunk loads, preventing layout
+ * shift and giving the eye something to land on while WebGL boots. */
+function HeroMeshPlaceholder() {
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0"
+      style={{
+        background:
+          'radial-gradient(circle at 75% 50%, oklch(0.18 0.08 280 / 0.45) 0%, oklch(0.04 0.005 270) 70%)',
+      }}
+    />
+  );
+}
+
+/** Fades the WebGL canvas in once the lazy chunk has loaded and React has
+ * mounted HeroMesh. Suspending parents block this component's render until
+ * the chunk resolves, so the rAF here fires AFTER the canvas exists in DOM
+ * — no pop-in, the canvas crossfades over the placeholder gradient. */
+function HeroMeshFadeIn() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 900ms cubic-bezier(0.16, 1, 0.3, 1)',
+        willChange: 'opacity',
+      }}
+    >
+      <HeroMesh />
+    </div>
+  );
+}
 
 /**
  * HeroIsland — full-viewport hero for the home page (/).
@@ -20,8 +67,15 @@ export default function HeroIsland() {
   const rootRef = useRef<HTMLElement>(null);
   const orbRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [meshReady, setMeshReady] = useState(false);
 
   useEffect(() => {
+    // Mount the WebGL chunk ASAP after hydration. The placeholder gradient
+    // stays visible behind, the lazy chunk fetches in parallel, and
+    // HeroMeshFadeIn crossfades the canvas in once it's actually rendered.
+    // No artificial delays, no pop-in.
+    const meshFrame = requestAnimationFrame(() => setMeshReady(true));
+
     const lenis = initLenis({ withScrollTriggerBridge: true });
     const fade = rootRef.current ? createHeroFadeTimeline(rootRef.current) : null;
     const orb = orbRef.current ? createCursorOrbTimeline(orbRef.current) : null;
@@ -77,6 +131,7 @@ export default function HeroIsland() {
     }
 
     return () => {
+      cancelAnimationFrame(meshFrame);
       parallax?.scrollTrigger?.kill();
       parallax?.kill();
       entrance?.kill();
@@ -91,7 +146,29 @@ export default function HeroIsland() {
       ref={rootRef}
       className="relative flex min-h-[calc(100svh_-_var(--header-height))] items-center overflow-hidden"
     >
-      <HeroMesh />
+      {/* CSS placeholder stays as a layer behind the WebGL canvas so the LCP
+          candidate is stable across the upgrade. The canvas crossfades over
+          it via HeroMeshFadeIn once the lazy chunk arrives — no pop-in. */}
+      <HeroMeshPlaceholder />
+      {meshReady && (
+        <Suspense fallback={null}>
+          <HeroMeshFadeIn />
+        </Suspense>
+      )}
+
+      {/* Readability scrim — absolute pixel stops so the dark zone always
+          covers the text reading area regardless of viewport width.
+          No backdrop-filter: that would blur the planet on the transparent
+          side too (filter applies to the box, not modulated by alpha). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(to right, oklch(0.04 0.005 270 / 0.96) 0px, oklch(0.04 0.005 270 / 0.92) min(460px, 38vw), oklch(0.04 0.005 270 / 0.65) min(720px, 58vw), oklch(0.04 0.005 270 / 0.30) min(980px, 76vw), oklch(0.04 0.005 270 / 0.10) min(1200px, 92vw), transparent min(1400px, 100vw))',
+          zIndex: 1,
+        }}
+      />
 
       {/* Cursor-tracked highlight orb */}
       <div
@@ -128,10 +205,10 @@ export default function HeroIsland() {
       {/* Copy */}
       <div
         ref={contentRef}
-        className="relative mx-auto w-full max-w-[1280px] px-6 lg:px-12 will-change-transform"
+        className="relative mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 will-change-transform"
         style={{ zIndex: 'var(--z-content)' as string }}
       >
-        <div className="flex max-w-[68ch] flex-col items-start gap-6">
+        <div className="flex max-w-[68ch] flex-col items-start gap-4 md:gap-6">
           {/* Eyebrow */}
           <div
             data-hero-reveal
@@ -139,9 +216,11 @@ export default function HeroIsland() {
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--text-xs)',
-              color: 'var(--color-text-muted)',
+              color: 'oklch(0.88 0.01 270)',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
+              textShadow:
+                '0 0 4px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.9), 0 0 22px oklch(0.04 0 0 / 0.65)',
             }}
           >
             <span
@@ -155,7 +234,7 @@ export default function HeroIsland() {
                 boxShadow: '0 0 8px var(--color-accent)',
               }}
             />
-            Available worldwide · Based in Lima, Peru
+            Bienvenido · Welcome · Available worldwide
           </div>
 
           {/* Signature name — real handwriting, drawn with GSAP */}
@@ -198,9 +277,11 @@ export default function HeroIsland() {
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--text-base)',
-                color: 'var(--color-accent)',
+                color: 'oklch(0.82 0.13 280)',
                 letterSpacing: '0.05em',
                 margin: 0,
+                textShadow:
+                  '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 12px oklch(0.04 0 0 / 0.92), 0 0 28px oklch(0.04 0 0 / 0.7)',
               }}
             >
               Senior Full-Stack Developer
@@ -214,14 +295,16 @@ export default function HeroIsland() {
               fontFamily: 'var(--font-sans)',
               fontSize: 'clamp(1.125rem, 1.6vw, 1.5rem)',
               fontStyle: 'italic',
-              color: 'var(--color-text-secondary)',
+              color: 'oklch(0.96 0.005 270)',
               maxWidth: '42ch',
               lineHeight: '1.45',
               margin: 0,
+              textShadow:
+                '0 0 6px oklch(0.04 0 0 / 0.95), 0 1px 14px oklch(0.04 0 0 / 0.95), 0 0 32px oklch(0.04 0 0 / 0.75)',
             }}
           >
-            Building clean, fast, purposeful software — across SaaS, telecom, e-commerce, and
-            government, from Lima to global teams.
+            You're in. I build software that doesn't fight you. SaaS, telecom, e-commerce,
+            education.
           </p>
 
           {/* CTAs */}
@@ -271,17 +354,19 @@ export default function HeroIsland() {
                 fontFamily: 'var(--font-mono)',
                 fontWeight: 500,
                 fontSize: 'var(--text-xs)',
-                color: 'var(--color-text-muted)',
+                color: 'oklch(0.92 0.01 270)',
                 textDecoration: 'none',
                 letterSpacing: '0.05em',
                 textTransform: 'uppercase',
+                textShadow:
+                  '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.92), 0 0 22px oklch(0.04 0 0 / 0.7)',
                 transition: 'color var(--duration-fast)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--color-text-primary)';
+                e.currentTarget.style.color = 'oklch(0.98 0 0)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--color-text-muted)';
+                e.currentTarget.style.color = 'oklch(0.88 0.01 270)';
               }}
             >
               Or read the writing
@@ -292,26 +377,29 @@ export default function HeroIsland() {
           {/* Now-line */}
           <div
             data-hero-reveal
-            className="mt-8 border-t pt-6"
+            className="mt-6 md:mt-8 border-t pt-5 md:pt-6"
             style={{
-              borderColor: 'var(--color-border-soft)',
+              borderColor: 'oklch(0.50 0.02 270 / 0.4)',
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--text-xs)',
-              color: 'var(--color-text-muted)',
+              color: 'oklch(0.92 0.01 270)',
               letterSpacing: '0.04em',
               lineHeight: '1.6',
+              textShadow:
+                '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.92), 0 0 22px oklch(0.04 0 0 / 0.7)',
             }}
           >
-            <span style={{ color: 'var(--color-text-secondary)' }}>Now</span> building{' '}
+            <span style={{ color: 'oklch(0.96 0 0)' }}>Now</span> building{' '}
             <a
               href="https://pulzifi.com"
               rel="noopener noreferrer"
               target="_blank"
               style={{
-                color: 'var(--color-text-primary)',
+                color: 'oklch(0.98 0 0)',
                 textDecoration: 'underline',
                 textDecorationColor: 'var(--color-accent-muted)',
                 textUnderlineOffset: '3px',
+                fontWeight: 600,
               }}
             >
               Pulzifi

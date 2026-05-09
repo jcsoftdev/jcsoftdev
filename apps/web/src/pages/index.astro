@@ -447,12 +447,7 @@ try {
 </script>
 
 <script>
-  import gsap from "gsap";
-  import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-  gsap.registerPlugin(ScrollTrigger);
-
-  // Scroll progress bar
+  // Scroll progress bar — pure scroll math, no animation library needed.
   const bar = document.getElementById("scroll-progress");
   if (bar) {
     const onScroll = () => {
@@ -465,51 +460,42 @@ try {
     onScroll();
   }
 
-  // GSAP reveal — every [data-reveal-item] inside a [data-reveal] section
-  // staggers in with fade + lift + blur on viewport entry.
+  // Reveal animations — IntersectionObserver + CSS transitions.
+  // Replaces GSAP + ScrollTrigger (~115KB) with a 30-line zero-dep impl
+  // that produces the same fade + lift + blur with stagger via CSS delay.
+  let activeObserver: IntersectionObserver | null = null;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const initReveals = () => {
-    ScrollTrigger.getAll().forEach((t) => t.kill());
+    activeObserver?.disconnect();
+    if (reduced) {
+      // CSS media query handles the no-animation state.
+      return;
+    }
 
     const sections = document.querySelectorAll<HTMLElement>("[data-reveal]");
-    sections.forEach((section) => {
-      const items = Array.from(
-        section.querySelectorAll<HTMLElement>("[data-reveal-item]"),
-      );
-      if (items.length === 0) {
-        // No marked items → animate the section itself
-        if (reduced) {
-          gsap.set(section, { opacity: 1, y: 0, filter: "blur(0px)" });
-          return;
+    activeObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const section = entry.target as HTMLElement;
+          const items =
+            section.querySelectorAll<HTMLElement>("[data-reveal-item]");
+          if (items.length === 0) {
+            section.classList.add("is-revealed");
+          } else {
+            items.forEach((item, i) => {
+              item.style.setProperty("--reveal-delay", `${i * 70}ms`);
+              item.classList.add("is-revealed");
+            });
+          }
+          activeObserver?.unobserve(section);
         }
-        gsap.set(section, { opacity: 0, y: 24, filter: "blur(8px)" });
-        gsap.to(section, {
-          opacity: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.9,
-          ease: "expo.out",
-          scrollTrigger: { trigger: section, start: "top 85%", once: true },
-        });
-        return;
-      }
-      if (reduced) {
-        gsap.set(items, { opacity: 1, y: 0, filter: "blur(0px)" });
-        return;
-      }
-      gsap.set(items, { opacity: 0, y: 32, filter: "blur(8px)" });
-      gsap.to(items, {
-        opacity: 1,
-        y: 0,
-        filter: "blur(0px)",
-        duration: 0.85,
-        ease: "expo.out",
-        stagger: 0.07,
-        scrollTrigger: { trigger: section, start: "top 80%", once: true },
-      });
-    });
-    ScrollTrigger.refresh();
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" },
+    );
+
+    for (const section of sections) activeObserver.observe(section);
   };
 
   initReveals();
@@ -517,13 +503,47 @@ try {
 </script>
 
 <style is:global>
-  /* Items start hidden when JS is available so first paint is correct. */
+  /* Reveal items: hidden until intersection, then transition in.
+     Mirrors the previous GSAP timeline (expo.out ≈ cubic-bezier(0.16, 1, 0.3, 1),
+     duration 0.85s, stagger via inline --reveal-delay). */
   html.js [data-reveal-item] {
     opacity: 0;
+    transform: translateY(32px);
+    filter: blur(8px);
+    transition:
+      opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.85s cubic-bezier(0.16, 1, 0.3, 1),
+      filter 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform, filter;
+  }
+  html.js [data-reveal-item].is-revealed {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  /* Section-level fallback for [data-reveal] blocks with no marked items. */
+  html.js [data-reveal]:not(:has([data-reveal-item])) {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(8px);
+    transition:
+      opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+      filter 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  html.js [data-reveal]:not(:has([data-reveal-item])).is-revealed {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
   }
   @media (prefers-reduced-motion: reduce) {
-    html.js [data-reveal-item] {
+    html.js [data-reveal-item],
+    html.js [data-reveal]:not(:has([data-reveal-item])) {
       opacity: 1;
+      transform: none;
+      filter: none;
+      transition: none;
     }
   }
 </style>

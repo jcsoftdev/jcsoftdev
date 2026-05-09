@@ -16,7 +16,6 @@
   "dependencies": {
     "@astrojs/node": "^9.1.3",
     "@astrojs/react": "^4.2.1",
-    "@astrojs/sitemap": "^3.7.2",
     "@jcsoftdev/animations": "workspace:*",
     "@jcsoftdev/types": "workspace:*",
     "@jcsoftdev/ui": "workspace:*",
