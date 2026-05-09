@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.astro/
+.output/
+
+# Turborepo
+.turbo/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local dev overrides
+*.local
+
+# Cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# pnpm
+pnpm-debug.log
+
+# Playwright MCP ephemeral artifacts
+.playwright-mcp/
+
+# Local scratch / design refs at repo root
+/*.png

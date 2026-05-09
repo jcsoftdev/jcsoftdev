@@ -1,0 +1,12 @@
+node_modules/
+.turbo/
+dist/
+.astro/
+.output/
+.git/
+.cache/
+*.env
+.env*
+!.env.example
+pnpm-debug.log
+*.local

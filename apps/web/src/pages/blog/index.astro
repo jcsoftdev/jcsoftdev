@@ -1,0 +1,169 @@
+---
+/**
+ * Blog index page — Phase 7.1
+ *
+ * SSR (output: 'server' is the default for this project — astro.config.ts).
+ * Renders a cursor-paginated list of published posts fetched from the API.
+ * Styled with DSI design system components.
+ *
+ * Route: /blog
+ * Query params: ?cursor=<opaque>&limit=<number>
+ *
+ * API: GET /api/v1/public/blog
+ * Client: blog-fetch helpers (fetchBlogPosts, parseCursorFromUrl)
+ * No auth — public route.
+ */
+import RootLayout from "../../layouts/RootLayout.astro";
+import Card from "../../components/ui/Card.astro";
+import Container from "../../components/ui/Container.astro";
+import ErrorCard from "../../components/ui/ErrorCard.astro";
+import Heading from "../../components/ui/Heading.astro";
+import Mono from "../../components/ui/Mono.astro";
+import Section from "../../components/ui/Section.astro";
+import SectionHeader from "../../components/ui/SectionHeader.astro";
+import Text from "../../components/ui/Text.astro";
+import { fetchBlogPosts, parseCursorFromUrl } from "../../lib/blog-fetch";
+
+// SSR — no prerender
+export const prerender = false;
+
+// Parse query params from the incoming request URL
+const url = new URL(Astro.request.url);
+const cursor = parseCursorFromUrl(url);
+const rawLimit = url.searchParams.get("limit");
+const limit = rawLimit
+  ? Math.min(Math.max(parseInt(rawLimit, 10) || 10, 1), 50)
+  : 10;
+
+// Fetch posts from API
+let items: Awaited<ReturnType<typeof fetchBlogPosts>>["items"] = [];
+let nextCursor: string | null = null;
+let fetchError: string | null = null;
+
+try {
+  const result = await fetchBlogPosts({ cursor, limit });
+  items = result.items;
+  nextCursor = result.nextCursor;
+} catch (err) {
+  fetchError = err instanceof Error ? err.message : "Failed to load posts";
+}
+
+// Build pagination URLs
+const prevUrl = cursor ? `/blog` : null; // No true "prev" with cursor pagination — only "home"
+const nextUrl = nextCursor
+  ? `/blog?cursor=${encodeURIComponent(nextCursor)}&limit=${limit}`
+  : null;
+---
+
+<RootLayout
+  title="Blog — jcsoftdev"
+  description="Engineering articles, tutorials, and portfolio posts by jcsoftdev"
+>
+  <main>
+    <Container>
+      <Section>
+        <SectionHeader
+          slot="header"
+          number="01"
+          eyebrow="Writing"
+          title="Writing"
+        />
+
+        {
+          fetchError ? (
+            <div style="margin-top: var(--spacing-8);">
+              <ErrorCard
+                title="Error loading posts"
+                message={fetchError}
+                retryHint="Try refreshing the page"
+                retryHref="/blog"
+              />
+            </div>
+          ) : items.length === 0 ? (
+            <div style="margin-top: var(--spacing-8);">
+              <ErrorCard
+                title="No posts yet"
+                message="Check back soon — articles are on the way."
+                retryHint="Return to home"
+                retryHref="/"
+              />
+            </div>
+          ) : (
+            <ul
+              role="list"
+              style="margin-top: var(--spacing-12); display: flex; flex-direction: column; gap: var(--spacing-6); list-style: none; padding: 0; margin-left: 0;"
+            >
+              {items.map((post) => (
+                <li>
+                  <Card hover>
+                    <article style="display: flex; flex-direction: column; gap: var(--spacing-3);">
+                      <Heading level={2} variant="h3">
+                        <a
+                          href={`/blog/${post.slug}`}
+                          style="color: inherit; text-decoration: none;"
+                        >
+                          {post.title}
+                        </a>
+                      </Heading>
+
+                      {post.excerpt && (
+                        <Text variant="muted">{post.excerpt}</Text>
+                      )}
+
+                      {post.publishedAt && (
+                        <Mono accent>
+                          <time datetime={post.publishedAt}>
+                            {new Date(post.publishedAt).toLocaleDateString(
+                              "en-US",
+                              {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              },
+                            )}
+                          </time>
+                        </Mono>
+                      )}
+                    </article>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+
+        {/* Pagination controls */}
+        {
+          (prevUrl || nextUrl) && (
+            <nav
+              style="margin-top: var(--spacing-10); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--color-border-soft); padding-top: var(--spacing-8);"
+              aria-label="Blog pagination"
+            >
+              {prevUrl ? (
+                <a
+                  href={prevUrl}
+                  style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
+                >
+                  &larr; <span>Previous</span>
+                </a>
+              ) : (
+                <span />
+              )}
+
+              {nextUrl ? (
+                <a
+                  href={nextUrl}
+                  style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
+                >
+                  <span>Next</span> &rarr;
+                </a>
+              ) : (
+                <span />
+              )}
+            </nav>
+          )
+        }
+      </Section>
+    </Container>
+  </main>
+</RootLayout>

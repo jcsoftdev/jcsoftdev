@@ -1,0 +1,36 @@
+{
+  "name": "jcsoftdev",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
+  "scripts": {
+    "dev": "docker compose up -d && pnpm turbo run dev",
+    "dev:services": "docker compose up -d",
+    "dev:apps": "pnpm turbo run dev",
+    "dev:stop": "docker compose down",
+    "build": "pnpm turbo run build",
+    "lint": "pnpm turbo run lint",
+    "typecheck": "pnpm turbo run typecheck",
+    "test": "pnpm turbo run test",
+    "format:astro": "prettier --write '**/*.astro'",
+    "format:astro:check": "prettier --check '**/*.astro'"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.14",
+    "@playwright/test": "^1.59.1",
+    "lefthook": "^2.1.6",
+    "prettier": "^3.8.3",
+    "prettier-plugin-astro": "^0.14.1",
+    "turbo": "^2.5.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "drizzle-orm": "^0.45.2",
+      "react": "^19.2.6",
+      "react-dom": "^19.2.6",
+      "uuid": "^11.1.0",
+      "glob": "^11.0.3"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@jcsoftdev/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "iovalkey": "^0.2.0",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@jcsoftdev/config": "workspace:*",
+    "@testcontainers/postgresql": "^11.14.0",
+    "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.10",
+    "testcontainers": "^11.14.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.5"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "lint": "biome check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file=../../.env src/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "seed": "tsx --env-file=../../.env src/seeds/index.ts",
+    "seed:reset": "tsx --env-file=../../.env src/seeds/reset.ts"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "@jcsoftdev/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@jcsoftdev/types": "workspace:*",
+    "@jcsoftdev/ui": "workspace:*",
+    "@tanstack/react-form": "^1.29.1",
+    "@tanstack/react-query": "^5.100.9",
+    "@tanstack/react-router": "^1.117.0",
+    "@tanstack/react-router-with-query": "^1.130.17",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/router-vite-plugin": "^1.117.0",
+    "better-auth": "^1.6.9",
+    "dompurify": "^3.2.6",
+    "hono": "^4.7.11",
+    "marked": "^15.0.12",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.1.7"
+  },
+  "devDependencies": {
+    "@jcsoftdev/config": "workspace:*",
+    "@tailwindcss/vite": "^4.1.7",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.3",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.5"
+  }
+}

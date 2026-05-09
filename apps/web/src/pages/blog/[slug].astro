@@ -1,0 +1,269 @@
+---
+/**
+ * Blog post page — Phase 7.2
+ *
+ * SSR — renders a single published post fetched by slug from the API.
+ * The API returns pre-compiled MDX HTML (cached in Valkey by the public-blog route).
+ * This page is a thin presentation layer: it receives HTML and renders it.
+ * Styled with DSI design system components.
+ *
+ * Route: /blog/[slug]
+ *
+ * API: GET /api/v1/public/blog/:slug → { post, html }
+ *   - Returns 404 for unknown slugs
+ *   - Returns 404 for draft / archived posts (not visible publicly)
+ *
+ * Hero image strategy (Phase 7 resolution):
+ *   The API currently returns `heroMediaId` (UUID) not a signed URL.
+ *   Signed GET URL generation is deferred to a future API update.
+ *   Hero image is only rendered when a URL is present in the response.
+ *
+ * SEO: basic <title> from post title + <meta name="description"> from excerpt.
+ * Full OG/SEO meta is deferred to the `seo` change.
+ *
+ * Reading column: max-w-[65ch] for optimal line length per REQ-BLOG-3.
+ * Prose: h1/h2/h3 use Geist Sans display; body uses Geist Sans; code/pre uses Geist Mono.
+ * Code blocks bleed wider via not-prose negative-margin trick.
+ */
+import RootLayout from "../../layouts/RootLayout.astro";
+import Container from "../../components/ui/Container.astro";
+import Heading from "../../components/ui/Heading.astro";
+import Mono from "../../components/ui/Mono.astro";
+import { buildHeroImageUrl, fetchBlogPost } from "../../lib/blog-fetch";
+
+// SSR — no prerender
+export const prerender = false;
+
+const { slug } = Astro.params;
+
+// fetchBlogPost returns null for 404 (not found or draft)
+const result = await fetchBlogPost(slug!);
+
+if (!result) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+const { post, html } = result;
+
+// Hero image URL — provided directly by the API when heroMediaId is set.
+// The API constructs: ${MINIO_PUBLIC_URL}/${bucket}/${objectKey}
+const heroImageUrl = buildHeroImageUrl(post.heroImageUrl);
+
+const pageTitle = `${post.title} — jcsoftdev`;
+const pageDescription = post.excerpt ?? `Read "${post.title}" on jcsoftdev`;
+---
+
+<RootLayout title={pageTitle} description={pageDescription}>
+  <main>
+    <Container>
+      <div
+        style="max-width: 65ch; margin-inline: auto; padding-block: var(--section-y);"
+      >
+        <article>
+          {/* Post header */}
+          <header style="margin-bottom: var(--spacing-10);">
+            <a
+              href="/blog"
+              style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2); margin-bottom: var(--spacing-6);"
+            >
+              &larr; <span>Back to Writing</span>
+            </a>
+
+            <Heading level={1} variant="display">
+              {post.title}
+            </Heading>
+
+            {
+              post.publishedAt && (
+                <p style="margin-top: var(--spacing-4);">
+                  <Mono accent>
+                    <time datetime={post.publishedAt}>
+                      Published{" "}
+                      {new Date(post.publishedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </time>
+                  </Mono>
+                </p>
+              )
+            }
+
+            {/* Hero image — only rendered when a URL is available */}
+            {
+              heroImageUrl && (
+                <img
+                  src={heroImageUrl}
+                  alt={post.title}
+                  style="margin-top: var(--spacing-8); width: 100%; border-radius: var(--radius-md); object-fit: cover;"
+                  loading="lazy"
+                  decoding="async"
+                />
+              )
+            }
+          </header>
+
+          <hr
+            style="border: none; border-top: 1px solid var(--color-border-soft); margin-bottom: var(--spacing-10);"
+          />
+
+          {/* Compiled MDX HTML from API — set:html injects safely */}
+          {
+            /* Sanitized server-side per ADR-14 — no client-side DOMPurify needed */
+          }
+          <div
+            class="post-prose"
+            style={`
+              color: var(--color-text-primary);
+              font-family: var(--font-sans);
+              font-size: var(--text-base);
+              line-height: var(--leading-relaxed);
+            `}
+            set:html={html}
+          />
+
+          <hr
+            style="border: none; border-top: 1px solid var(--color-border-soft); margin-top: var(--spacing-10); margin-bottom: var(--spacing-8);"
+          />
+
+          <footer>
+            <a
+              href="/blog"
+              style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
+            >
+              &larr; <span>Back to Writing</span>
+            </a>
+          </footer>
+        </article>
+      </div>
+    </Container>
+  </main>
+</RootLayout>
+
+<style>
+  /* Prose styles for the post body — heading/body/code typography */
+  .post-prose :global(h1),
+  .post-prose :global(h2),
+  .post-prose :global(h3),
+  .post-prose :global(h4),
+  .post-prose :global(h5),
+  .post-prose :global(h6) {
+    font-family: var(--font-display);
+    color: var(--color-text-primary);
+    margin-top: var(--spacing-8);
+    margin-bottom: var(--spacing-4);
+    line-height: var(--leading-tight);
+  }
+
+  .post-prose :global(h1) {
+    font-size: var(--text-4xl);
+    letter-spacing: var(--tracking-tight);
+  }
+  .post-prose :global(h2) {
+    font-size: var(--text-3xl);
+    letter-spacing: var(--tracking-tight);
+  }
+  .post-prose :global(h3) {
+    font-size: var(--text-2xl);
+  }
+  .post-prose :global(h4) {
+    font-size: var(--text-xl);
+  }
+
+  .post-prose :global(p) {
+    margin-bottom: var(--spacing-6);
+    color: var(--color-text-secondary);
+  }
+
+  .post-prose :global(a) {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .post-prose :global(ul),
+  .post-prose :global(ol) {
+    margin-bottom: var(--spacing-6);
+    padding-left: var(--spacing-6);
+    color: var(--color-text-secondary);
+  }
+
+  .post-prose :global(li) {
+    margin-bottom: var(--spacing-2);
+  }
+
+  .post-prose :global(blockquote) {
+    border-left: 3px solid var(--color-accent-muted);
+    padding-left: var(--spacing-6);
+    margin: var(--spacing-8) 0;
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+
+  .post-prose :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0.1em 0.4em;
+    color: var(--color-accent);
+  }
+
+  /* Code blocks — bleed wider than the reading column */
+  .post-prose :global(pre) {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-6);
+    overflow-x: auto;
+    margin: var(--spacing-8) calc(-1 * var(--spacing-8));
+    line-height: var(--leading-relaxed);
+  }
+
+  .post-prose :global(pre code) {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-text-primary);
+    font-size: inherit;
+  }
+
+  .post-prose :global(hr) {
+    border: none;
+    border-top: 1px solid var(--color-border-soft);
+    margin: var(--spacing-10) 0;
+  }
+
+  .post-prose :global(img) {
+    max-width: 100%;
+    border-radius: var(--radius-md);
+    margin: var(--spacing-8) auto;
+    display: block;
+  }
+
+  .post-prose :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--spacing-6);
+    font-size: var(--text-sm);
+  }
+
+  .post-prose :global(th),
+  .post-prose :global(td) {
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-3) var(--spacing-4);
+    text-align: left;
+  }
+
+  .post-prose :global(th) {
+    background: var(--color-surface-elevated);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+</style>

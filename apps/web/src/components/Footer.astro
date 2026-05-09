@@ -1,0 +1,199 @@
+---
+import { isActive } from "../lib/active-link";
+
+const path = Astro.url.pathname;
+
+const navLinks = [
+  { label: "Work", href: "/#work" },
+  { label: "Experience", href: "/#experience" },
+  { label: "About", href: "/#about" },
+  { label: "Writing", href: "/blog" },
+] as const;
+
+const socialLinks = [
+  {
+    label: "GitHub",
+    handle: "/jcsoftdev",
+    href: "https://github.com/jcsoftdev",
+  },
+  {
+    label: "LinkedIn",
+    handle: "/in/jcsoftdev",
+    href: "https://linkedin.com/in/jcsoftdev",
+  },
+  {
+    label: "Email",
+    handle: "hello@jcsoftdev.com",
+    href: "mailto:hello@jcsoftdev.com",
+  },
+] as const;
+
+const year = new Date().getFullYear();
+---
+
+<footer
+  data-reveal
+  class="relative border-t border-[color:var(--color-border-soft)] bg-[color:var(--color-background)]"
+>
+  {/* Main grid */}
+  <div
+    class="mx-auto w-full max-w-[1280px] grid gap-10 px-6 py-14 lg:px-12 lg:grid-cols-12"
+  >
+    {/* Brand block — minimal; no duplication of hero/about copy */}
+    <div data-reveal-item class="lg:col-span-4 space-y-4">
+      <a href="/" class="inline-flex items-center gap-2.5 group">
+        <span
+          aria-hidden="true"
+          class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-accent)] transition-[box-shadow] duration-[var(--duration-base)] group-hover:[box-shadow:0_0_10px_var(--color-accent)]"
+        ></span>
+        <span
+          class="font-mono text-sm font-semibold text-[color:var(--color-text-primary)]"
+          >jcsoftdev</span
+        >
+        <span aria-hidden="true" class="text-[color:var(--color-text-muted)]"
+          >/</span
+        >
+        <span class="font-mono text-sm text-[color:var(--color-text-secondary)]"
+          >jc valencia</span
+        >
+      </a>
+      <p
+        class="max-w-[42ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)]"
+      >
+        Engineering blog and portfolio.
+      </p>
+    </div>
+
+    {/* Navigation */}
+    <nav data-reveal-item aria-label="Footer navigation" class="lg:col-span-3">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] mb-4"
+      >
+        / Navigate
+      </p>
+      <ul class="space-y-3">
+        {
+          navLinks.map(({ label, href }) => (
+            <li>
+              <a
+                href={href}
+                aria-current={isActive(path, href) ? "page" : undefined}
+                class="group inline-flex items-center gap-2 font-mono text-sm text-[color:var(--color-text-secondary)] transition-colors hover:text-[color:var(--color-text-primary)] aria-[current=page]:text-[color:var(--color-accent)]"
+              >
+                <span
+                  aria-hidden="true"
+                  class="text-[color:var(--color-text-muted)] transition-colors group-hover:text-[color:var(--color-accent)]"
+                >
+                  →
+                </span>
+                {label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    {/* Connect */}
+    <div data-reveal-item class="lg:col-span-3">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] mb-4"
+      >
+        / Connect
+      </p>
+      <ul class="space-y-3">
+        {
+          socialLinks.map(({ label, handle, href }) => (
+            <li>
+              <a
+                href={href}
+                target={href.startsWith("http") ? "_blank" : undefined}
+                rel={
+                  href.startsWith("http") ? "noopener noreferrer" : undefined
+                }
+                class="group flex flex-col font-mono text-sm transition-colors hover:text-[color:var(--color-text-primary)]"
+              >
+                <span class="flex items-center gap-2 text-[color:var(--color-text-muted)]">
+                  {label}
+                  <span
+                    aria-hidden="true"
+                    class="opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    ↗
+                  </span>
+                </span>
+                <span class="text-[color:var(--color-text-secondary)] transition-colors group-hover:text-[color:var(--color-accent)]">
+                  {handle}
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {/* Stack & uptime */}
+    <div data-reveal-item class="lg:col-span-2">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] mb-4"
+      >
+        / Built with
+      </p>
+      <ul
+        class="flex flex-wrap gap-1.5 font-mono text-[11px] text-[color:var(--color-text-muted)]"
+      >
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          Astro 5
+        </li>
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          Hono
+        </li>
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          Drizzle
+        </li>
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          React 19
+        </li>
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          Tailwind v4
+        </li>
+        <li
+          class="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-2 py-0.5"
+        >
+          GSAP
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  {/* Bottom rule + copyright */}
+  <div class="border-t border-[color:var(--color-border-soft)]">
+    <div
+      class="mx-auto flex w-full max-w-[1280px] flex-wrap items-center justify-between gap-4 px-6 py-6 lg:px-12"
+    >
+      <p class="font-mono text-xs text-[color:var(--color-text-muted)]">
+        © {year} Juan Carlos Valencia
+      </p>
+      <a
+        href="#top"
+        class="group inline-flex items-center gap-2 font-mono text-xs text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-accent)]"
+      >
+        Back to top
+        <span
+          aria-hidden="true"
+          class="transition-transform group-hover:-translate-y-0.5">↑</span
+        >
+      </a>
+    </div>
+  </div>
+</footer>

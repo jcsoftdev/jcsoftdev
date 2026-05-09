@@ -1,0 +1,36 @@
+---
+type Level = 1 | 2 | 3 | 4 | 5 | 6;
+type Variant = "display" | "h1" | "h2" | "h3";
+
+interface Props {
+  level?: Level;
+  as?: `h${Level}`;
+  variant?: Variant;
+  class?: string;
+}
+
+const variantStyles: Record<Variant, string> = {
+  display: `font-size: var(--text-7xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tighter); font-family: var(--font-display);`,
+  h1: `font-size: var(--text-5xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); font-family: var(--font-display);`,
+  h2: `font-size: var(--text-3xl); line-height: var(--leading-snug); letter-spacing: var(--tracking-tight); font-family: var(--font-display);`,
+  h3: `font-size: var(--text-2xl); line-height: var(--leading-snug); font-family: var(--font-display);`,
+};
+
+const {
+  level = 2,
+  as,
+  variant = "h2",
+  class: className,
+  ...rest
+}: Props = Astro.props;
+const Tag = as ?? (`h${level}` as const);
+const style = variantStyles[variant];
+---
+
+<Tag
+  class:list={["heading", `heading-${variant}`, className]}
+  style={style}
+  {...rest}
+>
+  <slot />
+</Tag>

@@ -1,0 +1,117 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "../styles/global.css";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+// Geist variable fonts are copied into apps/web/public/fonts/ at install time.
+// The `geist` npm package exports field blocks raw woff2 subpath access, so we
+// serve from /fonts/ instead. ADR-20 updated to reflect this.
+const geistSansUrl = "/fonts/geist-sans-variable.woff2";
+const geistMonoUrl = "/fonts/geist-mono-variable.woff2";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+}
+
+const {
+  title = "jcsoftdev",
+  description = "Personal portfolio and blog by jcsoftdev",
+  canonical,
+  ogTitle,
+  ogDescription,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+
+    {canonical && <link rel="canonical" href={canonical} />}
+    {ogTitle && <meta property="og:title" content={ogTitle} />}
+    {
+      ogDescription && (
+        <meta property="og:description" content={ogDescription} />
+      )
+    }
+
+    <!-- Geist font preloads — critical path, must be before ClientRouter -->
+    <link
+      rel="preload"
+      href={geistSansUrl}
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      href={geistMonoUrl}
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
+
+    <!-- Caveat — handwriting display font for the hero signature -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Geist @font-face via Vite-resolved URLs (guaranteed match with preloads above).
+         Using set:html to inject the URLs as string literals into the <style> block.
+         This is the canonical approach in Astro when @font-face src must match preload. -->
+    <style
+      set:html={`
+      @font-face {
+        font-family: 'Geist';
+        src: url('${geistSansUrl}') format('woff2-variations');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Geist Mono';
+        src: url('${geistMonoUrl}') format('woff2-variations');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+    `}
+    ></style>
+
+    <!-- View Transitions -->
+    <ClientRouter />
+
+    <!-- Speculation Rules: prerender all pages except /admin/* -->
+    <script is:inline type="speculationrules">
+      {
+        "prerender": [
+          {
+            "where": {
+              "and": [
+                { "href_matches": "/*" },
+                { "not": { "href_matches": "/admin/*" } }
+              ]
+            },
+            "eagerness": "moderate"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <Header />
+    <slot />
+    <Footer />
+  </body>
+</html>

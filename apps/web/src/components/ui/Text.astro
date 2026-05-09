@@ -1,0 +1,22 @@
+---
+type Variant = "body" | "lead" | "muted" | "eyebrow";
+
+interface Props {
+  variant?: Variant;
+  class?: string;
+}
+
+const variantStyles: Record<Variant, string> = {
+  body: `font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-text-secondary); font-family: var(--font-sans);`,
+  lead: `font-size: var(--text-lg); line-height: var(--leading-relaxed); color: var(--color-text-secondary); font-family: var(--font-sans);`,
+  muted: `font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--color-text-muted); font-family: var(--font-sans);`,
+  eyebrow: `font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--color-accent); font-family: var(--font-mono); letter-spacing: var(--tracking-wide); text-transform: uppercase;`,
+};
+
+const { variant = "body", class: className }: Props = Astro.props;
+const style = variantStyles[variant];
+---
+
+<p class:list={["text", `text-${variant}`, className]} style={style}>
+  <slot />
+</p>

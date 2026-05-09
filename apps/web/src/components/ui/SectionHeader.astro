@@ -1,0 +1,45 @@
+---
+interface Props {
+  number: string;
+  eyebrow?: string;
+  title: string;
+  class?: string;
+}
+
+const { number, eyebrow, title, class: className, ...rest } = Astro.props;
+
+// Zero-pad to 2 digits if numeric
+const formattedNumber = /^\d+$/.test(number) ? number.padStart(2, "0") : number;
+---
+
+<div
+  class:list={["section-header", className]}
+  style="display: flex; flex-direction: column; gap: var(--spacing-2); margin-bottom: var(--spacing-8);"
+  {...rest}
+>
+  {
+    eyebrow && (
+      <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); letter-spacing: var(--tracking-wide); text-transform: uppercase;">
+        {eyebrow}
+      </span>
+    )
+  }
+  <div style="display: flex; align-items: baseline; gap: var(--spacing-3);">
+    <span
+      style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); font-weight: 500;"
+    >
+      {formattedNumber}
+    </span>
+    <span
+      style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-muted);"
+    >
+      /
+    </span>
+    <h2
+      style="font-size: var(--text-3xl); line-height: var(--leading-snug); letter-spacing: var(--tracking-tight); font-family: var(--font-display); color: var(--color-text-primary);"
+    >
+      {title}
+    </h2>
+  </div>
+  <slot name="trailing" />
+</div>

@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+@source "../components/**/*.{ts,tsx,astro}";
+@source "../layouts/**/*.astro";
+@source "../pages/**/*.astro";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Geist @font-face declarations are injected by RootLayout.astro via
+   `?url` imports so that the font file hashes match the <link rel="preload">
+   tags exactly (required for browser preload reuse). See design §3 deviation.
+   ─────────────────────────────────────────────────────────────────────────────
+   Design Tokens — Tailwind v4 CSS-first @theme (ADR-19)
+   Single authoritative block. All values from design §2.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Color — OKLCH dark-only V1 */
+  --color-background: oklch(0.10 0 0);
+  --color-surface: oklch(0.13 0 0);
+  --color-surface-elevated: oklch(0.16 0 0);
+  --color-surface-overlay: oklch(0.20 0 0);
+  --color-border: oklch(0.22 0 0);
+  --color-border-soft: oklch(0.16 0 0);
+  --color-border-strong: oklch(0.30 0 0);
+  --color-text-primary: oklch(0.96 0 0);
+  --color-text-secondary: oklch(0.78 0 0);
+  --color-text-muted: oklch(0.58 0 0);
+  --color-text-faint: oklch(0.42 0 0);
+  --color-accent: oklch(0.74 0.16 280);
+  --color-accent-hover: oklch(0.80 0.17 280);
+  --color-accent-soft: oklch(0.74 0.16 280 / 0.15);
+  --color-accent-muted: oklch(0.74 0.16 280 / 0.50);
+  --color-accent-glow: oklch(0.74 0.16 280 / 0.35);
+  --color-success: oklch(0.74 0.15 155);
+  --color-danger: oklch(0.68 0.20 25);
+  --color-warning: oklch(0.82 0.16 85);
+
+  /* Fonts */
+  --font-display: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Type scale — fluid clamp(min, preferred, max) */
+  --text-xs: clamp(0.75rem, 0.72rem + 0.15vw, 0.8125rem);
+  --text-sm: clamp(0.875rem, 0.84rem + 0.18vw, 0.9375rem);
+  --text-base: clamp(1rem, 0.96rem + 0.20vw, 1.0625rem);
+  --text-lg: clamp(1.125rem, 1.07rem + 0.30vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.18rem + 0.40vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.39rem + 0.55vw, 1.875rem);
+  --text-3xl: clamp(1.875rem, 1.71rem + 0.85vw, 2.5rem);
+  --text-4xl: clamp(2.25rem, 1.99rem + 1.30vw, 3.25rem);
+  --text-5xl: clamp(3rem, 2.55rem + 2.25vw, 4.5rem);
+  --text-6xl: clamp(3.75rem, 3.10rem + 3.25vw, 6rem);
+  --text-7xl: clamp(4.5rem, 3.60rem + 4.50vw, 7.5rem);
+  --text-8xl: clamp(6rem, 4.60rem + 7.00vw, 10rem);
+  --text-9xl: clamp(8rem, 5.80rem + 11.0vw, 14rem);
+
+  /* Line-height + tracking helpers */
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-tight: -0.02em;
+  --tracking-tighter: -0.035em;
+  --tracking-wide: 0.01em;
+  --tracking-mono: -0.01em;
+
+  /* Spacing — rem-based, multiples of 0.25rem (4px) + semantic stops */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+  --spacing-24: 6rem;
+  --spacing-32: 8rem;
+  --spacing-40: 10rem;
+  --spacing-48: 12rem;
+  --spacing-64: 16rem;
+  --spacing-128: 32rem;
+  --section-y: clamp(5rem, 4rem + 5vw, 8rem);
+  --reading-column: 65ch;
+
+  /* Container */
+  --container-max: 1280px;
+  --container-px: clamp(1rem, 0.75rem + 1.25vw, 2rem);
+
+  /* Sticky header height — used to make hero sections fit (100svh - header). */
+  --header-height: 64px;
+
+  /* Radius */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Shadows — dark-mode-aware, low-alpha + inset highlight */
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.40);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.45), 0 1px 2px -1px oklch(0 0 0 / 0.40);
+  --shadow-md: 0 4px 6px -1px oklch(0 0 0 / 0.50), 0 2px 4px -2px oklch(0 0 0 / 0.45);
+  --shadow-lg: 0 10px 15px -3px oklch(0 0 0 / 0.55), 0 4px 6px -4px oklch(0 0 0 / 0.50);
+  --shadow-xl: 0 20px 25px -5px oklch(0 0 0 / 0.60), 0 8px 10px -6px oklch(0 0 0 / 0.55);
+  --shadow-inset-hi: inset 0 1px 0 0 oklch(1 0 0 / 0.06);
+  --shadow-card: var(--shadow-md), var(--shadow-inset-hi);
+  --shadow-card-hover: var(--shadow-lg), var(--shadow-inset-hi);
+  --shadow-glow-accent: 0 0 0 1px var(--color-accent-muted), 0 0 32px var(--color-accent-glow);
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 600ms;
+  --duration-slower: 1000ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Z-index */
+  --z-base: 0;
+  --z-orbs: 1;
+  --z-content: 10;
+  --z-header: 50;
+  --z-modal: 100;
+
+  /* Backdrop */
+  --backdrop-blur: 16px;
+  --backdrop-bg: oklch(0.10 0 0 / 0.65);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base layer — body defaults, selection, focus, scrollbar, fade-in (REQ-TOKEN-7)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  html {
+    scroll-behavior: auto; /* Lenis takes over on fine-pointer */
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    animation: dsi-body-fade-in 320ms var(--ease-out-expo) both;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-text-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-background);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+  }
+
+  @keyframes dsi-body-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body {
+      animation: none;
+    }
+  }
+
+  /* Phase 4 carryover — ambient orb drift (used by HeroIsland + PortfolioHeroIsland) */
+  @keyframes dsi-orb-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(2%, -3%, 0) scale(1.05);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    @keyframes dsi-orb-drift {
+      0%,
+      100% {
+        transform: none;
+      }
+    }
+  }
+}

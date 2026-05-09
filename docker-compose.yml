@@ -1,0 +1,156 @@
+---
+# jcsoftdev local development services
+# Usage: pnpm dev:services  (docker compose up -d)
+#        pnpm dev:stop      (docker compose down)
+#
+# Apps run via Turborepo (pnpm dev:apps) — not in compose.
+# Services here are stateful infrastructure only.
+
+name: jcsoftdev
+
+services:
+  # ── Postgres 17 ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_PORT:?POSTGRES_PORT is required}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+
+  # ── pgBouncer (transaction-mode connection pool) ─────────────────────────────
+  # Note: bitnami/pgbouncer:latest tag was removed from Docker Hub (2026-05).
+  # Using edoburu/pgbouncer which has identical functionality.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:?POSTGRES_DB is required}
+      DB_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: plain
+    ports:
+      - "${PGBOUNCER_PORT:?PGBOUNCER_PORT is required}:5432"   # edoburu/pgbouncer listens on :5432 internally
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ── Valkey 8 (Redis-compatible — Valkey replaces Redis; OSS fork by LF) ────
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: valkey-server --save 60 1 --appendonly yes
+    ports:
+      - "${VALKEY_PORT:?VALKEY_PORT is required}:6379"
+    volumes:
+      - valkey-data:/data
+    networks:
+      - backend
+
+  # ── MinIO (S3-compatible object storage) ────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    ports:
+      - "${MINIO_API_PORT:?MINIO_API_PORT is required}:9000"   # S3 API
+      - "${MINIO_CONSOLE_PORT:?MINIO_CONSOLE_PORT is required}:9001"   # Web console
+    volumes:
+      - minio-data:/data
+    networks:
+      - backend
+
+  # ── Plausible Analytics stack ────────────────────────────────────────────────
+  # Plausible requires its own Postgres + ClickHouse instances.
+
+  plausible-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PLAUSIBLE_DB_NAME:?PLAUSIBLE_DB_NAME is required}
+      POSTGRES_USER: ${PLAUSIBLE_DB_USER:?PLAUSIBLE_DB_USER is required}
+      POSTGRES_PASSWORD: ${PLAUSIBLE_DB_PASSWORD:?PLAUSIBLE_DB_PASSWORD is required}
+    volumes:
+      - plausible-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+
+  plausible-events-db:
+    image: clickhouse/clickhouse-server:latest
+    restart: unless-stopped
+    volumes:
+      - plausible-events-data:/var/lib/clickhouse
+      # Allow default user from any network for local dev (newer CH images restrict to localhost)
+      - ./infra/clickhouse/override.xml:/etc/clickhouse-server/users.d/override.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+
+  plausible:
+    image: ghcr.io/plausible/community-edition:latest
+    restart: unless-stopped
+    command: sh -c "sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
+    environment:
+      BASE_URL: "http://localhost:${PLAUSIBLE_PORT:?PLAUSIBLE_PORT is required}"
+      SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY_BASE:?PLAUSIBLE_SECRET_KEY_BASE is required}
+      DATABASE_URL: "postgres://${PLAUSIBLE_DB_USER:?PLAUSIBLE_DB_USER is required}:${PLAUSIBLE_DB_PASSWORD:?PLAUSIBLE_DB_PASSWORD is required}@plausible-db:5432/${PLAUSIBLE_DB_NAME:?PLAUSIBLE_DB_NAME is required}"
+      CLICKHOUSE_DATABASE_URL: "http://plausible-events-db:8123/plausible_events_db"
+    ports:
+      - "${PLAUSIBLE_PORT:?PLAUSIBLE_PORT is required}:8000"
+    depends_on:
+      plausible-db:
+        condition: service_healthy
+      plausible-events-db:
+        condition: service_healthy
+    networks:
+      - backend
+
+# ── Volumes ────────────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+  valkey-data:
+  minio-data:
+  plausible-db-data:
+  plausible-events-data:
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  backend:
+    driver: bridge

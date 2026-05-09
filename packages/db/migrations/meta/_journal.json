@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1778120284709,
+      "tag": "0000_boring_cloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778123332653,
+      "tag": "0001_sharp_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778164209607,
+      "tag": "0002_sharp_timeslip",
+      "breakpoints": true
+    }
+  ]
+}

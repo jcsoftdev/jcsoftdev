@@ -1,0 +1,512 @@
+---
+/**
+ * Home — single-page portfolio.
+ *
+ * All sections live here:
+ *   Hero → Selected Work (Immersive Gallery) → Experience → About → Contact
+ *
+ * /portfolio is removed; nav anchors deep-link to section IDs.
+ */
+import HeroIsland from "../components/HeroIsland.tsx";
+import ErrorCard from "../components/ui/ErrorCard.astro";
+import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
+import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
+import RootLayout from "../layouts/RootLayout.astro";
+import { fetchPortfolio } from "../lib/portfolio-fetch";
+
+export const prerender = false;
+
+const siteOrigin = Astro.site?.origin ?? Astro.url.origin;
+const canonicalUrl = `${siteOrigin}/`;
+
+const pageTitle = "Juan Carlos Valencia — Senior Full-Stack Developer";
+const pageDescription =
+  "9 years building scalable web apps end-to-end. Currently designing a multi-tenant SaaS in Go + Next.js 16. Available for new work.";
+
+let projects: Awaited<ReturnType<typeof fetchPortfolio>>["projects"] = [];
+let experiences: Awaited<ReturnType<typeof fetchPortfolio>>["experiences"] = [];
+let fetchError: string | null = null;
+
+try {
+  const result = await fetchPortfolio();
+  projects = result.projects;
+  experiences = result.experiences;
+} catch (err) {
+  fetchError = err instanceof Error ? err.message : "Failed to load portfolio";
+}
+---
+
+<RootLayout
+  title={pageTitle}
+  description={pageDescription}
+  canonical={canonicalUrl}
+  ogTitle={pageTitle}
+  ogDescription={pageDescription}
+>
+  <main>
+    {/* Scroll progress bar — fixed at top of viewport */}
+    <div
+      id="scroll-progress"
+      aria-hidden="true"
+      class="fixed left-0 top-0 z-[var(--z-header)] h-[2px] origin-left"
+      style="background: var(--color-accent); transform: scaleX(0); width: 100%; transition: transform 80ms linear;"
+    >
+    </div>
+
+    {/* ── Hero ───────────────────────────────────────────────────── */}
+    <HeroIsland client:load />
+
+    {
+      fetchError && (
+        <div class="mx-auto max-w-[1280px] px-6 py-12 lg:px-12">
+          <ErrorCard
+            title="Error loading data"
+            message={fetchError}
+            retryHint="Make sure the API is running. Then refresh."
+            retryHref="/"
+          />
+        </div>
+      )
+    }
+
+    {/* ── Selected Work (Immersive Gallery) ─────────────────────── */}
+    <section
+      id="work"
+      data-reveal
+      class="relative border-t border-[color:var(--color-border-soft)]"
+    >
+      <div
+        class="mx-auto w-full max-w-[1280px] px-6 pb-12 pt-24 lg:px-12 lg:pt-32"
+      >
+        <div class="mb-12 flex items-end justify-between gap-6">
+          <div class="space-y-3">
+            <span
+              data-reveal-item
+              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] block"
+            >
+              01 / Selected Work
+            </span>
+            <h2
+              data-reveal-item
+              class="font-display text-3xl md:text-4xl font-semibold tracking-tight text-[color:var(--color-text-primary)] max-w-[40ch]"
+            >
+              Things I've shipped<br />over the years.
+            </h2>
+          </div>
+          <span
+            data-reveal-item
+            class="hidden sm:inline-flex font-mono text-xs italic text-[color:var(--color-text-muted)]"
+          >
+            {projects.length} projects
+          </span>
+        </div>
+      </div>
+      <ProjectsGrid projects={projects} client:visible />
+    </section>
+
+    {/* ── Experience ─────────────────────────────────────────────── */}
+    <section
+      id="experience"
+      data-reveal
+      class="relative border-t border-[color:var(--color-border-soft)] py-24 lg:py-32"
+    >
+      <div class="mx-auto w-full max-w-[1280px] px-6 lg:px-12">
+        <div class="mb-12 flex items-baseline justify-between gap-6">
+          <span
+            data-reveal-item
+            class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+          >
+            02 / Experience
+          </span>
+          <span
+            data-reveal-item
+            class="font-mono text-xs italic text-[color:var(--color-text-muted)]"
+          >
+            {experiences.length} roles · 9 years
+          </span>
+        </div>
+      </div>
+      <ExperienceIsland experiences={experiences} client:visible />
+    </section>
+
+    {/* ── About / Now ────────────────────────────────────────────── */}
+    <section
+      id="about"
+      data-reveal
+      class="relative border-t border-[color:var(--color-border-soft)] py-24 lg:py-32"
+    >
+      <div class="mx-auto w-full max-w-[1280px] px-6 lg:px-12">
+        <div class="grid gap-12 lg:grid-cols-12">
+          <div class="lg:col-span-4 space-y-3">
+            <span
+              data-reveal-item
+              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] block"
+            >
+              03 / About
+            </span>
+            <h2
+              data-reveal-item
+              class="font-display text-3xl md:text-4xl font-semibold leading-[1.05] tracking-tight text-[color:var(--color-text-primary)]"
+            >
+              The shape of<br />my work.
+            </h2>
+          </div>
+          <div class="lg:col-span-8 grid gap-10 lg:grid-cols-12">
+            {/* Narrative — values-first, no stats repetition */}
+            <div
+              class="lg:col-span-7 max-w-[60ch] space-y-5 text-[color:var(--color-text-secondary)]"
+            >
+              <p
+                data-reveal-item
+                class="text-xl leading-relaxed text-[color:var(--color-text-primary)]"
+              >
+                I care about <em
+                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
+                  >clean architecture</em
+                >
+                (Hexagonal, DDD, Screaming),
+                <em
+                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
+                  >performance</em
+                >
+                (SSR/SSG, caching, query tuning), and
+                <em
+                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
+                  >teaching</em
+                >
+                — writing, code review, and pairing with anyone willing to push past
+                their comfort zone.
+              </p>
+              <p data-reveal-item class="leading-relaxed">
+                Comfortable across the stack — frontend, backend, data, infra.
+                Allergic to shortcuts.
+              </p>
+            </div>
+
+            {/* Stats grid — the source of truth for numbers */}
+            <aside data-reveal-item class="lg:col-span-5">
+              <dl
+                class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[color:var(--color-border-soft)] bg-[color:var(--color-border-soft)]"
+              >
+                <div class="bg-[color:var(--color-background)] p-4">
+                  <dt
+                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
+                  >
+                    Years
+                  </dt>
+                  <dd
+                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
+                  >
+                    9<span class="text-[color:var(--color-accent)]">+</span>
+                  </dd>
+                </div>
+                <div class="bg-[color:var(--color-background)] p-4">
+                  <dt
+                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
+                  >
+                    Companies
+                  </dt>
+                  <dd
+                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
+                  >
+                    7
+                  </dd>
+                </div>
+                <div class="bg-[color:var(--color-background)] p-4">
+                  <dt
+                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
+                  >
+                    Projects
+                  </dt>
+                  <dd
+                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
+                  >
+                    {projects.length}+
+                  </dd>
+                </div>
+                <div class="bg-[color:var(--color-background)] p-4">
+                  <dt
+                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
+                  >
+                    Reading
+                  </dt>
+                  <dd
+                    class="mt-2 font-mono text-xs leading-tight text-[color:var(--color-text-secondary)]"
+                  >
+                    Designing<br />Data-Intensive Apps
+                  </dd>
+                </div>
+              </dl>
+            </aside>
+
+            {/* Stack pills — trimmed to the meaningful 10 */}
+            <div data-reveal-item class="lg:col-span-12">
+              <p
+                class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] mb-3"
+              >
+                / stack
+              </p>
+              <div class="flex flex-wrap gap-2">
+                {
+                  [
+                    "TypeScript",
+                    "Go",
+                    "React",
+                    "Next.js",
+                    "NestJS",
+                    "Hono",
+                    "Postgres",
+                    "AWS · Azure · GCP",
+                    "Docker",
+                    "Hexagonal · DDD",
+                  ].map((t) => (
+                    <span class="rounded-full border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-3 py-1 font-mono text-[11px] text-[color:var(--color-text-muted)] transition-colors hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]">
+                      {t}
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {/* ── Contact ────────────────────────────────────────────────── */}
+    <section
+      id="contact"
+      data-reveal
+      class="relative overflow-hidden border-t border-[color:var(--color-border-soft)] py-24 lg:py-28"
+    >
+      {/* Ambient orb in contact for visual closure */}
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute right-[-25%] top-1/2 h-[55vmax] w-[55vmax] -translate-y-1/2 rounded-full"
+        style="background: radial-gradient(circle, oklch(0.74 0.16 280 / 0.16) 0%, transparent 65%); filter: blur(80px); z-index: var(--z-orbs);"
+      >
+      </div>
+
+      <div
+        class="relative mx-auto w-full max-w-[1280px] px-6 lg:px-12"
+        style="z-index: var(--z-content);"
+      >
+        {/* Heading block — bounded width so it doesn't fight email */}
+        <div class="max-w-[60ch] space-y-5">
+          <div data-reveal-item class="flex items-center gap-3">
+            <span
+              class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-accent)] [box-shadow:0_0_12px_var(--color-accent)] animate-pulse"
+            ></span>
+            <span
+              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+            >
+              04 / Get in touch
+            </span>
+          </div>
+          <h2
+            data-reveal-item
+            class="font-display text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.0] tracking-[-0.03em] text-[color:var(--color-text-primary)]"
+          >
+            Have a problem worth <em
+              class="not-italic text-[color:var(--color-accent)]">solving?</em
+            >
+          </h2>
+          <p
+            data-reveal-item
+            class="text-lg italic text-[color:var(--color-text-secondary)]"
+          >
+            If your team needs an extra senior engineer who ships, mentors, and
+            thinks in systems — let's talk.
+          </p>
+        </div>
+
+        {/* Action grid — 2 balanced cols */}
+        <div
+          class="mt-12 grid gap-6 border-t border-[color:var(--color-border-soft)] pt-10 lg:grid-cols-2 lg:gap-12"
+        >
+          {/* Email card */}
+          <a
+            data-reveal-item
+            href="mailto:hello@jcsoftdev.com"
+            class="group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] p-6 transition-all duration-[var(--duration-base)] hover:-translate-y-1 hover:border-[color:var(--color-accent-muted)] hover:bg-[color:var(--color-surface-elevated)] hover:[box-shadow:0_24px_48px_-24px_oklch(0.74_0.16_280_/_0.4)]"
+          >
+            <div class="flex items-center justify-between">
+              <span
+                class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+                >Primary · Email</span
+              >
+              <span
+                aria-hidden="true"
+                class="font-mono text-sm text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1 group-hover:-translate-y-1"
+                >↗</span
+              >
+            </div>
+            <div
+              class="font-display text-2xl md:text-3xl font-semibold text-[color:var(--color-text-primary)] break-words transition-colors group-hover:text-[color:var(--color-accent)]"
+            >
+              hello@jcsoftdev.com
+            </div>
+            <p class="font-mono text-xs text-[color:var(--color-text-muted)]">
+              avg. reply · 24h on weekdays
+            </p>
+          </a>
+
+          {/* Socials column */}
+          <div data-reveal-item class="flex flex-col gap-3">
+            <span
+              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+              >Or find me on</span
+            >
+            <ul class="grid grid-cols-1 gap-2">
+              <li>
+                <a
+                  href="https://github.com/jcsoftdev"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
+                >
+                  <span class="flex items-center gap-3">
+                    <span class="text-[color:var(--color-text-muted)]"
+                      >github</span
+                    >
+                    <span>/jcsoftdev</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
+                    >→</span
+                  >
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://linkedin.com/in/jcsoftdev"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
+                >
+                  <span class="flex items-center gap-3">
+                    <span class="text-[color:var(--color-text-muted)]"
+                      >linkedin</span
+                    >
+                    <span>/in/jcsoftdev</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
+                    >→</span
+                  >
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/blog"
+                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
+                >
+                  <span class="flex items-center gap-3">
+                    <span class="text-[color:var(--color-text-muted)]"
+                      >blog</span
+                    >
+                    <span>/writing</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
+                    >→</span
+                  >
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</RootLayout>
+
+<script is:inline>
+  // Mark JS as available BEFORE any [data-reveal-item] elements render their CSS
+  // — prevents flash-of-invisible-content if JS fails or is disabled.
+  document.documentElement.classList.add("js");
+</script>
+
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Scroll progress bar
+  const bar = document.getElementById("scroll-progress");
+  if (bar) {
+    const onScroll = () => {
+      const scrolled = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const ratio = max > 0 ? Math.min(scrolled / max, 1) : 0;
+      bar.style.transform = `scaleX(${ratio})`;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  }
+
+  // GSAP reveal — every [data-reveal-item] inside a [data-reveal] section
+  // staggers in with fade + lift + blur on viewport entry.
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const initReveals = () => {
+    ScrollTrigger.getAll().forEach((t) => t.kill());
+
+    const sections = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    sections.forEach((section) => {
+      const items = Array.from(
+        section.querySelectorAll<HTMLElement>("[data-reveal-item]"),
+      );
+      if (items.length === 0) {
+        // No marked items → animate the section itself
+        if (reduced) {
+          gsap.set(section, { opacity: 1, y: 0, filter: "blur(0px)" });
+          return;
+        }
+        gsap.set(section, { opacity: 0, y: 24, filter: "blur(8px)" });
+        gsap.to(section, {
+          opacity: 1,
+          y: 0,
+          filter: "blur(0px)",
+          duration: 0.9,
+          ease: "expo.out",
+          scrollTrigger: { trigger: section, start: "top 85%", once: true },
+        });
+        return;
+      }
+      if (reduced) {
+        gsap.set(items, { opacity: 1, y: 0, filter: "blur(0px)" });
+        return;
+      }
+      gsap.set(items, { opacity: 0, y: 32, filter: "blur(8px)" });
+      gsap.to(items, {
+        opacity: 1,
+        y: 0,
+        filter: "blur(0px)",
+        duration: 0.85,
+        ease: "expo.out",
+        stagger: 0.07,
+        scrollTrigger: { trigger: section, start: "top 80%", once: true },
+      });
+    });
+    ScrollTrigger.refresh();
+  };
+
+  initReveals();
+  document.addEventListener("astro:page-load", initReveals);
+</script>
+
+<style is:global>
+  /* Items start hidden when JS is available so first paint is correct. */
+  html.js [data-reveal-item] {
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html.js [data-reveal-item] {
+      opacity: 1;
+    }
+  }
+</style>

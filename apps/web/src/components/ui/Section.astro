@@ -1,0 +1,25 @@
+---
+interface Props {
+  numbered?: boolean;
+  class?: string;
+  id?: string;
+}
+
+const { numbered = false, class: className, id, ...rest } = Astro.props;
+---
+
+<section
+  id={id}
+  class:list={["section-base", { "section-numbered": numbered }, className]}
+  style="padding-block: var(--section-y);"
+  {...rest}
+>
+  {
+    numbered && (
+      <div class="section-header-slot">
+        <slot name="header" />
+      </div>
+    )
+  }
+  <slot />
+</section>

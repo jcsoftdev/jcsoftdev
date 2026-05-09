@@ -1,0 +1,52 @@
+---
+type Position =
+  | "top-right"
+  | "top-left"
+  | "center"
+  | "bottom-right"
+  | "bottom-left";
+
+interface Props {
+  position?: Position;
+  size?: string;
+  class?: string;
+}
+
+const {
+  position = "top-right",
+  size = "60vmax",
+  class: className,
+  ...rest
+} = Astro.props;
+
+const positionTransforms: Record<Position, string> = {
+  "top-right": "translate3d(60%, -40%, 0)",
+  "top-left": "translate3d(-60%, -40%, 0)",
+  center: "translate3d(-50%, -50%, 0)",
+  "bottom-right": "translate3d(60%, 40%, 0)",
+  "bottom-left": "translate3d(-60%, 40%, 0)",
+};
+---
+
+<div
+  aria-hidden="true"
+  class:list={["orb-bg", `orb-bg-${position}`, className]}
+  style="position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: var(--z-orbs);"
+  {...rest}
+>
+  <div
+    style={`
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: ${size};
+      height: ${size};
+      border-radius: 50%;
+      background: radial-gradient(circle at center, var(--color-accent-soft) 0%, transparent 65%);
+      filter: blur(80px);
+      transform: ${positionTransforms[position]};
+      /* will-change omitted: filter:blur already promotes this element to its own compositor layer */
+    `}
+  >
+  </div>
+</div>

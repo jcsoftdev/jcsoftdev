@@ -1,0 +1,40 @@
+{
+  "name": "@jcsoftdev/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "main": "./src/app.ts",
+  "types": "./src/app.ts",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --hot src/index.ts",
+    "build": "bun build --compile --minify ./src/index.ts --outfile ./dist/api",
+    "start": "./dist/api",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.823.0",
+    "@aws-sdk/s3-request-presigner": "^3.823.0",
+    "@hono/zod-validator": "^0.7.6",
+    "@jcsoftdev/db": "workspace:*",
+    "@jcsoftdev/mdx-runtime": "workspace:*",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.7.11",
+    "iovalkey": "^0.2.0",
+    "isomorphic-dompurify": "^3.12.0",
+    "marked": "^18.0.3",
+    "resend": "^4.8.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@jcsoftdev/config": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.5"
+  }
+}

@@ -1,0 +1,280 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Main CI pipeline ─────────────────────────────────────────────────────────
+  ci:
+    name: Lint / Typecheck / Test
+    runs-on: ubuntu-latest
+
+    services:
+      # Postgres 17 for integration tests and migration validation
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jcsoftdev_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Valkey 8 for session + MDX cache integration tests
+      valkey:
+        image: valkey/valkey:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # ── Database ─────────────────────────────────────────────────────────────
+      # Tests use pgBouncer-style URL via the workflow Postgres service directly.
+      # Migrations always use DATABASE_DIRECT_URL (no connection pooler in CI).
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jcsoftdev_test
+      DATABASE_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/jcsoftdev_test
+
+      # ── Valkey ───────────────────────────────────────────────────────────────
+      VALKEY_URL: redis://localhost:6379
+
+      # ── API env (required by env.ts validation on import) ────────────────────
+      NODE_ENV: test
+      PORT: "3000"
+      CORS_ORIGINS: "http://localhost:3000"
+      BETTER_AUTH_SECRET: "ci-secret-at-least-32-chars-long-pad"
+      BETTER_AUTH_URL: "http://localhost:3000"
+      RESEND_API_KEY: "re_ci_placeholder"
+      RESEND_FROM_EMAIL: "ci@example.com"
+      MINIO_ENDPOINT: "http://localhost:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_PUBLIC_URL: "http://localhost:9000"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # jdx/mise-action reads .mise.toml and installs all pinned tools:
+      # Node 24, Bun 1.4, pnpm 10
+      - name: Install toolchain via mise
+        uses: jdx/mise-action@v2
+
+      # Cache pnpm store — keyed on lockfile for deterministic hits
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      # Cache Turborepo artifacts — restore across commits for unchanged tasks
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ github.sha }}
+          restore-keys: |
+            turbo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Drizzle dedup gate ────────────────────────────────────────────────────
+      # Fail CI if more than 1 unique version of drizzle-orm is resolved.
+      # Multiple versions indicate a broken override or a new dep pulling in a
+      # different major — this would cause runtime type incompatibilities.
+      - name: Drizzle-orm dedup gate
+        run: |
+          COUNT=$(pnpm why drizzle-orm --recursive 2>/dev/null | grep -c "^drizzle-orm@" || echo "0")
+          if [ "$COUNT" -gt "1" ]; then
+            echo "ERROR: $COUNT versions of drizzle-orm resolved in workspace."
+            echo "Run: pnpm why drizzle-orm --recursive"
+            echo "Fix: ensure pnpm.overrides.drizzle-orm pins a single version."
+            exit 1
+          fi
+          echo "drizzle-orm dedup gate passed (versions: $COUNT or pinned singleton)"
+
+      - name: Biome check
+        run: pnpm exec biome check
+
+      - name: Typecheck (tsc)
+        run: pnpm turbo typecheck
+
+      # ── Migration gate ────────────────────────────────────────────────────────
+      # Run migrations against the CI Postgres service before tests.
+      # This confirms migrations apply cleanly and seeds are idempotent.
+      # Uses DATABASE_DIRECT_URL (not pgBouncer) per design §3.
+      - name: Run database migrations
+        run: pnpm --filter @jcsoftdev/db db:migrate
+
+      - name: Seed database
+        run: pnpm --filter @jcsoftdev/db db:seed
+
+      - name: Test
+        run: pnpm turbo test
+
+      # ── Integration tests (Testcontainers) ───────────────────────────────────
+      # Runs the @jcsoftdev/db Testcontainers integration suite as a separate step.
+      # Testcontainers spins its own ephemeral Postgres — independent of the
+      # service container above. Skipped automatically when Docker is unavailable.
+      - name: Integration tests (Testcontainers)
+        run: pnpm --filter @jcsoftdev/db test:integration
+        continue-on-error: true
+
+  # ── Fast typecheck via TypeScript-Go (tsgo) — preview, non-blocking ──────────
+  # tsgo is Microsoft's experimental Rust/Go port of TypeScript (~10x faster).
+  # It runs as a separate parallel job. continue-on-error: true means tsgo
+  # failures are informational only — they CANNOT block merge.
+  # Remove continue-on-error once tsgo reaches stable GA.
+  typecheck-fast:
+    name: Typecheck (tsgo — preview)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain via mise
+        uses: jdx/mise-action@v2
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Install @typescript/native-preview (tsgo binary)
+      # The binary name may be `tsgo` or `typescript-native` depending on release.
+      # Pinning with `npx -y` ensures we always get the latest preview build.
+      - name: Install tsgo
+        run: pnpm add -Dw @typescript/native-preview
+
+      # Run tsgo in build-mode across the monorepo.
+      # -b (--build) respects tsconfig project references (turbo references in
+      # root tsconfig.json). --noEmit prevents output, type-check only.
+      # This step is informational — failures are expected during preview.
+      - name: Run tsgo typecheck
+        run: pnpm exec tsgo -b --noEmit || true
+
+  # ── E2E Playwright — non-blocking, dev-only ───────────────────────────────────
+  # Playwright runs the full happy-path flow: login → write → publish → read.
+  # This job is INFORMATIONAL only (continue-on-error: true).
+  # It only runs on main branch pushes or when the PR has an [e2e] label.
+  # It does NOT block merge. Failures here require a separate investigation cycle.
+  #
+  # The job requires all services (Postgres, Valkey, MinIO) to be running.
+  # In CI, MinIO is started via docker run inline. In local dev, use pnpm dev.
+  e2e:
+    name: E2E (Playwright — non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # Only run on main branch or PRs labeled [e2e]
+    if: |
+      github.ref == 'refs/heads/main' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jcsoftdev_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jcsoftdev_test
+      DATABASE_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/jcsoftdev_test
+      VALKEY_URL: redis://localhost:6379
+      NODE_ENV: development
+      PORT: "3000"
+      CORS_ORIGINS: "http://localhost:5173"
+      BETTER_AUTH_SECRET: "e2e-secret-at-least-32-chars-long-pad"
+      BETTER_AUTH_URL: "http://localhost:3000"
+      RESEND_API_KEY: "re_e2e_placeholder"
+      RESEND_FROM_EMAIL: "e2e@example.com"
+      MINIO_ENDPOINT: "http://localhost:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_PUBLIC_URL: "http://localhost:9000"
+      # Admin SPA URL for Playwright
+      ADMIN_URL: "http://localhost:5173"
+      # Web public URL for Playwright
+      WEB_URL: "http://localhost:4321"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain via mise
+        uses: jdx/mise-action@v2
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Start MinIO service (not available as a GitHub Actions service container)
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            quay.io/minio/minio server /data --console-address ":9001"
+          # Wait for MinIO to be ready
+          until curl -sf http://localhost:9000/minio/health/live; do sleep 2; done
+
+      - name: Bootstrap MinIO bucket
+        run: bash infra/minio/bootstrap.sh
+
+      - name: Run database migrations
+        run: pnpm --filter @jcsoftdev/db db:migrate
+
+      - name: Seed database
+        run: pnpm --filter @jcsoftdev/db db:seed
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm exec playwright test

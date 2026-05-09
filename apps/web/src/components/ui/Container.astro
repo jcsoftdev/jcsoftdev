@@ -1,0 +1,16 @@
+---
+interface Props {
+  class?: string;
+  id?: string;
+}
+
+const { class: className, id }: Props = Astro.props;
+---
+
+<div
+  id={id}
+  class:list={["container-base", className]}
+  style="max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-px);"
+>
+  <slot />
+</div>

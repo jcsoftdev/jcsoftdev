@@ -1,0 +1,66 @@
+---
+/**
+ * 404 page — Phase 7.3
+ *
+ * Astro routes unmatched requests to this page automatically.
+ * Uses the Hero composition language: 2 orbs + noise + display "404"
+ * + "page not found" subtitle + back-to-home CTA.
+ *
+ * Components: OrbBackground, NoiseTexture, Heading, Mono, Text, Button
+ * All from Phase 2 atomic design system.
+ *
+ * Prerendered (static) — no server data needed.
+ */
+import RootLayout from "../layouts/RootLayout.astro";
+import Button from "../components/ui/Button.astro";
+import Heading from "../components/ui/Heading.astro";
+import Mono from "../components/ui/Mono.astro";
+import NoiseTexture from "../components/ui/NoiseTexture.astro";
+import OrbBackground from "../components/ui/OrbBackground.astro";
+import Text from "../components/ui/Text.astro";
+
+export const prerender = true;
+---
+
+<RootLayout
+  title="404 — Page Not Found — jcsoftdev"
+  description="The page you're looking for doesn't exist."
+>
+  <main
+    style="min-height: 100svh; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;"
+  >
+    {/* Decorative orbs — same Hero composition language */}
+    <OrbBackground position="top-right" />
+    <OrbBackground position="bottom-left" />
+
+    {/* Noise overlay */}
+    <NoiseTexture />
+
+    {/* Content */}
+    <div
+      style="position: relative; z-index: var(--z-content); text-align: center; padding-inline: var(--container-px); max-width: 600px;"
+    >
+      <Heading
+        level={1}
+        variant="display"
+        style="font-size: var(--text-9xl); line-height: 1;"
+      >
+        404
+      </Heading>
+
+      <p style="margin-top: var(--spacing-4);">
+        <Mono accent>page not found</Mono>
+      </p>
+
+      <p style="margin-top: var(--spacing-6);">
+        <Text variant="muted">
+          The page you're looking for doesn't exist or has been moved.
+        </Text>
+      </p>
+
+      <div style="margin-top: var(--spacing-10);">
+        <Button href="/" variant="primary" size="lg"> Back to Home </Button>
+      </div>
+    </div>
+  </main>
+</RootLayout>

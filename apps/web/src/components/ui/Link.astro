@@ -1,0 +1,46 @@
+---
+interface Props {
+  href: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const { href, class: className, ...rest } = Astro.props;
+
+const isExternal = href.startsWith("http://") || href.startsWith("https://");
+---
+
+{
+  isExternal ? (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      class:list={["link", "link-external", className]}
+      {...rest}
+    >
+      <slot />
+      <svg
+        aria-hidden="true"
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style="display: inline-block; margin-left: 0.25em; vertical-align: middle; flex-shrink: 0;"
+      >
+        <path
+          d="M3.5 1H11M11 1V8.5M11 1L4.5 7.5M1 4H3.5V10H9.5V7.5"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </a>
+  ) : (
+    <a href={href} class:list={["link", "link-internal", className]} {...rest}>
+      <slot />
+    </a>
+  )
+}

@@ -1,0 +1,66 @@
+---
+type Variant = "primary" | "ghost" | "link";
+type Size = "md" | "lg";
+
+interface Props {
+  variant?: Variant;
+  size?: Size;
+  href?: string;
+  type?: "button" | "submit" | "reset";
+  class?: string;
+  disabled?: boolean;
+  [key: string]: unknown;
+}
+
+const {
+  variant = "primary",
+  size = "md",
+  href,
+  type = "button",
+  class: className,
+  disabled,
+  ...rest
+} = Astro.props;
+
+const isAnchor = href !== undefined;
+
+const variantStyles: Record<Variant, string> = {
+  primary: `background: var(--color-accent); color: oklch(0.10 0 0); border: 1px solid transparent; font-weight: 600;`,
+  ghost: `background: transparent; color: var(--color-accent); border: 1px solid var(--color-accent); font-weight: 500;`,
+  link: `background: transparent; color: var(--color-accent); border: none; font-weight: 500; text-decoration: underline; text-underline-offset: 4px; padding: 0;`,
+};
+
+const sizeStyles: Record<Size, string> = {
+  md: `font-size: var(--text-sm); padding: 0.5rem 1.25rem;`,
+  lg: `font-size: var(--text-base); padding: 0.75rem 1.75rem;`,
+};
+
+const variantKey =
+  (variant as Variant) in variantStyles ? (variant as Variant) : "primary";
+const sizeKey = (size as Size) in sizeStyles ? (size as Size) : "md";
+
+const sharedStyle = `display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: var(--radius-md); font-family: var(--font-sans); cursor: pointer; transition: opacity var(--duration-fast), transform var(--duration-fast); text-decoration: none; ${variantStyles[variantKey]} ${variantKey !== "link" ? sizeStyles[sizeKey] : ""}`;
+---
+
+{
+  isAnchor ? (
+    <a
+      href={href}
+      class:list={[`btn`, `btn-${variant}`, `btn-${size}`, className]}
+      style={sharedStyle}
+      {...rest}
+    >
+      <slot />
+    </a>
+  ) : (
+    <button
+      type={type}
+      disabled={disabled}
+      class:list={[`btn`, `btn-${variant}`, `btn-${size}`, className]}
+      style={sharedStyle}
+      {...rest}
+    >
+      <slot />
+    </button>
+  )
+}

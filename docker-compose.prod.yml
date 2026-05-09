@@ -1,0 +1,151 @@
+---
+# jcsoftdev — production compose for Dokploy
+# Import as Dokploy "Compose" service. NOT for local dev.
+# Apps (api/web/admin) deploy as separate Dokploy "Application" services
+# and reach these via service DNS on the shared dokploy-network.
+
+name: jcsoftdev-infra
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dokploy-network
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 25
+      AUTH_TYPE: plain
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: valkey-server --save 60 1 --appendonly yes
+    volumes:
+      - valkey-data:/data
+    networks:
+      - dokploy-network
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      # MinIO console (web UI) on subdomain
+      - "traefik.http.routers.minio-console.rule=Host(`minio.${DOMAIN}`)"
+      - "traefik.http.routers.minio-console.entrypoints=websecure"
+      - "traefik.http.routers.minio-console.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.minio-console.service=minio-console"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+    networks:
+      - dokploy-network
+
+  plausible-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PLAUSIBLE_DB_NAME}
+      POSTGRES_USER: ${PLAUSIBLE_DB_USER}
+      POSTGRES_PASSWORD: ${PLAUSIBLE_DB_PASSWORD}
+    volumes:
+      - plausible-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dokploy-network
+
+  plausible-events-db:
+    image: clickhouse/clickhouse-server:latest
+    restart: unless-stopped
+    volumes:
+      - plausible-events-data:/var/lib/clickhouse
+      - ./infra/clickhouse/override.xml:/etc/clickhouse-server/users.d/override.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dokploy-network
+
+  plausible:
+    image: ghcr.io/plausible/community-edition:latest
+    restart: unless-stopped
+    command: sh -c "sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
+    environment:
+      BASE_URL: "https://analytics.${DOMAIN}"
+      SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY_BASE}
+      DATABASE_URL: "postgres://${PLAUSIBLE_DB_USER}:${PLAUSIBLE_DB_PASSWORD}@plausible-db:5432/${PLAUSIBLE_DB_NAME}"
+      CLICKHOUSE_DATABASE_URL: "http://plausible-events-db:8123/plausible_events_db"
+      DISABLE_REGISTRATION: "true"
+    depends_on:
+      plausible-db:
+        condition: service_healthy
+      plausible-events-db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.plausible.rule=Host(`analytics.${DOMAIN}`)"
+      - "traefik.http.routers.plausible.entrypoints=websecure"
+      - "traefik.http.routers.plausible.tls.certresolver=letsencrypt"
+      - "traefik.http.services.plausible.loadbalancer.server.port=8000"
+    networks:
+      - dokploy-network
+
+volumes:
+  postgres-data:
+  valkey-data:
+  minio-data:
+  plausible-db-data:
+  plausible-events-data:
+
+networks:
+  dokploy-network:
+    external: true

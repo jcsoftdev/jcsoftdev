@@ -1,0 +1,20 @@
+# Lefthook — Git hooks configuration
+# Docs: https://github.com/evilmartians/lefthook
+#
+# Install hooks: pnpm exec lefthook install
+# Skip in CI: LEFTHOOK=0 or CI=true (lefthook auto-skips when CI env is set)
+
+pre-commit:
+  parallel: true
+  commands:
+    # Run Biome check with auto-fix on staged TS/JS/JSON files
+    biome-check:
+      glob: "*.{ts,tsx,js,jsx,json}"
+      run: pnpm exec biome check --write {staged_files}
+      stage_fixed: true
+
+    # Run Prettier check on staged .astro files
+    prettier-astro:
+      glob: "*.astro"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
