@@ -19,6 +19,7 @@ WORKDIR /repo
 COPY --from=deps /repo /repo
 WORKDIR /repo/apps/api
 EXPOSE 3000
-# Run DB migrations (idempotent, uses DATABASE_DIRECT_URL -> postgres:5432 direct)
-# then start the API server. This ensures migrations always run before the app.
-CMD ["sh", "-c", "cd /repo/packages/db && bun run src/migrate.ts && cd /repo/apps/api && bun run src/index.ts"]
+# 1. Run DB migrations (idempotent, uses DATABASE_DIRECT_URL -> postgres:5432 direct)
+# 2. Run seed (idempotent, ON CONFLICT DO NOTHING — inserts experiences + projects)
+# 3. Start the API server
+CMD ["sh", "-c", "cd /repo/packages/db && bun run src/migrate.ts && bun run src/seeds/index.ts && cd /repo/apps/api && bun run src/index.ts"]
