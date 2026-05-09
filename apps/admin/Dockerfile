@@ -18,7 +18,7 @@ COPY packages/ui ./packages/ui
 COPY packages/types ./packages/types
 COPY apps/admin ./apps/admin
 WORKDIR /repo/apps/admin
-RUN node_modules/.bin/vite build
+RUN /repo/node_modules/.bin/vite build
 
 # Stage 3: Caddy runtime serving static SPA
 FROM caddy:2-alpine AS runtime
