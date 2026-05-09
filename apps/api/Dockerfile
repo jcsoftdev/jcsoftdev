@@ -4,6 +4,8 @@ WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@10 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY packages/config/package.json packages/config/
+COPY packages/db/package.json packages/db/
+COPY packages/mdx-runtime/package.json packages/mdx-runtime/
 COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @jcsoftdev/api...
 
@@ -11,7 +13,9 @@ RUN pnpm install --frozen-lockfile --filter @jcsoftdev/api...
 FROM oven/bun:1-alpine AS build
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
-COPY --from=deps /repo/packages/config ./packages/config
+COPY packages/config ./packages/config
+COPY packages/db ./packages/db
+COPY packages/mdx-runtime ./packages/mdx-runtime
 COPY apps/api ./apps/api
 WORKDIR /repo/apps/api
 RUN bun build --compile --minify ./src/index.ts --outfile /api-bin
