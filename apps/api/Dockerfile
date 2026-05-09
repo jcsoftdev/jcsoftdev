@@ -2,13 +2,13 @@
 FROM oven/bun:1-alpine AS build
 WORKDIR /repo
 # Copy workspace configuration
-COPY package.json bun.lock* pnpm-workspace.yaml* ./
+COPY package.json pnpm-workspace.yaml ./
 COPY packages/config/package.json packages/config/
 COPY packages/db/package.json packages/db/
 COPY packages/mdx-runtime/package.json packages/mdx-runtime/
 COPY apps/api/package.json apps/api/
-# Install all dependencies with bun
-RUN bun install --frozen-lockfile
+# Install all dependencies with bun (reads pnpm-workspace.yaml for workspace resolution)
+RUN bun install
 # Copy source code for all required packages
 COPY packages/config ./packages/config
 COPY packages/db ./packages/db
