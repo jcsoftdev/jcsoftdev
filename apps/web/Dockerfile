@@ -15,6 +15,13 @@ COPY packages/ui ./packages/ui
 COPY packages/types ./packages/types
 COPY apps/web ./apps/web
 WORKDIR /repo/apps/web
+# Build-time env vars needed by Astro/Vite for PUBLIC_ variables
+ARG PUBLIC_API_URL=https://api.jcsoftdev.com
+ARG PUBLIC_PLAUSIBLE_HOST=https://analytics.jcsoftdev.com
+ARG PLAUSIBLE_DOMAIN=jcsoftdev.com
+ENV PUBLIC_API_URL=${PUBLIC_API_URL}
+ENV PUBLIC_PLAUSIBLE_HOST=${PUBLIC_PLAUSIBLE_HOST}
+ENV PLAUSIBLE_DOMAIN=${PLAUSIBLE_DOMAIN}
 RUN pnpm run build
 
 # Stage 2: Runtime
