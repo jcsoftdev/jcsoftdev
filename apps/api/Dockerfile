@@ -1,24 +1,26 @@
-# Stage 1: Build with Bun
-FROM oven/bun:1-alpine AS build
+# Stage 1: Install dependencies with Node+pnpm
+FROM node:24-alpine AS deps
 WORKDIR /repo
-# Copy workspace configuration
-COPY package.json pnpm-workspace.yaml ./
+RUN corepack enable && corepack prepare pnpm@10 --activate
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY packages/config/package.json packages/config/
 COPY packages/db/package.json packages/db/
 COPY packages/mdx-runtime/package.json packages/mdx-runtime/
 COPY apps/api/package.json apps/api/
-# Install all dependencies with bun (reads pnpm-workspace.yaml for workspace resolution)
-RUN bun install
-# Copy source code for all required packages
+RUN pnpm install --frozen-lockfile --filter @jcsoftdev/api...
 COPY packages/config ./packages/config
 COPY packages/db ./packages/db
 COPY packages/mdx-runtime ./packages/mdx-runtime
 COPY apps/api ./apps/api
-# Build the API binary
+
+# Stage 2: Build with Bun (compile to binary)
+FROM oven/bun:1-alpine AS build
+WORKDIR /repo
+COPY --from=deps /repo /repo
 WORKDIR /repo/apps/api
 RUN bun build --compile --minify ./src/index.ts --outfile /api-bin
 
-# Stage 2: Minimal runtime
+# Stage 3: Minimal runtime
 FROM gcr.io/distroless/base-debian12:nonroot AS runtime
 COPY --from=build /api-bin /api
 EXPOSE 3000
