@@ -16,15 +16,15 @@ export const EnvSchema = z.object({
     ),
 
   // Database
-  DATABASE_URL: z.url(), // pgBouncer (port 6432) — app queries
-  DATABASE_DIRECT_URL: z.url(), // direct Postgres (port 5432) — migrations only
+  DATABASE_URL: z.string().min(1), // pgBouncer (port 6432) — app queries
+  DATABASE_DIRECT_URL: z.string().min(1), // direct Postgres (port 5432) — migrations only
 
   // Valkey (Redis-compatible) for sessions + MDX compile cache + rate limiting
-  VALKEY_URL: z.url(),
+  VALKEY_URL: z.string().min(1),
 
   // better-auth
   BETTER_AUTH_SECRET: z.string().min(32),
-  BETTER_AUTH_URL: z.url(),
+  BETTER_AUTH_URL: z.string().min(1),
   COOKIE_DOMAIN: z.string().optional(), // undefined in dev, '.jcsoftdev.com' in prod
 
   // Resend (transactional email — magic-link)
@@ -32,12 +32,12 @@ export const EnvSchema = z.object({
   RESEND_FROM_EMAIL: z.email(),
 
   // MinIO (S3-compatible object storage)
-  MINIO_ENDPOINT: z.url(),
+  MINIO_ENDPOINT: z.string().min(1),
   MINIO_REGION: z.string().default('us-east-1'),
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
   MINIO_BUCKET_MEDIA: z.string().default('posts-media'),
-  MINIO_PUBLIC_URL: z.url().optional(), // signed-GET host swap when MinIO is behind a proxy
+  MINIO_PUBLIC_URL: z.string().optional(), // signed-GET host swap when MinIO is behind a proxy
 });
 
 export type Env = z.infer<typeof EnvSchema>;
