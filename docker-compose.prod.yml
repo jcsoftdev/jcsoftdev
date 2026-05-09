@@ -115,6 +115,25 @@ services:
     networks:
       - dokploy-network
 
+  # ── One-shot migrator + seeder ───────────────────────────────────────────────
+  # Run manually after first deploy or whenever migrations change:
+  #   docker compose -f docker-compose.prod.yml --profile migrate run --rm migrator
+  # Connects directly to postgres:5432 (NOT pgbouncer) — drizzle requires session
+  # mode for DDL. Exits 0 on success.
+  migrator:
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    environment:
+      DATABASE_DIRECT_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - dokploy-network
+
   plausible:
     image: ghcr.io/plausible/community-edition:latest
     restart: unless-stopped
