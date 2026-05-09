@@ -21,7 +21,8 @@ WORKDIR /repo/apps/api
 RUN bun build --compile --minify ./src/index.ts --outfile /api-bin
 
 # Stage 3: Minimal runtime
-FROM gcr.io/distroless/base-debian12:nonroot AS runtime
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /api-bin /api
 EXPOSE 3000
 CMD ["/api"]
