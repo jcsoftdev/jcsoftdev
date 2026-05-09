@@ -91,7 +91,7 @@ const ATM_FRAG = `
     vec3 N = normalize(vNormalView);
     float dotNV = max(dot(N, V), 0.0);
     // Sharper falloff so atmosphere only shows at the very limb, not over the whole disk
-    float intensity = pow(1.0 - dotNV, 5.0);
+    float intensity = pow(1.0 - dotNV, 4.0);
 
     vec3 col = mix(vec3(0.08, 0.32, 0.85), vec3(0.40, 0.14, 0.90), intensity * 0.5);
     gl_FragColor = vec4(col * intensity, intensity * 0.55);
@@ -384,7 +384,7 @@ function makeGlowTex(r: number, g: number, b: number, op: number): THREE.CanvasT
     cx = 128;
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
-  const ctx = cv.getContext('2d')!;
+  const ctx = cv.getContext('2d') as CanvasRenderingContext2D;
   const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
   grad.addColorStop(0.0, `rgba(${r},${g},${b},${op})`);
   grad.addColorStop(
@@ -513,7 +513,7 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
   // ── Albedo canvas (tasks 1.1 – 1.3) ────────────────────────────────────────
   const albedoCv = document.createElement('canvas');
   albedoCv.width = albedoCv.height = SIZE;
-  const actx = albedoCv.getContext('2d')!;
+  const actx = albedoCv.getContext('2d') as CanvasRenderingContext2D;
 
   // Task 1.1: base fill + hex panel grid
   // Base fill: dark titanium (#0a0e1a)
@@ -561,8 +561,8 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
     }
   }
 
-  // Hex border strokes: metallic grooves (#1a2a3a)
-  actx.strokeStyle = '#1a2a3a';
+  // Hex border strokes: metallic grooves — boosted contrast for panel hierarchy (#2a3a4a)
+  actx.strokeStyle = '#2a3a4a';
   actx.lineWidth = 2;
   for (let row = -1; row < rows; row++) {
     for (let col = -1; col < cols; col++) {
@@ -574,25 +574,49 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
     }
   }
 
-  // Task 1.2: Manhattan PCB trace layer — horizontal + vertical lines on a 12px grid
-  actx.strokeStyle = '#8899aa';
+  // Task 1.2 / 6.8 / 6.9: Manhattan PCB trace layer — clipped per dark panel.
+  // Density reduced to ~25% (threshold raised from 0.45→0.75).
+  // Stroke color demoted to sub-detail (#3a4a5a, was #8899aa).
+  // Traces gated to panels where tone < 0.45 (~40% of cells) so the hex
+  // lattice remains the primary read and PCB detail lives inside darker panels.
+  actx.strokeStyle = '#3a4a5a';
   actx.lineWidth = 1;
   const TRACE_GRID = 12;
-  for (let x = 0; x < SIZE; x += TRACE_GRID) {
-    // Random density: ~55% chance a vertical trace runs
-    if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.45) {
-      actx.beginPath();
-      actx.moveTo(x, 0);
-      actx.lineTo(x, SIZE);
-      actx.stroke();
-    }
-  }
-  for (let y = 0; y < SIZE; y += TRACE_GRID) {
-    if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.45) {
-      actx.beginPath();
-      actx.moveTo(0, y);
-      actx.lineTo(SIZE, y);
-      actx.stroke();
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const panelTone = 0.08 + (Math.sin(col * 7.1 + row * 13.3) * 0.5 + 0.5) * 0.04;
+      if (panelTone >= 0.45) continue; // only draw in darker ~40% of panels
+      const rowOffset = row % 2 === 0 ? 0 : HEX_W * 0.5;
+      const pcx = col * HEX_W + rowOffset;
+      const pcy = row * HEX_H * 0.75;
+      // Clip to this hex cell so traces don't bleed into adjacent panels
+      actx.save();
+      drawHexOn(actx, pcx, pcy, HEX_R - 3);
+      actx.clip();
+      // Draw trace segments that fall within the bounding box of this cell
+      const xMin = pcx - HEX_R;
+      const xMax = pcx + HEX_R;
+      const yMin = pcy - HEX_R;
+      const yMax = pcy + HEX_R;
+      const xStart = Math.floor(xMin / TRACE_GRID) * TRACE_GRID;
+      const yStart = Math.floor(yMin / TRACE_GRID) * TRACE_GRID;
+      for (let x = xStart; x <= xMax; x += TRACE_GRID) {
+        if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.75) {
+          actx.beginPath();
+          actx.moveTo(x, yMin);
+          actx.lineTo(x, yMax);
+          actx.stroke();
+        }
+      }
+      for (let y = yStart; y <= yMax; y += TRACE_GRID) {
+        if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.75) {
+          actx.beginPath();
+          actx.moveTo(xMin, y);
+          actx.lineTo(xMax, y);
+          actx.stroke();
+        }
+      }
+      actx.restore();
     }
   }
 
@@ -607,7 +631,7 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
   }
 
   for (let i = 0; i < chipSeeds.length; i++) {
-    const [bx, by] = chipSeeds[i]!;
+    const [bx, by] = chipSeeds[i] as [number, number];
     const isRAM = i % 3 !== 0; // ~2/3 RAM grids, ~1/3 processor dies
 
     if (isRAM) {
@@ -671,7 +695,7 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
   //   Grooves    → 0.90 gray (rough, no reflection)
   const roughCv = document.createElement('canvas');
   roughCv.width = roughCv.height = SIZE;
-  const rctx = roughCv.getContext('2d')!;
+  const rctx = roughCv.getContext('2d') as CanvasRenderingContext2D;
 
   // Start with groove-level roughness (0.90 → rgb 230,230,230)
   rctx.fillStyle = `rgb(230,230,230)`;
@@ -690,22 +714,42 @@ function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE
   }
 
   // Trace regions: 0.55 roughness → rgb 140,140,140
+  // Density matched to albedo pass: ~25% (threshold 0.75) + cell-gated to darker panels.
   rctx.strokeStyle = 'rgb(140,140,140)';
   rctx.lineWidth = 2;
-  for (let x = 0; x < SIZE; x += TRACE_GRID) {
-    if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.45) {
-      rctx.beginPath();
-      rctx.moveTo(x, 0);
-      rctx.lineTo(x, SIZE);
-      rctx.stroke();
-    }
-  }
-  for (let y = 0; y < SIZE; y += TRACE_GRID) {
-    if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.45) {
-      rctx.beginPath();
-      rctx.moveTo(0, y);
-      rctx.lineTo(SIZE, y);
-      rctx.stroke();
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const rPanelTone = 0.08 + (Math.sin(col * 7.1 + row * 13.3) * 0.5 + 0.5) * 0.04;
+      if (rPanelTone >= 0.45) continue;
+      const rRowOffset = row % 2 === 0 ? 0 : HEX_W * 0.5;
+      const rpcx = col * HEX_W + rRowOffset;
+      const rpcy = row * HEX_H * 0.75;
+      rctx.save();
+      drawHexOn(rctx, rpcx, rpcy, HEX_R - 4);
+      rctx.clip();
+      const rxMin = rpcx - HEX_R;
+      const rxMax = rpcx + HEX_R;
+      const ryMin = rpcy - HEX_R;
+      const ryMax = rpcy + HEX_R;
+      const rxStart = Math.floor(rxMin / TRACE_GRID) * TRACE_GRID;
+      const ryStart = Math.floor(ryMin / TRACE_GRID) * TRACE_GRID;
+      for (let x = rxStart; x <= rxMax; x += TRACE_GRID) {
+        if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.75) {
+          rctx.beginPath();
+          rctx.moveTo(x, ryMin);
+          rctx.lineTo(x, ryMax);
+          rctx.stroke();
+        }
+      }
+      for (let y = ryStart; y <= ryMax; y += TRACE_GRID) {
+        if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.75) {
+          rctx.beginPath();
+          rctx.moveTo(rxMin, y);
+          rctx.lineTo(rxMax, y);
+          rctx.stroke();
+        }
+      }
+      rctx.restore();
     }
   }
 
@@ -724,7 +768,7 @@ function generateCircuitEmissive(): THREE.CanvasTexture {
   const SIZE = 1024;
   const cv = document.createElement('canvas');
   cv.width = cv.height = SIZE;
-  const ctx = cv.getContext('2d')!;
+  const ctx = cv.getContext('2d') as CanvasRenderingContext2D;
 
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, SIZE, SIZE);
@@ -851,7 +895,7 @@ export default function HeroMesh() {
     scene.environment = envTarget.texture;
 
     // ── Cinematic lighting (key directional + soft ambient) ──────────────────
-    const dirLight = new THREE.DirectionalLight(0xeaf4ff, 0.4);
+    const dirLight = new THREE.DirectionalLight(0xeaf4ff, 1.2);
     dirLight.position.set(4.0, 1.6, 3.5); // more side-on, less top-down → no polar blowout
     scene.add(dirLight);
 
@@ -915,11 +959,11 @@ export default function HeroMesh() {
     // pattern as procedural albedo + emissive + roughness modulation.
     const sphMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      metalness: 0.38,
-      roughness: 0.68, // even more matte to avoid spec blowout
+      metalness: 0.45,
+      roughness: 0.68,
       clearcoat: 0.1, // very subtle sheen
       clearcoatRoughness: 0.4,
-      envMapIntensity: 0.35, // softer HDRI reflection
+      envMapIntensity: 0.55,
     });
 
     // Procedural canvas-baked PCB texture for chips/traces/dots that pure
@@ -937,9 +981,11 @@ export default function HeroMesh() {
 
     sphMat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = sphUniforms.uTime;
+      shader.uniforms.uLightDir = sphUniforms.uLightDir;
       shader.uniforms.uCircuitTex = { value: circuitEmissiveTex };
       shader.uniforms.uAlbedoTex = { value: albedoTex };
       shader.uniforms.uRoughTex = { value: roughnessTex };
+      sphMat.userData._u = shader.uniforms;
 
       // ── Vertex injections — extra varyings + attribute (aHeight) ───────────
       shader.vertexShader = shader.vertexShader.replace(
@@ -963,6 +1009,7 @@ export default function HeroMesh() {
         '#include <common>',
         `#include <common>
          uniform float uTime;
+         uniform vec3 uLightDir;
          uniform sampler2D uCircuitTex;
          uniform sampler2D uAlbedoTex;
          uniform sampler2D uRoughTex;
@@ -1062,8 +1109,18 @@ export default function HeroMesh() {
          vec3 _albB = texture2D(uAlbedoTex, _auvB).rgb;
          vec3 _albC = texture2D(uAlbedoTex, _auvC).rgb;
          vec3 _albTri = _albA * wT.z + _albB * wT.x + _albC * wT.y;
-         // Additive blend — canvas chip/trace detail layered over the procedural dark base
-         diffuseColor.rgb = _baseDark + _albTri * 0.55;`
+         // Task 6.3: lambert-modulated albedo blend so lit hemisphere shows canvas
+         // detail and shadow side falls back to dark titanium base. vObjectPosCP is
+         // the sphere surface position in object space — its normalize() IS the
+         // outward normal for a sphere (no rotation applied to the mesh).
+         float _NdotL = max(dot(normalize(vObjectPosCP), normalize(uLightDir)), 0.0);
+         // Task 7.12: reduced max mix 0.55→0.40 (intermediate step) to prevent any
+         // residual warm canvas tones from dominating the lit hemisphere.
+         float _albedoMix = mix(0.10, 0.40, smoothstep(0.0, 0.4, _NdotL));
+         // Task 7.13: cool tint on the triplanar canvas sample — shifts any residual
+         // warm mid-tones toward cold titanium (−15% red, −5% green, +10% blue).
+         _albTri *= vec3(0.85, 0.95, 1.10);
+         diffuseColor.rgb = _baseDark + _albTri * _albedoMix;`
       );
 
       // Task 1.5: Roughness — sample canvas roughness map triplanarly, combine with
@@ -1149,6 +1206,8 @@ export default function HeroMesh() {
     scene.add(atmosphere);
 
     // ── Holographic outer shell — rotating hex grid + scanning lines ─────────
+    // Phase 4: expanded with UV-based scanning sweep (4.2), UV hex grid (4.3),
+    // and square data-grid (4.4). uTime already present (4.1 + 4.5).
     const holoGeo = new THREE.IcosahedronGeometry(SPHERE_RADIUS * 1.06, 4);
     const holoUniforms = { uTime: { value: 0 } };
     const holoMat = new THREE.ShaderMaterial({
@@ -1161,9 +1220,11 @@ export default function HeroMesh() {
         varying vec3 vViewPos;
         varying vec3 vWorldNormal;
         varying vec3 vObjectPos;
+        varying vec2 vUv;
         void main() {
           vWorldNormal = normalize(mat3(modelMatrix) * normal);
           vObjectPos   = position;
+          vUv          = uv;
           vec4 mv      = modelViewMatrix * vec4(position, 1.0);
           vViewPos     = mv.xyz;
           gl_Position  = projectionMatrix * mv;
@@ -1175,6 +1236,7 @@ export default function HeroMesh() {
         varying vec3 vViewPos;
         varying vec3 vWorldNormal;
         varying vec3 vObjectPos;
+        varying vec2 vUv;
 
         // Hex Voronoi — seeds on a proper hex lattice, no jitter → perfect hexagons
         // Returns F2 - F1 (distance to nearest cell border, small near edge)
@@ -1202,7 +1264,7 @@ export default function HeroMesh() {
           vec3 V = normalize(-vViewPos);
           float fr = pow(1.0 - max(dot(N, V), 0.0), 2.5);
 
-          // Triplanar hex grid in object space (undisplaced unit dir × radius)
+          // Triplanar hex grid in object space — high-quality seam-free base layer
           vec3 absN = abs(normalize(vObjectPos));
           vec3 wT   = pow(absN, vec3(8.0));
           wT       /= dot(wT, vec3(1.0));
@@ -1213,19 +1275,46 @@ export default function HeroMesh() {
           float h_xz = hexVoroEdge(dp.xz, 7.0);
           float hexD = h_xy * wT.z + h_yz * wT.x + h_xz * wT.y;
 
-          // Bright AT EDGES (where F2-F1 is small)
+          // Triplanar hex: bright at cell edges (F2−F1 small) — existing base grid
           float gridLine = smoothstep(0.020, 0.000, hexD) * 0.45;
 
-          // Scanning line — vertical sweep across the sphere
-          float scanY = fract(uTime * 0.05);
-          float scanLine = exp(-abs(normalize(vObjectPos).y * 0.5 + 0.5 - scanY) * 60.0) * 0.40;
+          // Task 7.6: Pole-fade — UV-based layers seam at poles (vUv.y → 0 or 1) causing
+          // UV compression artifacts ("TT" text, yellow dot). Fade all UV layers out near
+          // poles so the triplanar base layer takes over without visible seams.
+          float poleFade = 1.0 - smoothstep(0.40, 0.50, abs(vUv.y - 0.5));
+
+          // Task 4.2: UV-based scanning sweep — horizontal band scrolling in vUv.y
+          // step(0.985, ...) keeps the band narrow; *4.0 repeats 4 scan bands across sphere
+          float scan = step(0.985, fract(vUv.y * 4.0 - uTime * 0.12));
+          // Task 7.7: multiply by poleFade so the scan line vanishes at poles
+          vec3 colScan = vec3(0.0, 0.8, 1.0) * scan * 0.25 * poleFade;
+
+          // Task 4.3: UV-based hex grid overlay — faint cell border lines at scale 20
+          // hexVoroEdge reused with UV coords; border threshold gives thin lines at 0.08 max
+          float uvHexD = hexVoroEdge(vUv, 20.0);
+          // Task 7.7: poleFade suppresses hex grid compression near poles
+          float uvHexLine = smoothstep(0.025, 0.000, uvHexD) * 0.08 * poleFade;
+          vec3 colHex = vec3(0.0, 1.0, 0.80) * uvHexLine;
+
+          // Task 4.4: Square data-grid — thin lines on a 40-cell UV grid, opacity ≤ 0.06
+          vec2 gridFract = fract(vUv * 40.0);
+          // Task 7.7: poleFade eliminates data-grid seam artifacts at poles
+          float sqGrid = max(step(0.97, gridFract.x), step(0.97, gridFract.y)) * 0.06 * poleFade;
+          vec3 colSqGrid = vec3(0.2, 0.85, 1.0) * sqGrid;
 
           vec3 col = vec3(0.45, 0.85, 1.20);
-          // Intensity ramps with Fresnel — strong at limb, faint head-on
-          float intensity = (gridLine + scanLine) * fr;
+          // Fresnel: strong at limb, faint head-on — modulates all triplanar layers
+          float intensity = gridLine * fr;
           intensity += fr * 0.06;
 
-          gl_FragColor = vec4(col * intensity, intensity * 0.50);
+          // UV-based layers are geometry-independent: no Fresnel modulation so they
+          // remain visible at all angles (not just limb).
+          // Alpha clamped to 0.25 per spec (≤ 0.25, minimalist holographic look).
+          float alpha = clamp(intensity * 0.50 + scan * 0.12 + uvHexLine + sqGrid, 0.0, 0.25);
+          gl_FragColor = vec4(
+            col * intensity + colScan + colHex + colSqGrid,
+            alpha
+          );
         }
       `,
     });
@@ -1303,7 +1392,7 @@ export default function HeroMesh() {
     // We take the primary curve's midpoint, then build two children from that point
     // by applying a small angular offset (+/− 0.2 rad on theta) to the remaining anchors.
     for (const srcIdx of FORK_SOURCE_INDICES) {
-      const srcAnchors = PRIMARY_ANCHORS[srcIdx]!;
+      const srcAnchors = PRIMARY_ANCHORS[srcIdx] as Array<[number, number]>;
       const midI = Math.floor(srcAnchors.length / 2);
       const tailAnchors = srcAnchors.slice(midI); // midpoint onward
 
@@ -1349,18 +1438,18 @@ export default function HeroMesh() {
     for (let i = 0; i < NODE_COUNT; i++) shuffled.push(i);
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      const tmp = shuffled[i]!;
-      shuffled[i] = shuffled[j]!;
+      const tmp = shuffled[i] as number;
+      shuffled[i] = shuffled[j] as number;
       shuffled[j] = tmp;
     }
-    for (let i = 0; i < HUB_COUNT; i++) nodeType[shuffled[i]!] = 0;
-    for (let i = HUB_COUNT; i < HUB_COUNT + LEAF_COUNT; i++) nodeType[shuffled[i]!] = 2;
-    for (let i = HUB_COUNT + LEAF_COUNT; i < NODE_COUNT; i++) nodeType[shuffled[i]!] = 1;
+    for (let i = 0; i < HUB_COUNT; i++) nodeType[shuffled[i] as number] = 0;
+    for (let i = HUB_COUNT; i < HUB_COUNT + LEAF_COUNT; i++) nodeType[shuffled[i] as number] = 2;
+    for (let i = HUB_COUNT + LEAF_COUNT; i < NODE_COUNT; i++) nodeType[shuffled[i] as number] = 1;
 
     // Want-degree per node by type: hubs 7-9, normals 2-3, leaves 1
     const want = new Int16Array(NODE_COUNT);
     for (let i = 0; i < NODE_COUNT; i++) {
-      const t = nodeType[i]!;
+      const t = nodeType[i] as number;
       if (t === 0) want[i] = 7 + Math.floor(Math.random() * 3);
       else if (t === 2) want[i] = 1;
       else want[i] = 2 + Math.floor(Math.random() * 2);
@@ -1377,26 +1466,26 @@ export default function HeroMesh() {
       if (edgeKeys.has(key)) return false;
       edgeKeys.add(key);
       edges.push([lo, hi]);
-      currentDeg[lo] = currentDeg[lo]! + 1;
-      currentDeg[hi] = currentDeg[hi]! + 1;
+      currentDeg[lo] = (currentDeg[lo] as number) + 1;
+      currentDeg[hi] = (currentDeg[hi] as number) + 1;
       return true;
     };
 
     for (let pass = 0; pass < 3; pass++) {
       for (let i = 0; i < NODE_COUNT; i++) {
         if (nodeType[i] !== pass) continue;
-        const pi = nodeLocal[i]!;
-        while (currentDeg[i]! < want[i]!) {
+        const pi = nodeLocal[i] as THREE.Vector3;
+        while ((currentDeg[i] as number) < (want[i] as number)) {
           let best = -1;
           let bestD = Infinity;
           for (let j = 0; j < NODE_COUNT; j++) {
             if (j === i) continue;
             // Allow +1 slack so hubs don't starve when neighbors are full
-            if (currentDeg[j]! >= want[j]! + 1) continue;
+            if ((currentDeg[j] as number) >= (want[j] as number) + 1) continue;
             const lo = Math.min(i, j),
               hi = Math.max(i, j);
             if (edgeKeys.has(`${lo}-${hi}`)) continue;
-            const d = pi.distanceToSquared(nodeLocal[j]!);
+            const d = pi.distanceToSquared(nodeLocal[j] as THREE.Vector3);
             if (d < bestD) {
               bestD = d;
               best = j;
@@ -1412,20 +1501,20 @@ export default function HeroMesh() {
     const hubIdx: number[] = [];
     for (let i = 0; i < NODE_COUNT; i++) if (nodeType[i] === 0) hubIdx.push(i);
     for (let a = 0; a < AXON_COUNT && hubIdx.length > 0; a++) {
-      const hub = hubIdx[Math.floor(Math.random() * hubIdx.length)]!;
-      const ph = nodeLocal[hub]!;
+      const hub = hubIdx[Math.floor(Math.random() * hubIdx.length)] as number;
+      const ph = nodeLocal[hub] as THREE.Vector3;
       const cands: Array<{ j: number; d: number }> = [];
       for (let j = 0; j < NODE_COUNT; j++) {
         if (j === hub) continue;
         const lo = Math.min(hub, j),
           hi = Math.max(hub, j);
         if (edgeKeys.has(`${lo}-${hi}`)) continue;
-        cands.push({ j, d: ph.distanceToSquared(nodeLocal[j]!) });
+        cands.push({ j, d: ph.distanceToSquared(nodeLocal[j] as THREE.Vector3) });
       }
       if (cands.length === 0) continue;
       cands.sort((x, y) => y.d - x.d); // farthest first
       const top = Math.max(1, Math.floor(cands.length / 4));
-      const pick = cands[Math.floor(Math.random() * top)]!;
+      const pick = cands[Math.floor(Math.random() * top)] as { j: number; d: number };
       addEdge(hub, pick.j);
     }
 
@@ -1442,9 +1531,9 @@ export default function HeroMesh() {
     // All per-edge tubes are merged into one geometry so it's a single draw call.
     const tubeGeos: THREE.BufferGeometry[] = [];
     for (let e = 0; e < EDGE_N; e++) {
-      const [a, b] = edges[e]!;
-      const dirA = nodeDirs[a]!,
-        dirB = nodeDirs[b]!;
+      const [a, b] = edges[e] as [number, number];
+      const dirA = nodeDirs[a] as THREE.Vector3,
+        dirB = nodeDirs[b] as THREE.Vector3;
       const dot = Math.max(-1, Math.min(1, dirA.x * dirB.x + dirA.y * dirB.y + dirA.z * dirB.z));
       const angle = dot > 0.9999 ? 0 : Math.acos(dot);
       const sa = angle === 0 ? 1 : Math.sin(angle);
@@ -1482,11 +1571,11 @@ export default function HeroMesh() {
       );
 
       // Per-edge vertex color + edge id + tube fraction (0 at A, 1 at B)
-      const vCount = tubeGeo.attributes.position!.count;
+      const vCount = (tubeGeo.attributes.position as THREE.BufferAttribute).count;
       const colorAttr = new Float32Array(vCount * 3);
       const edgeIdAttr = new Float32Array(vCount);
       const fracAttr = new Float32Array(vCount);
-      const [cr, cg, cb] = edgeColors[e]!;
+      const [cr, cg, cb] = edgeColors[e] as [number, number, number];
       const radialPlus1 = TUBE_RADIAL + 1;
       const tubularSegs = TUBE_SAMPLES * 2;
       for (let i = 0; i < vCount; i++) {
@@ -1502,7 +1591,8 @@ export default function HeroMesh() {
       tubeGeo.setAttribute('aTubeFrac', new THREE.BufferAttribute(fracAttr, 1));
       tubeGeos.push(tubeGeo);
     }
-    const tubeMergedGeo = mergeGeometries(tubeGeos)!;
+    // mergeGeometries returns null only when input is empty; tubeGeos is always non-empty here
+    const tubeMergedGeo = mergeGeometries(tubeGeos) ?? new THREE.BufferGeometry();
     tubeGeos.forEach((g) => {
       g.dispose();
     });
@@ -1555,9 +1645,9 @@ export default function HeroMesh() {
       if (nodeType[i] === 0) hubEdgeRefs.set(i, []);
     }
     for (let e = 0; e < EDGE_N; e++) {
-      const [a, b] = edges[e]!;
-      if (hubEdgeRefs.has(a)) hubEdgeRefs.get(a)!.push({ e, fromA: true });
-      if (hubEdgeRefs.has(b)) hubEdgeRefs.get(b)!.push({ e, fromA: false });
+      const [a, b] = edges[e] as [number, number];
+      if (hubEdgeRefs.has(a)) hubEdgeRefs.get(a)?.push({ e, fromA: true });
+      if (hubEdgeRefs.has(b)) hubEdgeRefs.get(b)?.push({ e, fromA: false });
     }
 
     const SURGE_DURATION = 0.85;
@@ -1566,8 +1656,8 @@ export default function HeroMesh() {
 
     const updateSurges = (t: number) => {
       for (let e = 0; e < EDGE_N; e++) {
-        const phaseA = (t - surgeStartA[e]!) / SURGE_DURATION;
-        const phaseB = (t - surgeStartB[e]!) / SURGE_DURATION;
+        const phaseA = (t - (surgeStartA[e] as number)) / SURGE_DURATION;
+        const phaseB = (t - (surgeStartB[e] as number)) / SURGE_DURATION;
         surgeDataA[e * 4] = phaseA <= 0 || phaseA > 1.27 ? 0 : Math.round((phaseA / 1.27) * 255);
         surgeDataB[e * 4] = phaseB <= 0 || phaseB > 1.27 ? 0 : Math.round((phaseB / 1.27) * 255);
       }
@@ -1602,10 +1692,10 @@ export default function HeroMesh() {
     const _color = new THREE.Color();
     const nodeRGB = new Float32Array(NODE_COUNT * 3); // cached for pulse color choice etc.
     for (let i = 0; i < NODE_COUNT; i++) {
-      const p = nodeLocal[i]!;
+      const p = nodeLocal[i] as THREE.Vector3;
       _dummy.position.copy(p);
-      const t = nodeType[i]!;
-      const baseScale = NODE_RADII[t]! * (0.85 + Math.random() * 0.3);
+      const t = nodeType[i] as number;
+      const baseScale = NODE_RADII[t as 0 | 1 | 2] * (0.85 + Math.random() * 0.3);
       _dummy.scale.setScalar(baseScale);
       _dummy.updateMatrix();
       nodeMesh.setMatrixAt(i, _dummy.matrix);
@@ -1683,7 +1773,7 @@ export default function HeroMesh() {
     ];
 
     for (let i = 0; i < reactorDirs.length; i++) {
-      const dir = reactorDirs[i]!;
+      const dir = reactorDirs[i] as THREE.Vector3;
       const rig = new THREE.Object3D();
       // Sit just above the displaced terrain
       const surfaceR = SPHERE_RADIUS + terrainDisp(dir.x, dir.y, dir.z) + 0.045;
@@ -1789,15 +1879,19 @@ export default function HeroMesh() {
     };
 
     // Hub firing animation parameters
+    // Task 7A: scale boost reduced 0.90→0.20 and color boost 0.55→0.25 to prevent
+    // bloom blowout that made pulses read as giant rings (~50% planet diameter).
     const FIRE_DURATION = 0.55;
     const FIRE_GAP_MIN = 1.8;
     const FIRE_GAP_MAX = 4.0;
-    const FIRE_SCALE_BOOST = 0.9; // peak adds +90 % → up to 1.9× scale (less blowout under bloom)
-    const FIRE_COLOR_BOOST = 0.55; // peak shifts color 55 % toward white
+    const FIRE_SCALE_BOOST = 0.2; // peak adds +20 % → subtle expansion, no nuclear blast
+    const FIRE_COLOR_BOOST = 0.25; // peak shifts color 25 % toward white — stays node-level
+    // Max scale clamp: node can never exceed 20 % of sphere radius in world units (task 7.2).
+    const FIRE_MAX_SCALE = SPHERE_RADIUS * 0.2;
 
     const updateHubFires = (t: number) => {
       for (let h = 0; h < hubFires.length; h++) {
-        const hf = hubFires[h]!;
+        const hf = hubFires[h] as HubFire;
         if (t >= hf.nextFire) {
           hf.lastFire = t;
           hf.nextFire = t + FIRE_GAP_MIN + Math.random() * (FIRE_GAP_MAX - FIRE_GAP_MIN);
@@ -1805,7 +1899,7 @@ export default function HeroMesh() {
           const refs = hubEdgeRefs.get(hf.nodeIdx);
           if (refs) {
             for (let r = 0; r < refs.length; r++) {
-              const ref = refs[r]!;
+              const ref = refs[r] as { e: number; fromA: boolean };
               if (ref.fromA) surgeStartA[ref.e] = t;
               else surgeStartB[ref.e] = t;
             }
@@ -1814,12 +1908,19 @@ export default function HeroMesh() {
         const phase = (t - hf.lastFire) / FIRE_DURATION;
         const inten = phase < 0 || phase > 1 ? 0 : (1 - phase) * (1 - phase);
 
-        _dummy.position.copy(nodeLocal[hf.nodeIdx]!);
-        _dummy.scale.setScalar(hf.baseScale * (1 + inten * FIRE_SCALE_BOOST));
+        // Task 7.2: clamp expanded scale so the ring never exceeds FIRE_MAX_SCALE (task 7.4:
+        // tube radius is constant — only the node sphere scale changes here).
+        const rawScale = hf.baseScale * (1 + inten * FIRE_SCALE_BOOST);
+        _dummy.position.copy(nodeLocal[hf.nodeIdx] as THREE.Vector3);
+        _dummy.scale.setScalar(Math.min(rawScale, FIRE_MAX_SCALE));
         _dummy.updateMatrix();
         nodeMesh.setMatrixAt(hf.nodeIdx, _dummy.matrix);
 
-        const k = inten * FIRE_COLOR_BOOST;
+        // Task 7.3: color (visual alpha proxy) fades to zero before scale hits maximum.
+        // Use a steeper falloff: clamp inten so alpha reaches 0 when inten < 0.20,
+        // which corresponds to ~phase 0.55 — well before the animation end at phase 1.
+        const colorInten = Math.max(0, inten - 0.2) / 0.8;
+        const k = colorInten * FIRE_COLOR_BOOST;
         _color.setRGB(
           hf.baseR + (1 - hf.baseR) * k,
           hf.baseG + (1 - hf.baseG) * k,
@@ -1841,12 +1942,12 @@ export default function HeroMesh() {
     const pulseCol = new Float32Array(PULSE_TOTAL * 3);
     const pulseSize = new Float32Array(PULSE_TOTAL);
     for (let e = 0; e < EDGE_N; e++) {
-      const [a, b] = edges[e]!;
+      const [a, b] = edges[e] as [number, number];
       pulseStart[e] = a;
       pulseEnd[e] = b;
       pulsePhase[e] = Math.random();
       pulseSpeed[e] = 0.05 + Math.random() * 0.2;
-      const pa = nodeLocal[a]!;
+      const pa = nodeLocal[a] as THREE.Vector3;
 
       const isWarm = Math.random() < 0.3;
       const rC = isWarm ? 1.0 : 0.3;
@@ -1863,7 +1964,7 @@ export default function HeroMesh() {
         pulseCol[idx * 3] = rC;
         pulseCol[idx * 3 + 1] = gC;
         pulseCol[idx * 3 + 2] = bC;
-        pulseSize[idx] = baseSize * TRAIL_SIZE_MULT[k]!;
+        pulseSize[idx] = baseSize * (TRAIL_SIZE_MULT[k] as number);
       }
     }
     const pulsePosAttr = new THREE.BufferAttribute(pulsePos, 3);
@@ -1886,18 +1987,18 @@ export default function HeroMesh() {
 
     const updatePulses = (t: number) => {
       for (let e = 0; e < EDGE_N; e++) {
-        let head = (t * pulseSpeed[e]! + pulsePhase[e]!) % 1.0;
+        let head = (t * (pulseSpeed[e] as number) + (pulsePhase[e] as number)) % 1.0;
         if (head < 0) head += 1;
-        const a = pulseStart[e]!,
-          b = pulseEnd[e]!;
-        const dirA = nodeDirs[a]!,
-          dirB = nodeDirs[b]!;
+        const a = pulseStart[e] as number,
+          b = pulseEnd[e] as number;
+        const dirA = nodeDirs[a] as THREE.Vector3,
+          dirB = nodeDirs[b] as THREE.Vector3;
         const dot = Math.max(-1, Math.min(1, dirA.x * dirB.x + dirA.y * dirB.y + dirA.z * dirB.z));
         const angle = dot > 0.9999 ? 0 : Math.acos(dot);
         const sa = angle === 0 ? 1 : Math.sin(angle);
 
         for (let k = 0; k < TRAIL_PER_EDGE; k++) {
-          let frac = head - TRAIL_OFFSET[k]!;
+          let frac = head - (TRAIL_OFFSET[k] as number);
           if (frac < 0) frac = 0;
           const idx = e * TRAIL_PER_EDGE + k;
 
@@ -2120,7 +2221,8 @@ export default function HeroMesh() {
       );
     }
 
-    const jcGeo = mergeGeometries(jcTubeGeos)!;
+    // mergeGeometries returns null only when input is empty; jcTubeGeos is always non-empty
+    const jcGeo = mergeGeometries(jcTubeGeos) ?? new THREE.BufferGeometry();
     jcTubeGeos.forEach((g) => {
       g.dispose();
     });
@@ -2395,6 +2497,32 @@ export default function HeroMesh() {
     const accentLine = new THREE.LineSegments(accentGeo, accentMat);
     shipGroup.add(accentLine);
 
+    // ── Satellite depth-fade — all ship materials collected for per-frame fade ─
+    // Opaque materials are switched to transparent so opacity can animate.
+    // Base opacities captured here; tick loop modulates them by backness fade.
+    type FadeMat = { mat: THREE.Material; baseOp: number };
+    const shipFadeMats: FadeMat[] = [];
+    const registerFade = (mat: THREE.Material, baseOp: number) => {
+      mat.transparent = true;
+      shipFadeMats.push({ mat, baseOp });
+    };
+    registerFade(shipBodyEdgesMat, 0.95);
+    registerFade(shipBodySolidMat, 1.0);
+    registerFade(panelDivMat, 0.65);
+    registerFade(solarBoxMat, 1.0);
+    registerFade(solarGridMat, 0.9);
+    registerFade(armMat, 0.8);
+    registerFade(dishMat, 1.0);
+    registerFade(dishEdgesMat, 0.85);
+    registerFade(dishStandMat, 0.85);
+    for (const m of engineRingMats) registerFade(m, (m as THREE.MeshBasicMaterial).opacity);
+    registerFade(jcMat, 1.0);
+    for (const m of antennaMatList) registerFade(m, 1.0);
+    for (const m of greebleMats) registerFade(m, 1.0);
+    for (const m of greebleEdgesMats) registerFade(m, 0.75);
+    registerFade(portholeMat, 1.0);
+    registerFade(accentMat, 0.9);
+
     // ── Atmospheric glow sprites ─────────────────────────────────────────────
     const glowTex1 = makeGlowTex(15, 70, 190, 0.55);
     const glow1 = new THREE.Sprite(
@@ -2579,24 +2707,30 @@ export default function HeroMesh() {
     // Update particle positions per frame (drift + shell clamp + parallax rotation + pulse)
     const updateParticles = (dt: number, t: number) => {
       for (let li = 0; li < particleLayers.length; li++) {
-        const L = particleLayers[li]!;
+        const L = particleLayers[li] as ParticleLayer;
         const cnt = L.pos.length / 3;
         const p = L.pos,
           v = L.vel;
         for (let i = 0; i < cnt; i++) {
-          p[i * 3]! = p[i * 3]! + v[i * 3]! * dt;
-          p[i * 3 + 1]! = p[i * 3 + 1]! + v[i * 3 + 1]! * dt;
-          p[i * 3 + 2]! = p[i * 3 + 2]! + v[i * 3 + 2]! * dt;
-          const dx = p[i * 3]! - SPHERE_POS.x;
-          const dy = p[i * 3 + 1]! - SPHERE_POS.y;
-          const dz = p[i * 3 + 2]! - SPHERE_POS.z;
+          const i3 = i * 3;
+          // Float32Array bounds are guaranteed by cnt = L.pos.length / 3
+          p[i3] = (p[i3] as number) + (v[i3] as number) * dt;
+          p[i3 + 1] = (p[i3 + 1] as number) + (v[i3 + 1] as number) * dt;
+          p[i3 + 2] = (p[i3 + 2] as number) + (v[i3 + 2] as number) * dt;
+          const dx = (p[i3] as number) - SPHERE_POS.x;
+          const dy = (p[i3 + 1] as number) - SPHERE_POS.y;
+          const dz = (p[i3 + 2] as number) - SPHERE_POS.z;
           const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
           if (r < L.shellMin || r > L.shellMax) {
             const target = (L.shellMin + L.shellMax) * 0.5;
             const k = 0.02;
-            p[i * 3]! = p[i * 3]! + (SPHERE_POS.x + dx * (target / r) - p[i * 3]!) * k;
-            p[i * 3 + 1]! = p[i * 3 + 1]! + (SPHERE_POS.y + dy * (target / r) - p[i * 3 + 1]!) * k;
-            p[i * 3 + 2]! = p[i * 3 + 2]! + (SPHERE_POS.z + dz * (target / r) - p[i * 3 + 2]!) * k;
+            p[i3] = (p[i3] as number) + (SPHERE_POS.x + dx * (target / r) - (p[i3] as number)) * k;
+            p[i3 + 1] =
+              (p[i3 + 1] as number) +
+              (SPHERE_POS.y + dy * (target / r) - (p[i3 + 1] as number)) * k;
+            p[i3 + 2] =
+              (p[i3 + 2] as number) +
+              (SPHERE_POS.z + dz * (target / r) - (p[i3 + 2] as number)) * k;
           }
         }
         (L.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
@@ -2606,7 +2740,8 @@ export default function HeroMesh() {
 
         // Atmospheric layer (0): sinusoidal opacity pulse
         if (li === 0) {
-          L.mat.uniforms.uOpacityScale!.value = 0.5 + 0.3 * Math.sin(t * 0.4);
+          if (L.mat.uniforms.uOpacityScale)
+            L.mat.uniforms.uOpacityScale.value = 0.5 + 0.3 * Math.sin(t * 0.4);
         }
       }
     };
@@ -2760,6 +2895,7 @@ export default function HeroMesh() {
     const _ringV = new THREE.Vector3();
     const _ringQ = new THREE.Quaternion();
     const _ringE = new THREE.Euler();
+    const _shipWP = new THREE.Vector3(); // ship world-position scratch for depth-fade
 
     const updateOrbitalRings = (t: number) => {
       for (const ring of orbitalRings) {
@@ -2831,9 +2967,9 @@ export default function HeroMesh() {
       // Bloom — only HDR-emissive (>1.0) pixels glow, not specular peaks
       bloomPass = new UnrealBloomPass(
         new THREE.Vector2(container.clientWidth, container.clientHeight),
-        0.55, // strength — moderate (was 0.80)
+        0.42, // strength — reduced to prevent specular peak amplification
         0.4, // radius
-        0.98 // threshold — only true HDR pixels bloom (was 0.85, raised to skip spec)
+        0.98 // threshold — only true HDR pixels bloom
       );
       composer.addPass(bloomPass);
 
@@ -2920,10 +3056,39 @@ export default function HeroMesh() {
         }
 
         // Ship orbits the planet + rotates on its own axis + engines spin
-        shipPivot.rotation.y = t * 0.12; // orbit speed (~52s per revolution)
-        shipGroup.rotation.y = t * 0.18; // ship self-rotation
+        shipPivot.rotation.y = t * 0.35; // orbit speed (~18s per revolution; ~22s apparent vs camera rig)
+        shipGroup.rotation.y = t * 0.4; // ship self-rotation
         leftEngine.rotation.z = t * 0.85;
         rightEngine.rotation.z = -t * 0.85;
+
+        // Satellite depth-fade — ray-occlusion test: hide only when the planet
+        // actually blocks the camera→ship line.
+        shipGroup.getWorldPosition(_shipWP);
+        {
+          const dx = _shipWP.x - camera.position.x;
+          const dy = _shipWP.y - camera.position.y;
+          const dz = _shipWP.z - camera.position.z;
+          const shipDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const px = SPHERE_POS.x - camera.position.x;
+          const py = SPHERE_POS.y - camera.position.y;
+          const pz = SPHERE_POS.z - camera.position.z;
+          const tProj = (px * dx + py * dy + pz * dz) / shipDist;
+          const perpSq = px * px + py * py + pz * pz - tProj * tProj;
+          const dPerp = Math.sqrt(Math.max(0, perpSq));
+
+          let fade = 1.0;
+          if (tProj > 0 && tProj < shipDist) {
+            // Ship is on the far side of the planet center from camera.
+            // Smooth silhouette edge: hidden inside SPHERE_RADIUS, visible outside.
+            const soft = 0.08;
+            const x = (dPerp - (SPHERE_RADIUS - soft)) / (2 * soft);
+            const k = Math.max(0, Math.min(1, x));
+            fade = k * k * (3 - 2 * k);
+          }
+          for (const { mat, baseOp } of shipFadeMats) {
+            (mat as THREE.MeshBasicMaterial).opacity = baseOp * fade;
+          }
+        }
 
         // Auto-orbit camera rig — slow rotation around Y axis
         cameraRig.rotation.y = t * 0.04;
@@ -2949,9 +3114,10 @@ export default function HeroMesh() {
 
         bgUniforms.uTime.value = t;
         sphUniforms.uTime.value = t;
+        sphUniforms.uLightDir.value.copy(dirLight.position).normalize();
         starUniforms.uTime.value = t;
         nodeUniforms.uTime.value = t;
-        if (cinePass) cinePass.uniforms.uTime!.value = t;
+        if (cinePass?.uniforms.uTime) cinePass.uniforms.uTime.value = t;
         holoUniforms.uTime.value = t;
 
         updatePulses(t);
