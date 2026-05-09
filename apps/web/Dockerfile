@@ -14,21 +14,19 @@ RUN pnpm install --frozen-lockfile --filter @jcsoftdev/web...
 FROM node:24-alpine AS build
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
-COPY --from=deps /repo/packages ./packages
-COPY apps/web ./apps/web
-# Copy source for workspace packages (needed for Astro build)
 COPY packages/config ./packages/config
 COPY packages/animations ./packages/animations
 COPY packages/ui ./packages/ui
 COPY packages/types ./packages/types
+COPY apps/web ./apps/web
 WORKDIR /repo/apps/web
-RUN node_modules/.bin/astro build
+RUN /repo/node_modules/.bin/astro build
 
 # Stage 3: Runtime
 FROM node:24-alpine AS runtime
 WORKDIR /app
 COPY --from=build /repo/apps/web/dist ./dist
-COPY --from=build /repo/apps/web/node_modules ./node_modules
+COPY --from=deps /repo/node_modules ./node_modules
 EXPOSE 4321
 ENV HOST=0.0.0.0
 ENV PORT=4321
