@@ -26,9 +26,13 @@
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -59,192 +63,10 @@ const BG_FRAG = `
   }
 `;
 
-// ─── Sphere base — CPU-displaced terrain + PBR-lit + Fresnel ──────────────────
-//
-// Displacement is applied on the CPU before render (fbm3 in JS, vertices pushed
-// along their direction, normals recomputed via geometry.computeVertexNormals()).
-// The shader just consumes the resulting `normal` attribute + an `aHeight` we
-// precompute per-vertex for the height-based color ramp. Much more stable than
-// dFdx/dFdy reconstruction.
-
-const SPHERE_VERT = `
-  attribute float aHeight;
-  varying vec3  vWorldPos;
-  varying vec3  vWorldNormal;
-  varying vec3  vObjectPos;
-  varying vec3  vObjectDir;     // undisplaced unit dir × radius — for voronoi sampling
-  varying float vHeight;
-
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vWorldPos    = wp.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    vObjectPos   = position;
-    vObjectDir   = normalize(position) * 1.55;     // sphere radius
-    vHeight      = aHeight;
-    gl_Position  = projectionMatrix * viewMatrix * wp;
-  }
-`;
-
-const SPHERE_FRAG = `
-  precision highp float;
-
-  uniform vec3  uLightDir;
-  uniform float uTime;
-
-  varying vec3  vWorldPos;
-  varying vec3  vWorldNormal;
-  varying vec3  vObjectPos;
-  varying vec3  vObjectDir;
-  varying float vHeight;
-
-  float hash1f(vec3 p) {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-  }
-
-  vec2 hash2(vec2 p) {
-    return fract(sin(vec2(
-      dot(p, vec2(127.1, 311.7)),
-      dot(p, vec2(269.5, 183.3))
-    )) * 43758.5453);
-  }
-
-  // 2D Voronoi — returns (F1, F2 - F1, cellHash)
-  // F1 = distance to closest seed; F2 - F1 = distance to nearest cell border;
-  // cellHash = stable 0..1 hash for the current cell.
-  vec3 voronoi2D(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    float F1 = 100.0, F2 = 100.0;
-    vec2 cell1 = vec2(0.0);
-    for (int dx = -1; dx <= 1; dx++) {
-      for (int dy = -1; dy <= 1; dy++) {
-        vec2 nb = vec2(float(dx), float(dy));
-        vec2 seed = nb + 0.5 + 0.42 * (hash2(i + nb) - 0.5);
-        float d = length(seed - f);
-        if (d < F1)      { F2 = F1; F1 = d; cell1 = i + nb; }
-        else if (d < F2) {           F2 = d; }
-      }
-    }
-    return vec3(F1, F2 - F1, hash2(cell1).x);
-  }
-
-  void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 L = normalize(uLightDir);
-    vec3 V = normalize(cameraPosition - vWorldPos);
-
-    float NdotL = max(dot(N, L), 0.0);
-    float NdotV = max(dot(N, V), 0.0);
-    float fr    = pow(1.0 - NdotV, 3.5);
-
-    // Triplanar weights based on object-space normal
-    vec3 absN = abs(normalize(vObjectPos));
-    vec3 wT = pow(absN, vec3(8.0));
-    wT /= dot(wT, vec3(1.0));
-
-    vec3 op = vObjectPos;
-    vec3 dp = vObjectDir;          // sample voronoi from undisplaced direction so
-                                   // shader edges align with CPU panel boundaries
-
-    // BIG PANELS — low-frequency Voronoi, dominant visual structure
-    const float SCALE_BIG = 5.5;
-    vec3 v_xy = voronoi2D(dp.xy * SCALE_BIG);
-    vec3 v_yz = voronoi2D(dp.yz * SCALE_BIG);
-    vec3 v_xz = voronoi2D(dp.xz * SCALE_BIG);
-    float bigEdgeDist = v_xy.y * wT.z + v_yz.y * wT.x + v_xz.y * wT.y;
-    float cellTone    = v_xy.z * wT.z + v_yz.z * wT.x + v_xz.z * wT.y;
-    float bigF1       = v_xy.x * wT.z + v_yz.x * wT.x + v_xz.x * wT.y;
-
-    // MEDIUM DETAIL — sub-panels inside big cells
-    const float SCALE_MED = 14.0;
-    vec3 m_xy = voronoi2D(dp.xy * SCALE_MED);
-    vec3 m_yz = voronoi2D(dp.yz * SCALE_MED);
-    vec3 m_xz = voronoi2D(dp.xz * SCALE_MED);
-    float medEdgeDist = m_xy.y * wT.z + m_yz.y * wT.x + m_xz.y * wT.y;
-
-    // Sharp emissive lines at panel borders (small F2-F1 = on edge)
-    float bigTrace = smoothstep(0.030, 0.000, bigEdgeDist);
-    float medTrace = smoothstep(0.025, 0.000, medEdgeDist) * 0.45;
-
-    // Pulsing energy — phase shift per cell hash
-    float pulse = 0.55 + 0.45 * sin(uTime * 1.4 + cellTone * 14.0);
-    bigTrace *= 0.55 + 0.55 * pulse;
-
-    // Chip indicators — sparse bright dots in cell interiors
-    float dotPattern = step(0.984, hash1f(floor(op * 70.0)));
-    dotPattern *= smoothstep(0.04, 0.08, bigEdgeDist);
-
-    // MICRO CHIP PADS — high-freq grid of tiny rectangular pads (RAM/processor look)
-    // Triplanar small grid: discrete cells that look like chip components on the panel
-    vec2 chipUV_xy = fract(dp.xy * 55.0);
-    vec2 chipUV_yz = fract(dp.yz * 55.0);
-    vec2 chipUV_xz = fract(dp.xz * 55.0);
-    // Each pad: rectangular footprint 0.30..0.70 in each axis
-    float chip_xy = step(0.30, chipUV_xy.x) * step(chipUV_xy.x, 0.70)
-                  * step(0.30, chipUV_xy.y) * step(chipUV_xy.y, 0.70);
-    float chip_yz = step(0.30, chipUV_yz.x) * step(chipUV_yz.x, 0.70)
-                  * step(0.30, chipUV_yz.y) * step(chipUV_yz.y, 0.70);
-    float chip_xz = step(0.30, chipUV_xz.x) * step(chipUV_xz.x, 0.70)
-                  * step(0.30, chipUV_xz.y) * step(chipUV_xz.y, 0.70);
-    float chipPad = chip_xy * wT.z + chip_yz * wT.x + chip_xz * wT.y;
-    // Random subset of pads are "active" (illuminated)
-    float chipActive = step(0.88, hash1f(floor(dp * 55.0)));
-    chipPad *= chipActive;
-    chipPad *= smoothstep(0.04, 0.08, bigEdgeDist);  // inside big panels only
-
-    // ── HUB MARKERS — concentric rings centered on rare cell seeds ───────────
-    // bigF1 is the distance from fragment to the cell seed (center of the panel).
-    // Use it to draw rings + a bright center dot.
-    float isHub = step(0.92, cellTone);
-    float hubCenter = smoothstep(0.030, 0.005, bigF1);                     // bright dot at seed
-    float hubRing1  = smoothstep(0.012, 0.000, abs(bigF1 - 0.060));        // inner ring
-    float hubRing2  = smoothstep(0.014, 0.000, abs(bigF1 - 0.110));        // outer ring
-    float hubGlow   = smoothstep(0.180, 0.060, bigF1) * 0.35;              // soft halo
-    float hubMask   = (hubCenter * 1.4 + hubRing1 * 0.85 + hubRing2 * 0.55 + hubGlow) * isHub;
-
-    // Subtle micro-stripe inside cells (hint of internal traces)
-    float micro = mix(0.94, 1.06, step(0.5, fract(op.x * 22.0 + op.y * 11.0)));
-
-    // ── Base material — dark titanium with per-panel tone variation ──────────
-    vec3 baseDark = vec3(0.010, 0.018, 0.038) * (0.55 + 0.55 * cellTone);
-    baseDark *= micro;
-
-    // Mostly dark even on lit side, lets emissives dominate
-    float wrap = NdotL * 0.55 + 0.45;
-    vec3 base = baseDark * wrap;
-
-    // ── Emissive circuit colors (moderate HDR, ~1.5 max) ─────────────────────
-    vec3 traceColCool = vec3(0.06, 0.50, 1.45);
-    vec3 traceColWarm = vec3(0.30, 0.12, 1.10);
-    vec3 dotCol       = vec3(0.32, 0.90, 1.60);
-    vec3 hubCol       = vec3(1.20, 0.45, 1.40);
-
-    float traceWarmness = step(0.85, cellTone) * 0.6;
-    vec3 traceCol = mix(traceColCool, traceColWarm, traceWarmness);
-
-    vec3 col = base;
-    col += traceCol * bigTrace * 1.20;
-    col += traceColCool * medTrace * 0.55;
-    col += dotCol * dotPattern * 1.80;
-    col += hubCol * hubMask * 1.40;
-    // Chip pads — illuminated component squares on panels
-    col += traceColCool * chipPad * 0.45;
-
-    // Titanium sheen on cell interiors only (not on emissive edges)
-    vec3 R = reflect(-L, N);
-    float spec = pow(max(dot(R, V), 0.0), 80.0);
-    spec = min(spec, 0.4);
-    float specMask = smoothstep(0.08, 0.25, bigEdgeDist);
-    col += vec3(0.18, 0.30, 0.55) * spec * NdotL * specMask;
-
-    // Fresnel rim — toned down so the limb doesn't blow out under bloom
-    vec3 rim = mix(vec3(0.00, 0.55, 0.95), vec3(0.45, 0.10, 0.90), fr * 0.55);
-    col += rim * fr * 0.85;
-
-    gl_FragColor = vec4(col, 1.0);
-  }
-`;
+// ─── Sphere base — MeshPhysicalMaterial + onBeforeCompile injection ─────────
+// CPU-displaced terrain (CPU fbm/voronoi displaces vertices) + Three.js's
+// standard PBR pipeline. Voronoi/chip/hub pattern injected into the standard
+// material's albedo + emissive + roughness chunks via onBeforeCompile.
 
 // ─── Atmosphere shell (transparent outer sphere, fake scattering) ─────────────
 
@@ -579,6 +401,401 @@ function makeGlowTex(r: number, g: number, b: number, op: number): THREE.CanvasT
   return new THREE.CanvasTexture(cv);
 }
 
+// ─── Phase 2: Spline circuit overlay (CatmullRomCurve3 + animated UV flow) ────
+// buildCircuitPaths() returns 8 primary curves + 6 fork children (3 paths × 2 forks).
+// Each curve is defined by spherical-coordinate anchors projected onto sphere surface
+// at a slight radial offset (1.006×) so they float just above the terrain.
+//
+// UV layout on TubeGeometry: UV.x ∈ [0,1] along tube length, UV.y around cross-section.
+// The GLSL band formula scrolls a bright packet: fract(vUv.x − uTime*0.15).
+// step(0.85, t)*3.0+0.2 keeps 85% of the tube dim (×0.2) and 15% blazing (×3.2).
+
+const CIRCUIT_RADIUS_FACTOR = 1.006; // sits just above displaced terrain surface
+
+// Returns evenly-spaced points along a CatmullRomCurve3 projected radially outward
+// from the sphere center at the circuit radius. Used for both primary + fork paths.
+function sphereArcCurve(
+  anchors: Array<[number, number]>, // [theta, phi] pairs in radians
+  sphereRadius: number
+): THREE.CatmullRomCurve3 {
+  const r = sphereRadius * CIRCUIT_RADIUS_FACTOR;
+  const pts = anchors.map(([theta, phi]) => {
+    const sinP = Math.sin(phi);
+    return new THREE.Vector3(
+      r * sinP * Math.cos(theta),
+      r * Math.cos(phi),
+      r * sinP * Math.sin(theta)
+    );
+  });
+  return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+}
+
+// 8 primary circuit paths — anchor sets chosen to distribute around the full sphere
+// and create long, visually interesting sweeps (not clustered at poles).
+const PRIMARY_ANCHORS: Array<Array<[number, number]>> = [
+  // Path 0 — upper-front diagonal sweep
+  [
+    [0.2, 0.4],
+    [0.5, 0.55],
+    [0.9, 0.7],
+    [1.3, 0.85],
+    [1.7, 1.0],
+  ],
+  // Path 1 — right-side equatorial band
+  [
+    [0.0, 1.2],
+    [0.4, 1.3],
+    [0.85, 1.25],
+    [1.2, 1.15],
+    [1.6, 1.05],
+  ],
+  // Path 2 — upper-left rising arc (fork source)
+  [
+    [-0.3, 0.5],
+    [-0.1, 0.65],
+    [0.25, 0.75],
+    [0.6, 0.85],
+    [0.95, 0.9],
+  ],
+  // Path 3 — back arc (fork source)
+  [
+    [Math.PI + 0.3, 0.6],
+    [Math.PI + 0.6, 0.85],
+    [Math.PI + 0.9, 1.1],
+    [Math.PI + 1.2, 1.35],
+  ],
+  // Path 4 — lower-front sweep
+  [
+    [0.1, 1.6],
+    [0.5, 1.7],
+    [0.9, 1.75],
+    [1.3, 1.7],
+    [1.7, 1.6],
+  ],
+  // Path 5 — upper polar approach
+  [
+    [1.0, 0.2],
+    [1.4, 0.35],
+    [1.8, 0.5],
+    [2.2, 0.65],
+  ],
+  // Path 6 — lower-left arc (fork source)
+  [
+    [-0.5, 1.8],
+    [-0.1, 1.65],
+    [0.3, 1.55],
+    [0.8, 1.5],
+    [1.2, 1.45],
+  ],
+  // Path 7 — cross-hemisphere diagonal
+  [
+    [2.8, 0.55],
+    [3.1, 0.8],
+    [3.4, 1.05],
+    [3.7, 1.3],
+    [4.0, 1.55],
+  ],
+];
+
+// Paths 2, 3, 6 are fork sources. For each, we split at the midpoint and create
+// two diverging children by adding a small angular offset to the remaining anchors.
+const FORK_SOURCE_INDICES = [2, 3, 6];
+
+// ─── Phase 1: Canvas2D-baked albedo + roughness maps ─────────────────────────
+// buildSurfaceTextures() bakes two 2048×2048 canvases:
+//   albedo  — hex panel grid + Manhattan PCB traces + chip die components
+//   roughness — panel tops lighter, traces medium, grooves dark (inverted: 0=smooth,1=rough)
+// Both are returned as CanvasTexture for assignment to sphMat.map / sphMat.roughnessMap.
+
+function buildSurfaceTextures(): { albedo: THREE.CanvasTexture; roughness: THREE.CanvasTexture } {
+  const SIZE = 2048;
+
+  // ── Albedo canvas (tasks 1.1 – 1.3) ────────────────────────────────────────
+  const albedoCv = document.createElement('canvas');
+  albedoCv.width = albedoCv.height = SIZE;
+  const actx = albedoCv.getContext('2d')!;
+
+  // Task 1.1: base fill + hex panel grid
+  // Base fill: dark titanium (#0a0e1a)
+  actx.fillStyle = '#0a0e1a';
+  actx.fillRect(0, 0, SIZE, SIZE);
+
+  // Hex panel grid using a row-offset hex lattice.
+  // Cell radius (center-to-corner) drives spacing.
+  const HEX_R = 64; // ~32 cells across 2048px
+  const HEX_W = HEX_R * Math.sqrt(3);
+  const HEX_H = HEX_R * 2;
+
+  // Draws hex path on a given 2D context so it works for both albedo + roughness canvases.
+  const drawHexOn = (ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) => {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 180) * (60 * i - 30);
+      const px = cx + r * Math.cos(angle);
+      const py = cy + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  };
+
+  const rows = Math.ceil(SIZE / (HEX_H * 0.75)) + 2;
+  const cols = Math.ceil(SIZE / HEX_W) + 2;
+
+  // Fill passes: first fill cells with panel tone, then stroke borders
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const rowOffset = row % 2 === 0 ? 0 : HEX_W * 0.5;
+      const cx = col * HEX_W + rowOffset;
+      const cy = row * HEX_H * 0.75;
+
+      // Per-cell variation — subtle lightness difference for panel identity
+      const tone = 0.08 + (Math.sin(col * 7.1 + row * 13.3) * 0.5 + 0.5) * 0.04;
+      const r = Math.round(tone * 255);
+      const g = Math.round(tone * 1.1 * 255);
+      const b = Math.round(tone * 1.6 * 255);
+
+      drawHexOn(actx, cx, cy, HEX_R - 2);
+      actx.fillStyle = `rgb(${r},${g},${b})`;
+      actx.fill();
+    }
+  }
+
+  // Hex border strokes: metallic grooves (#1a2a3a)
+  actx.strokeStyle = '#1a2a3a';
+  actx.lineWidth = 2;
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const rowOffset = row % 2 === 0 ? 0 : HEX_W * 0.5;
+      const cx = col * HEX_W + rowOffset;
+      const cy = row * HEX_H * 0.75;
+      drawHexOn(actx, cx, cy, HEX_R - 2);
+      actx.stroke();
+    }
+  }
+
+  // Task 1.2: Manhattan PCB trace layer — horizontal + vertical lines on a 12px grid
+  actx.strokeStyle = '#8899aa';
+  actx.lineWidth = 1;
+  const TRACE_GRID = 12;
+  for (let x = 0; x < SIZE; x += TRACE_GRID) {
+    // Random density: ~55% chance a vertical trace runs
+    if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.45) {
+      actx.beginPath();
+      actx.moveTo(x, 0);
+      actx.lineTo(x, SIZE);
+      actx.stroke();
+    }
+  }
+  for (let y = 0; y < SIZE; y += TRACE_GRID) {
+    if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.45) {
+      actx.beginPath();
+      actx.moveTo(0, y);
+      actx.lineTo(SIZE, y);
+      actx.stroke();
+    }
+  }
+
+  // Task 1.3: Chip die components — scatter 8×8 RAM grids + processor die rectangles
+  // We scatter ~24 chip components at pseudo-random hex cell centers.
+  const chipSeeds: Array<[number, number]> = [];
+  for (let i = 0; i < 24; i++) {
+    // Deterministic positions using sine-based pseudo-random placement
+    const u = Math.abs(Math.sin(i * 127.1)) * SIZE;
+    const v = Math.abs(Math.sin(i * 311.7)) * SIZE;
+    chipSeeds.push([u, v]);
+  }
+
+  for (let i = 0; i < chipSeeds.length; i++) {
+    const [bx, by] = chipSeeds[i]!;
+    const isRAM = i % 3 !== 0; // ~2/3 RAM grids, ~1/3 processor dies
+
+    if (isRAM) {
+      // 8×8 RAM grid: small rectangle grid with pin rows
+      const CELL = 8;
+      const ROWS = 8,
+        COLS = 8;
+      actx.fillStyle = '#1a2232';
+      actx.fillRect(bx - 2, by - 2, COLS * CELL + 4, ROWS * CELL + 4);
+      actx.fillStyle = '#334455';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (Math.abs(Math.sin(i * 7 + r * 5 + c * 3)) > 0.3) {
+            actx.fillRect(bx + c * CELL + 1, by + r * CELL + 1, CELL - 2, CELL - 2);
+          }
+        }
+      }
+      // Pin row along bottom edge
+      actx.fillStyle = '#556677';
+      for (let c = 0; c < COLS; c++) {
+        actx.fillRect(bx + c * CELL + 2, by + ROWS * CELL + 3, CELL - 4, 3);
+      }
+    } else {
+      // Processor die: large dark rectangle with internal core + I/O pads
+      const dieW = 48 + Math.abs(Math.sin(i * 17.3)) * 24;
+      const dieH = 40 + Math.abs(Math.sin(i * 29.1)) * 20;
+      actx.fillStyle = '#151d2a';
+      actx.fillRect(bx, by, dieW, dieH);
+      actx.strokeStyle = '#445566';
+      actx.lineWidth = 1;
+      actx.strokeRect(bx, by, dieW, dieH);
+      // Internal core square
+      actx.fillStyle = '#223344';
+      actx.fillRect(bx + 6, by + 6, dieW - 12, dieH - 12);
+      // I/O pads along edges (4 per side)
+      actx.fillStyle = '#667788';
+      for (let p = 0; p < 4; p++) {
+        const px = bx + (dieW / 5) * (p + 1);
+        actx.fillRect(px - 2, by - 3, 4, 3); // top
+        actx.fillRect(px - 2, by + dieH, 4, 3); // bottom
+      }
+      for (let p = 0; p < 3; p++) {
+        const py = by + (dieH / 4) * (p + 1);
+        actx.fillRect(bx - 3, py - 2, 3, 4); // left
+        actx.fillRect(bx + dieW, py - 2, 3, 4); // right
+      }
+    }
+  }
+
+  // Task 1.4: wrap albedo canvas → CanvasTexture
+  const albedoTex = new THREE.CanvasTexture(albedoCv);
+  albedoTex.wrapS = THREE.RepeatWrapping;
+  albedoTex.wrapT = THREE.RepeatWrapping;
+  albedoTex.colorSpace = THREE.SRGBColorSpace;
+  albedoTex.needsUpdate = true;
+
+  // ── Roughness canvas (task 1.5) ─────────────────────────────────────────────
+  // Encoding: 0 (black) = smooth, 1 (white) = rough.
+  //   Panel tops → 0.25 gray (smooth metal, reflects)
+  //   Traces     → 0.55 gray (semi-rough)
+  //   Grooves    → 0.90 gray (rough, no reflection)
+  const roughCv = document.createElement('canvas');
+  roughCv.width = roughCv.height = SIZE;
+  const rctx = roughCv.getContext('2d')!;
+
+  // Start with groove-level roughness (0.90 → rgb 230,230,230)
+  rctx.fillStyle = `rgb(230,230,230)`;
+  rctx.fillRect(0, 0, SIZE, SIZE);
+
+  // Panel-top fill: 0.25 roughness → rgb 64,64,64
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const rowOffset = row % 2 === 0 ? 0 : HEX_W * 0.5;
+      const cx = col * HEX_W + rowOffset;
+      const cy = row * HEX_H * 0.75;
+      drawHexOn(rctx, cx, cy, HEX_R - 3); // slightly smaller to leave groove
+      rctx.fillStyle = 'rgb(64,64,64)';
+      rctx.fill();
+    }
+  }
+
+  // Trace regions: 0.55 roughness → rgb 140,140,140
+  rctx.strokeStyle = 'rgb(140,140,140)';
+  rctx.lineWidth = 2;
+  for (let x = 0; x < SIZE; x += TRACE_GRID) {
+    if (Math.abs(Math.sin(x * 0.137 + 1.1)) > 0.45) {
+      rctx.beginPath();
+      rctx.moveTo(x, 0);
+      rctx.lineTo(x, SIZE);
+      rctx.stroke();
+    }
+  }
+  for (let y = 0; y < SIZE; y += TRACE_GRID) {
+    if (Math.abs(Math.sin(y * 0.173 + 2.2)) > 0.45) {
+      rctx.beginPath();
+      rctx.moveTo(0, y);
+      rctx.lineTo(SIZE, y);
+      rctx.stroke();
+    }
+  }
+
+  const roughTex = new THREE.CanvasTexture(roughCv);
+  roughTex.wrapS = THREE.RepeatWrapping;
+  roughTex.wrapT = THREE.RepeatWrapping;
+  roughTex.needsUpdate = true;
+
+  return { albedo: albedoTex, roughness: roughTex };
+}
+
+// Procedurally generate a tileable circuit-board emissive texture using Canvas2D.
+// Used as triplanar emissive overlay on the planet surface — adds chip pads,
+// Manhattan traces, and bright pinpricks that pure shader noise can't deliver.
+function generateCircuitEmissive(): THREE.CanvasTexture {
+  const SIZE = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = SIZE;
+  const ctx = cv.getContext('2d')!;
+
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  // Random bright pinpricks (chip pin dots)
+  for (let i = 0; i < 1200; i++) {
+    const x = Math.random() * SIZE;
+    const y = Math.random() * SIZE;
+    const r = Math.random() < 0.85 ? 1 : 2;
+    const c = Math.random();
+    ctx.fillStyle = c < 0.78 ? '#88ddff' : c < 0.95 ? '#aaeeff' : '#ff88dd';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Chip pad arrays — small grids of tiny rectangles (RAM/processor look)
+  for (let i = 0; i < 28; i++) {
+    const cx = Math.random() * SIZE;
+    const cy = Math.random() * SIZE;
+    const rows = 3 + Math.floor(Math.random() * 5);
+    const cols = 3 + Math.floor(Math.random() * 5);
+    const cell = 4;
+    ctx.fillStyle = '#66bbff';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (Math.random() < 0.2) continue; // some pads dark for variation
+        ctx.fillRect(cx + c * cell, cy + r * cell, cell - 1, cell - 1);
+      }
+    }
+  }
+
+  // Manhattan trace segments — right-angle wires
+  ctx.strokeStyle = '#55aaee';
+  ctx.lineWidth = 1.6;
+  for (let i = 0; i < 90; i++) {
+    const x1 = Math.random() * SIZE;
+    const y1 = Math.random() * SIZE;
+    const seg1 = 20 + Math.random() * 80;
+    const seg2 = 15 + Math.random() * 60;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    if (Math.random() < 0.5) {
+      ctx.lineTo(x1 + seg1, y1);
+      ctx.lineTo(x1 + seg1, y1 + seg2 * (Math.random() < 0.5 ? 1 : -1));
+    } else {
+      ctx.lineTo(x1, y1 + seg1);
+      ctx.lineTo(x1 + seg2 * (Math.random() < 0.5 ? 1 : -1), y1 + seg1);
+    }
+    ctx.stroke();
+  }
+
+  // Larger bright "node" hubs at sparse points
+  for (let i = 0; i < 14; i++) {
+    const x = Math.random() * SIZE;
+    const y = Math.random() * SIZE;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 8);
+    grad.addColorStop(0.0, 'rgba(180, 240, 255, 1.0)');
+    grad.addColorStop(0.4, 'rgba(80, 180, 255, 0.6)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 8, y - 8, 16, 16);
+  }
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function HeroMesh() {
@@ -592,12 +809,12 @@ export default function HeroMesh() {
     const coarse = window.matchMedia('(pointer: coarse)').matches;
 
     const camera = new THREE.PerspectiveCamera(
-      55,
+      40, // FOV 40 (cinematic, in spec range 35–45)
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.z = 4.5;
+    camera.position.set(0, 0, 6.4); // pulled back to compensate narrower FOV
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'default' });
     renderer.setPixelRatio(coarse ? 1 : Math.min(window.devicePixelRatio, 2));
@@ -623,6 +840,33 @@ export default function HeroMesh() {
     renderer.domElement.style.height = '100%';
 
     const scene = new THREE.Scene();
+
+    // ── HDRI environment (procedural, no asset download) ─────────────────────
+    // PMREMGenerator builds a prefiltered cubemap from a small RoomEnvironment scene.
+    // Set as scene.environment so any future PBR material reflects this automatically.
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const roomEnv = new RoomEnvironment();
+    const envTarget = pmremGenerator.fromScene(roomEnv, 0.04);
+    scene.environment = envTarget.texture;
+
+    // ── Cinematic lighting (key directional + soft ambient) ──────────────────
+    const dirLight = new THREE.DirectionalLight(0xeaf4ff, 0.4);
+    dirLight.position.set(4.0, 1.6, 3.5); // more side-on, less top-down → no polar blowout
+    scene.add(dirLight);
+
+    const ambLight = new THREE.AmbientLight(0x1c2840, 0.3);
+    scene.add(ambLight);
+
+    // ── Cinematic camera rig — auto-orbit + lerp inertia + handheld noise ────
+    // The rig owns the orbit rotation; the camera lerps toward a target offset.
+    // Mouse parallax & noise add subtle drift on top.
+    const cameraRig = new THREE.Object3D();
+    scene.add(cameraRig);
+    cameraRig.add(camera);
+    const camTargetLocal = new THREE.Vector3(0, 0, 6.4); // base camera offset within rig
+    const camCurrentLocal = camera.position.clone();
+    const camNoise = new THREE.Vector3();
 
     // ── Background plane ─────────────────────────────────────────────────────
     const bgGeo = new THREE.PlaneGeometry(26, 14);
@@ -666,14 +910,223 @@ export default function HeroMesh() {
     sphGeo.setAttribute('aHeight', new THREE.BufferAttribute(sphHeights, 1));
     sphGeo.computeVertexNormals(); // smooth normals now that vertices are shared
 
-    const sphMat = new THREE.ShaderMaterial({
-      uniforms: sphUniforms,
-      vertexShader: SPHERE_VERT,
-      fragmentShader: SPHERE_FRAG,
-      transparent: false,
-      depthWrite: true,
-      side: THREE.FrontSide,
+    // Sphere material — MeshPhysicalMaterial + onBeforeCompile injection.
+    // Three.js handles lighting + envMap reflection; we inject the Voronoi
+    // pattern as procedural albedo + emissive + roughness modulation.
+    const sphMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0.38,
+      roughness: 0.68, // even more matte to avoid spec blowout
+      clearcoat: 0.1, // very subtle sheen
+      clearcoatRoughness: 0.4,
+      envMapIntensity: 0.35, // softer HDRI reflection
     });
+
+    // Procedural canvas-baked PCB texture for chips/traces/dots that pure
+    // shader noise can't deliver. Sampled triplanarly in the fragment shader.
+    const circuitEmissiveTex = generateCircuitEmissive();
+
+    // Phase 1: Canvas2D-baked albedo + roughness maps (tasks 1.1–1.5)
+    const { albedo: albedoTex, roughness: roughnessTex } = buildSurfaceTextures();
+    // Assign albedo as sphMat.map so Three.js enables USE_MAP and generates the
+    // sampler declaration in the standard pars. The actual sampling is done
+    // triplanarly inside onBeforeCompile (uAlbedoTex uniform) to avoid UV seams.
+    // We do NOT assign roughnessMap to the material because our roughnessmap_fragment
+    // replacement does triplanar sampling via uRoughTex — no UV-based sampler needed.
+    sphMat.map = albedoTex;
+
+    sphMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = sphUniforms.uTime;
+      shader.uniforms.uCircuitTex = { value: circuitEmissiveTex };
+      shader.uniforms.uAlbedoTex = { value: albedoTex };
+      shader.uniforms.uRoughTex = { value: roughnessTex };
+
+      // ── Vertex injections — extra varyings + attribute (aHeight) ───────────
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+         attribute float aHeight;
+         varying vec3 vObjectPosCP;
+         varying vec3 vObjectDirCP;
+         varying float vHeightCP;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vObjectPosCP = position;
+         vObjectDirCP = normalize(position) * 1.55;
+         vHeightCP    = aHeight;`
+      );
+
+      // ── Fragment injections — helpers + procedural pattern + emissive ──────
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uTime;
+         uniform sampler2D uCircuitTex;
+         uniform sampler2D uAlbedoTex;
+         uniform sampler2D uRoughTex;
+         varying vec3 vObjectPosCP;
+         varying vec3 vObjectDirCP;
+         varying float vHeightCP;
+
+         float cpHash1f(vec3 p) {
+           return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+         }
+         vec2 cpHash2(vec2 p) {
+           return fract(sin(vec2(
+             dot(p, vec2(127.1, 311.7)),
+             dot(p, vec2(269.5, 183.3))
+           )) * 43758.5453);
+         }
+         vec3 cpVoronoi2D(vec2 p) {
+           vec2 i = floor(p);
+           vec2 f = fract(p);
+           float F1 = 100.0, F2 = 100.0;
+           vec2 cell1 = vec2(0.0);
+           for (int dx = -1; dx <= 1; dx++) {
+             for (int dy = -1; dy <= 1; dy++) {
+               vec2 nb = vec2(float(dx), float(dy));
+               vec2 seed = nb + 0.5 + 0.42 * (cpHash2(i + nb) - 0.5);
+               float d = length(seed - f);
+               if (d < F1) { F2 = F1; F1 = d; cell1 = i + nb; }
+               else if (d < F2) { F2 = d; }
+             }
+           }
+           return vec3(F1, F2 - F1, cpHash2(cell1).x);
+         }`
+      );
+
+      // Compute Voronoi pattern + override diffuse albedo (where <map_fragment> would bind a texture)
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `vec3 _absN = abs(normalize(vObjectPosCP));
+         vec3 wT = pow(_absN, vec3(8.0));
+         wT /= dot(wT, vec3(1.0));
+         vec3 dp = vObjectDirCP;
+
+         vec3 _vXY = cpVoronoi2D(dp.xy * 5.5);
+         vec3 _vYZ = cpVoronoi2D(dp.yz * 5.5);
+         vec3 _vXZ = cpVoronoi2D(dp.xz * 5.5);
+         float bigEdgeDist = _vXY.y * wT.z + _vYZ.y * wT.x + _vXZ.y * wT.y;
+         float cellTone    = _vXY.z * wT.z + _vYZ.z * wT.x + _vXZ.z * wT.y;
+         float bigF1       = _vXY.x * wT.z + _vYZ.x * wT.x + _vXZ.x * wT.y;
+
+         vec3 _mXY = cpVoronoi2D(dp.xy * 14.0);
+         vec3 _mYZ = cpVoronoi2D(dp.yz * 14.0);
+         vec3 _mXZ = cpVoronoi2D(dp.xz * 14.0);
+         float medEdgeDist = _mXY.y * wT.z + _mYZ.y * wT.x + _mXZ.y * wT.y;
+
+         float bigTrace = smoothstep(0.030, 0.000, bigEdgeDist);
+         float medTrace = smoothstep(0.025, 0.000, medEdgeDist) * 0.45;
+         float pulse = 0.55 + 0.45 * sin(uTime * 1.4 + cellTone * 14.0);
+         bigTrace *= 0.55 + 0.55 * pulse;
+
+         float dotPattern = step(0.984, cpHash1f(floor(vObjectPosCP * 70.0)));
+         dotPattern *= smoothstep(0.04, 0.08, bigEdgeDist);
+
+         vec2 cUV_xy = fract(dp.xy * 55.0);
+         vec2 cUV_yz = fract(dp.yz * 55.0);
+         vec2 cUV_xz = fract(dp.xz * 55.0);
+         float chip_xy = step(0.30, cUV_xy.x) * step(cUV_xy.x, 0.70) * step(0.30, cUV_xy.y) * step(cUV_xy.y, 0.70);
+         float chip_yz = step(0.30, cUV_yz.x) * step(cUV_yz.x, 0.70) * step(0.30, cUV_yz.y) * step(cUV_yz.y, 0.70);
+         float chip_xz = step(0.30, cUV_xz.x) * step(cUV_xz.x, 0.70) * step(0.30, cUV_xz.y) * step(cUV_xz.y, 0.70);
+         float chipPad = chip_xy * wT.z + chip_yz * wT.x + chip_xz * wT.y;
+         chipPad *= step(0.88, cpHash1f(floor(dp * 55.0)));
+         chipPad *= smoothstep(0.04, 0.08, bigEdgeDist);
+
+         float isHub     = step(0.92, cellTone);
+         float hubCenter = smoothstep(0.030, 0.005, bigF1);
+         float hubRing1  = smoothstep(0.012, 0.000, abs(bigF1 - 0.060));
+         float hubRing2  = smoothstep(0.014, 0.000, abs(bigF1 - 0.110));
+         float hubGlow   = smoothstep(0.180, 0.060, bigF1) * 0.35;
+         float hubMask   = (hubCenter * 1.4 + hubRing1 * 0.85 + hubRing2 * 0.55 + hubGlow) * isHub;
+
+         float traceWarmness = step(0.85, cellTone) * 0.6;
+         vec3 traceColCool = vec3(0.06, 0.50, 1.45);
+         vec3 traceColWarm = vec3(0.30, 0.12, 1.10);
+         vec3 traceCol = mix(traceColCool, traceColWarm, traceWarmness);
+         vec3 dotCol   = vec3(0.32, 0.90, 1.60);
+         vec3 hubCol   = vec3(1.20, 0.45, 1.40);
+
+         // Override base albedo with dark titanium + cell-tone variation
+         vec3 _baseDark = vec3(0.012, 0.020, 0.045) * (0.55 + 0.55 * cellTone);
+
+         // Task 1.4: blend Canvas2D albedo texture (triplanar) on top of procedural base.
+         // Scale factor 0.55 tiles the 2048px canvas ~5.5× across the sphere diameter —
+         // matches the Voronoi SCALE_BIG = 5.5 so panel grids roughly align.
+         vec2 _auvA = dp.xy * 0.55 + 0.5;
+         vec2 _auvB = dp.yz * 0.55 + 0.5;
+         vec2 _auvC = dp.xz * 0.55 + 0.5;
+         vec3 _albA = texture2D(uAlbedoTex, _auvA).rgb;
+         vec3 _albB = texture2D(uAlbedoTex, _auvB).rgb;
+         vec3 _albC = texture2D(uAlbedoTex, _auvC).rgb;
+         vec3 _albTri = _albA * wT.z + _albB * wT.x + _albC * wT.y;
+         // Additive blend — canvas chip/trace detail layered over the procedural dark base
+         diffuseColor.rgb = _baseDark + _albTri * 0.55;`
+      );
+
+      // Task 1.5: Roughness — sample canvas roughness map triplanarly, combine with
+      // the existing procedural roughness modulation (traces smoother, grooves rougher).
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <roughnessmap_fragment>',
+        `// Canvas roughness triplanar sample (same scale as albedo)
+         vec2 _ruvA = dp.xy * 0.55 + 0.5;
+         vec2 _ruvB = dp.yz * 0.55 + 0.5;
+         vec2 _ruvC = dp.xz * 0.55 + 0.5;
+         float _roughA = texture2D(uRoughTex, _ruvA).r;
+         float _roughB = texture2D(uRoughTex, _ruvB).r;
+         float _roughC = texture2D(uRoughTex, _ruvC).r;
+         float _roughCanvas = _roughA * wT.z + _roughB * wT.x + _roughC * wT.y;
+
+         // Blend: canvas gives per-region base, procedural modulates on top
+         float roughnessFactor = mix(roughness, _roughCanvas, 0.65);
+         roughnessFactor *= mix(1.0, 0.30, bigTrace);
+         roughnessFactor  = mix(roughnessFactor + 0.25, roughnessFactor, smoothstep(0.0, 0.05, bigEdgeDist));
+         roughnessFactor  = clamp(roughnessFactor, 0.0, 1.0);`
+      );
+
+      // Task 1.6: Normal map approximation from albedo luminance gradient via dFdx/dFdy.
+      // Appended to <normal_fragment_maps> (the actual chunk name in Three.js r184) so it
+      // runs after Three.js's own normal-map logic. Screen-space derivatives of diffuse
+      // luminance perturb the surface normal — giving micro-surface relief from the Canvas2D
+      // panel/trace detail. dFdx/dFdy are core in WebGL2; OES_standard_derivatives is
+      // already enabled above for WebGL1 fallback.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+         // Derive normal perturbation from albedo canvas luminance gradient
+         float _lum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+         float _dX  = dFdx(_lum) * 18.0;
+         float _dY  = dFdy(_lum) * 18.0;
+         // Perturb view-space normal proportional to screen-space luminance gradient
+         normal = normalize(normal + vec3(-_dX, -_dY, 0.0) * 0.35);`
+      );
+
+      // Add procedural emissive on top of any base emissive
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+         totalEmissiveRadiance += traceCol * bigTrace * 1.20;
+         totalEmissiveRadiance += traceColCool * medTrace * 0.55;
+         totalEmissiveRadiance += dotCol * dotPattern * 1.80;
+         totalEmissiveRadiance += hubCol * hubMask * 1.40;
+         totalEmissiveRadiance += traceColCool * chipPad * 0.45;
+
+         // ── Canvas-baked PCB texture (chips + Manhattan + pinpricks) ──
+         // Triplanar sample so it covers the sphere without UV seams
+         vec2 _cuvA = dp.xy * 0.42 + 0.5;
+         vec2 _cuvB = dp.yz * 0.42 + 0.5;
+         vec2 _cuvC = dp.xz * 0.42 + 0.5;
+         vec3 _circA = texture2D(uCircuitTex, _cuvA).rgb;
+         vec3 _circB = texture2D(uCircuitTex, _cuvB).rgb;
+         vec3 _circC = texture2D(uCircuitTex, _cuvC).rgb;
+         vec3 _circEm = _circA * wT.z + _circB * wT.x + _circC * wT.y;
+         // Mask to cell INTERIORS (not on big-edge grooves) — keeps grooves clean
+         _circEm *= smoothstep(0.020, 0.045, bigEdgeDist);
+         totalEmissiveRadiance += _circEm * 1.10;`
+      );
+    };
     const sphere = new THREE.Mesh(sphGeo, sphMat);
     sphere.position.copy(SPHERE_POS);
     sphere.renderOrder = 3;
@@ -694,6 +1147,177 @@ export default function HeroMesh() {
     atmosphere.position.copy(SPHERE_POS);
     atmosphere.renderOrder = 7; // render after planet for proper additive layering
     scene.add(atmosphere);
+
+    // ── Holographic outer shell — rotating hex grid + scanning lines ─────────
+    const holoGeo = new THREE.IcosahedronGeometry(SPHERE_RADIUS * 1.06, 4);
+    const holoUniforms = { uTime: { value: 0 } };
+    const holoMat = new THREE.ShaderMaterial({
+      uniforms: holoUniforms,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec3 vViewPos;
+        varying vec3 vWorldNormal;
+        varying vec3 vObjectPos;
+        void main() {
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          vObjectPos   = position;
+          vec4 mv      = modelViewMatrix * vec4(position, 1.0);
+          vViewPos     = mv.xyz;
+          gl_Position  = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform float uTime;
+        varying vec3 vViewPos;
+        varying vec3 vWorldNormal;
+        varying vec3 vObjectPos;
+
+        // Hex Voronoi — seeds on a proper hex lattice, no jitter → perfect hexagons
+        // Returns F2 - F1 (distance to nearest cell border, small near edge)
+        float hexVoroEdge(vec2 p, float scale) {
+          p *= scale;
+          vec2 i = floor(p);
+          vec2 f = p - i;
+          float F1 = 100.0, F2 = 100.0;
+          for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+              vec2 nb = vec2(float(dx), float(dy));
+              vec2 cell = i + nb;
+              float rowOff = mod(cell.y, 2.0) * 0.5;
+              vec2 seedRel = nb + vec2(0.5 + rowOff, 0.5);
+              float d = length(seedRel - f);
+              if (d < F1)      { F2 = F1; F1 = d; }
+              else if (d < F2) { F2 = d; }
+            }
+          }
+          return F2 - F1;
+        }
+
+        void main() {
+          vec3 N = normalize(vWorldNormal);
+          vec3 V = normalize(-vViewPos);
+          float fr = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+
+          // Triplanar hex grid in object space (undisplaced unit dir × radius)
+          vec3 absN = abs(normalize(vObjectPos));
+          vec3 wT   = pow(absN, vec3(8.0));
+          wT       /= dot(wT, vec3(1.0));
+          vec3 dp = normalize(vObjectPos) * 1.55;
+
+          float h_xy = hexVoroEdge(dp.xy, 7.0);
+          float h_yz = hexVoroEdge(dp.yz, 7.0);
+          float h_xz = hexVoroEdge(dp.xz, 7.0);
+          float hexD = h_xy * wT.z + h_yz * wT.x + h_xz * wT.y;
+
+          // Bright AT EDGES (where F2-F1 is small)
+          float gridLine = smoothstep(0.020, 0.000, hexD) * 0.45;
+
+          // Scanning line — vertical sweep across the sphere
+          float scanY = fract(uTime * 0.05);
+          float scanLine = exp(-abs(normalize(vObjectPos).y * 0.5 + 0.5 - scanY) * 60.0) * 0.40;
+
+          vec3 col = vec3(0.45, 0.85, 1.20);
+          // Intensity ramps with Fresnel — strong at limb, faint head-on
+          float intensity = (gridLine + scanLine) * fr;
+          intensity += fr * 0.06;
+
+          gl_FragColor = vec4(col * intensity, intensity * 0.50);
+        }
+      `,
+    });
+    const holoShell = new THREE.Mesh(holoGeo, holoMat);
+    holoShell.position.copy(SPHERE_POS);
+    holoShell.renderOrder = 8;
+    scene.add(holoShell);
+
+    // ── Phase 2: Spline circuit overlay — 8 primary + 6 fork tubes ──────────
+    // All circuit tubes are added to circuitPathGroup which co-rotates with the
+    // sphere (circuitPathGroup.rotation is kept in sync in the tick loop).
+    // Materials collected in circuitPathMats for uTime updates per frame.
+    const circuitPathGroup = new THREE.Object3D();
+    circuitPathGroup.position.copy(SPHERE_POS);
+    scene.add(circuitPathGroup);
+
+    const circuitPathMats: THREE.MeshBasicMaterial[] = [];
+    const circuitPathGeos: THREE.BufferGeometry[] = [];
+
+    // Shared GLSL color injection for the animated UV-band packet effect.
+    // Replaces <color_fragment> in MeshBasicMaterial's fragment shader.
+    // UV.x runs 0→1 along tube length; the band scrolls toward the tube end.
+    const CIRCUIT_COLOR_INJECT = `
+      #include <color_fragment>
+      float _ct = fract(vUv.x - uTime * 0.15);
+      diffuseColor.rgb *= step(0.85, _ct) * 3.0 + 0.2;
+    `;
+
+    const makeTubeMat = (): THREE.MeshBasicMaterial => {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x00ffcc,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = { value: 0 };
+        // Inject uTime declaration into fragment common
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          `#include <common>
+           uniform float uTime;`
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <color_fragment>',
+          CIRCUIT_COLOR_INJECT
+        );
+        // Attach uniforms reference so we can update uTime in the tick loop
+        (
+          mat as THREE.MeshBasicMaterial & { _uniforms?: Record<string, { value: number }> }
+        )._uniforms = shader.uniforms as Record<string, { value: number }>;
+      };
+      mat.needsUpdate = true;
+      circuitPathMats.push(mat);
+      return mat;
+    };
+
+    const addTube = (curve: THREE.CatmullRomCurve3): void => {
+      const geo = new THREE.TubeGeometry(curve, 60, 0.003, 6, false);
+      const mat = makeTubeMat();
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 2;
+      circuitPathGroup.add(mesh);
+      circuitPathGeos.push(geo);
+    };
+
+    // Task 2.1 + 2.2: build 8 primary tubes from the pre-defined anchor sets
+    const primaryCurves: THREE.CatmullRomCurve3[] = PRIMARY_ANCHORS.map((anchors) =>
+      sphereArcCurve(anchors, SPHERE_RADIUS)
+    );
+    primaryCurves.forEach(addTube);
+
+    // Task 2.5: Y-fork branches — 3 paths split at midpoint into 2 diverging children.
+    // We take the primary curve's midpoint, then build two children from that point
+    // by applying a small angular offset (+/− 0.2 rad on theta) to the remaining anchors.
+    for (const srcIdx of FORK_SOURCE_INDICES) {
+      const srcAnchors = PRIMARY_ANCHORS[srcIdx]!;
+      const midI = Math.floor(srcAnchors.length / 2);
+      const tailAnchors = srcAnchors.slice(midI); // midpoint onward
+
+      // Fork A: offset theta + 0.2 on tail anchors
+      const forkAAnchors: Array<[number, number]> = tailAnchors.map(([theta, phi], i) =>
+        i === 0 ? [theta, phi] : [theta + 0.22, phi + 0.05]
+      );
+      // Fork B: offset theta − 0.2 on tail anchors
+      const forkBAnchors: Array<[number, number]> = tailAnchors.map(([theta, phi], i) =>
+        i === 0 ? [theta, phi] : [theta - 0.18, phi - 0.08]
+      );
+      addTube(sphereArcCurve(forkAAnchors, SPHERE_RADIUS));
+      addTube(sphereArcCurve(forkBAnchors, SPHERE_RADIUS));
+    }
 
     // ── Circuit network (rotates with sphere) ────────────────────────────────
     const circuitGroup = new THREE.Object3D();
@@ -954,8 +1578,9 @@ export default function HeroMesh() {
     // ── Nodes as InstancedMesh of small icospheres ───────────────────────────
     const nodeBaseGeo = new THREE.IcosahedronGeometry(1, 1);
     const nodeBaseMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0x999999, // toned down (was 0xffffff) — less HDR blowout under bloom
       transparent: true,
+      opacity: 0.85,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -1038,11 +1663,136 @@ export default function HeroMesh() {
     nodeMesh.renderOrder = 5;
     circuitGroup.add(nodeMesh);
 
+    // ── Reactor hubs — 4 large mechanical installations on the surface ───────
+    type Reactor = {
+      rig: THREE.Object3D;
+      outerRing: THREE.Mesh;
+      subElement: THREE.Mesh;
+      pulseMesh: THREE.Mesh;
+      spinSign: number;
+    };
+    const reactorGeos: THREE.BufferGeometry[] = [];
+    const reactorMats: THREE.Material[] = [];
+    const reactors: Reactor[] = [];
+
+    const reactorDirs: THREE.Vector3[] = [
+      new THREE.Vector3(0.65, 0.4, 0.65).normalize(), // upper-right-front
+      new THREE.Vector3(-0.55, 0.5, 0.55).normalize(), // upper-left-front
+      new THREE.Vector3(0.45, -0.65, 0.5).normalize(), // lower-right-front
+      new THREE.Vector3(-0.1, 0.1, -0.99).normalize(), // back center
+    ];
+
+    for (let i = 0; i < reactorDirs.length; i++) {
+      const dir = reactorDirs[i]!;
+      const rig = new THREE.Object3D();
+      // Sit just above the displaced terrain
+      const surfaceR = SPHERE_RADIUS + terrainDisp(dir.x, dir.y, dir.z) + 0.045;
+      rig.position.copy(dir.clone().multiplyScalar(surfaceR));
+      // Orient so local Y axis points outward from sphere center
+      rig.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+
+      // Inner solid platform — flat low cylinder
+      const platformGeo = new THREE.CylinderGeometry(0.085, 0.075, 0.012, 16);
+      const platformMat = new THREE.MeshStandardMaterial({
+        color: 0x223044,
+        metalness: 0.7,
+        roughness: 0.4,
+        envMapIntensity: 0.8,
+      });
+      const platform = new THREE.Mesh(platformGeo, platformMat);
+      rig.add(platform);
+      reactorGeos.push(platformGeo);
+      reactorMats.push(platformMat);
+
+      // Inner ring (static, bright) — flat torus on the platform
+      const innerRingGeo = new THREE.TorusGeometry(0.06, 0.005, 6, 32);
+      const innerRingMat = new THREE.MeshBasicMaterial({
+        color: 0x66ccff,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+      innerRing.rotation.x = Math.PI / 2;
+      innerRing.position.y = 0.008;
+      rig.add(innerRing);
+      reactorGeos.push(innerRingGeo);
+      reactorMats.push(innerRingMat);
+
+      // Outer rotating ring (lighter, subtle)
+      const outerRingGeo = new THREE.TorusGeometry(0.09, 0.003, 6, 48);
+      const outerRingMat = new THREE.MeshBasicMaterial({
+        color: 0x99ddff,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const outerRing = new THREE.Mesh(outerRingGeo, outerRingMat);
+      outerRing.rotation.x = Math.PI / 2;
+      outerRing.position.y = 0.01;
+      rig.add(outerRing);
+      reactorGeos.push(outerRingGeo);
+      reactorMats.push(outerRingMat);
+
+      // Bright pulsing center sphere
+      const pulseGeo = new THREE.SphereGeometry(0.022, 12, 8);
+      const pulseMat = new THREE.MeshBasicMaterial({
+        color: 0xaaeeff,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const pulseMesh = new THREE.Mesh(pulseGeo, pulseMat);
+      pulseMesh.position.y = 0.02;
+      rig.add(pulseMesh);
+      reactorGeos.push(pulseGeo);
+      reactorMats.push(pulseMat);
+
+      // Rotating sub-element (cross/diamond above center)
+      const subGeo = new THREE.BoxGeometry(0.08, 0.005, 0.012);
+      const subMat = new THREE.MeshBasicMaterial({
+        color: 0xff88dd,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const subElement = new THREE.Mesh(subGeo, subMat);
+      subElement.position.y = 0.035;
+      rig.add(subElement);
+      reactorGeos.push(subGeo);
+      reactorMats.push(subMat);
+
+      circuitGroup.add(rig);
+      reactors.push({
+        rig,
+        outerRing,
+        subElement,
+        pulseMesh,
+        spinSign: i % 2 === 0 ? 1 : -1,
+      });
+    }
+
+    const updateReactors = (t: number) => {
+      for (const r of reactors) {
+        // Outer ring spins on local Z axis
+        r.outerRing.rotation.z = t * 0.8 * r.spinSign;
+        // Sub-element spins on local Y (faster, opposite direction)
+        r.subElement.rotation.y = t * 1.4 * -r.spinSign;
+        // Center pulse breathes scale
+        const breath = 0.85 + 0.2 * Math.sin(t * 1.6 + r.spinSign);
+        r.pulseMesh.scale.setScalar(breath);
+      }
+    };
+
     // Hub firing animation parameters
     const FIRE_DURATION = 0.55;
     const FIRE_GAP_MIN = 1.8;
     const FIRE_GAP_MAX = 4.0;
-    const FIRE_SCALE_BOOST = 1.7; // peak adds +170 % → up to 2.7× scale
+    const FIRE_SCALE_BOOST = 0.9; // peak adds +90 % → up to 1.9× scale (less blowout under bloom)
     const FIRE_COLOR_BOOST = 0.55; // peak shifts color 55 % toward white
 
     const updateHubFires = (t: number) => {
@@ -1674,6 +2424,358 @@ export default function HeroMesh() {
     glow2.renderOrder = 1;
     scene.add(glow2);
 
+    // ── Particle ecosystem — 4 layers around the planet ─────────────────────
+    // Layer 0: Atmospheric (close, slow Y-axis drift)
+    // Layer 1: Orbiting energy (mid, counter-rotate X-axis)
+    // Layer 2: Dust (far, slow Z-axis drift)
+    // Layer 3: Debris (very far, minimal Y-axis drift)
+    type ParticleLayer = {
+      geo: THREE.BufferGeometry;
+      mat: THREE.ShaderMaterial;
+      points: THREE.Points;
+      pos: Float32Array;
+      vel: Float32Array; // drift velocity per particle
+      shellMin: number; // inner radius from sphere center
+      shellMax: number; // outer radius
+      rotAxis: 'x' | 'y' | 'z';
+      rotSpeed: number; // radians per frame (~60fps)
+    };
+    const particleLayers: ParticleLayer[] = [];
+
+    const PARTICLE_VERT = `
+      attribute float aSize;
+      attribute vec3  aColor;
+      varying   vec3  vColor;
+      void main() {
+        vColor = aColor;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = clamp(aSize * (4.5 / max(-mv.z, 0.1)), 1.0, 14.0);
+        gl_Position  = projectionMatrix * mv;
+      }
+    `;
+    const PARTICLE_FRAG = `
+      precision highp float;
+      uniform float uOpacityScale;
+      varying vec3 vColor;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        if (d > 0.5) discard;
+        float core = smoothstep(0.10, 0.0, d);
+        float halo = smoothstep(0.50, 0.04, d) * 0.40;
+        gl_FragColor = vec4(vColor, (core + halo) * uOpacityScale);
+      }
+    `;
+
+    const makeParticleLayer = (
+      count: number,
+      shellMin: number,
+      shellMax: number,
+      colorA: [number, number, number],
+      colorB: [number, number, number],
+      sizeBase: number,
+      driftSpeed: number,
+      rotAxis: 'x' | 'y' | 'z',
+      rotSpeed: number
+    ): ParticleLayer => {
+      const pos = new Float32Array(count * 3);
+      const vel = new Float32Array(count * 3);
+      const color = new Float32Array(count * 3);
+      const size = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        const u = Math.random(),
+          v = Math.random();
+        const theta = u * Math.PI * 2;
+        const phi = Math.acos(2 * v - 1);
+        const r = shellMin + Math.random() * (shellMax - shellMin);
+        pos[i * 3] = SPHERE_POS.x + r * Math.sin(phi) * Math.cos(theta);
+        pos[i * 3 + 1] = SPHERE_POS.y + r * Math.sin(phi) * Math.sin(theta);
+        pos[i * 3 + 2] = SPHERE_POS.z + r * Math.cos(phi);
+        vel[i * 3] = (Math.random() - 0.5) * driftSpeed;
+        vel[i * 3 + 1] = (Math.random() - 0.5) * driftSpeed;
+        vel[i * 3 + 2] = (Math.random() - 0.5) * driftSpeed;
+        const k = Math.random();
+        color[i * 3] = colorA[0] + (colorB[0] - colorA[0]) * k;
+        color[i * 3 + 1] = colorA[1] + (colorB[1] - colorA[1]) * k;
+        color[i * 3 + 2] = colorA[2] + (colorB[2] - colorA[2]) * k;
+        size[i] = sizeBase * (0.6 + Math.random() * 0.8);
+      }
+      const posAttr = new THREE.BufferAttribute(pos, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', posAttr);
+      geo.setAttribute('aColor', new THREE.BufferAttribute(color, 3));
+      geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uOpacityScale: { value: 1.0 } },
+        vertexShader: PARTICLE_VERT,
+        fragmentShader: PARTICLE_FRAG,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const points = new THREE.Points(geo, mat);
+      scene.add(points);
+      return { geo, mat, points, pos, vel, shellMin, shellMax, rotAxis, rotSpeed };
+    };
+
+    // Layer 0: atmospheric — cyan haze hugging the surface, slow Y-axis parallax
+    particleLayers.push(
+      makeParticleLayer(
+        180,
+        1.62,
+        1.74,
+        [0.0, 0.93, 1.0],
+        [0.2, 0.98, 1.0], // #00eeff ± slight hue shift
+        5.0,
+        0.012,
+        'y',
+        0.0008
+      )
+    );
+    // Layer 1: orbiting energy — violet band, counter-rotating on X
+    particleLayers.push(
+      makeParticleLayer(
+        130,
+        1.78,
+        1.95,
+        [0.6, 0.22, 0.92],
+        [0.75, 0.35, 1.0], // #aa44ff ± violet spread
+        6.0,
+        0.018,
+        'x',
+        -0.0005
+      )
+    );
+    // Layer 2: mid-orbit dust — warm white, slow Z-axis drift
+    particleLayers.push(
+      makeParticleLayer(
+        90,
+        2.0,
+        2.3,
+        [0.9, 0.9, 0.96],
+        [0.95, 0.93, 1.0], // #eeeeff ± cool white
+        3.5,
+        0.01,
+        'z',
+        0.0002
+      )
+    );
+    // Layer 3: far debris — dim cold blue, barely drifting on Y
+    particleLayers.push(
+      makeParticleLayer(
+        60,
+        3.2,
+        4.0,
+        [0.15, 0.22, 0.3],
+        [0.22, 0.3, 0.4], // #334455 dim
+        2.5,
+        0.006,
+        'y',
+        0.0001
+      )
+    );
+
+    // Update particle positions per frame (drift + shell clamp + parallax rotation + pulse)
+    const updateParticles = (dt: number, t: number) => {
+      for (let li = 0; li < particleLayers.length; li++) {
+        const L = particleLayers[li]!;
+        const cnt = L.pos.length / 3;
+        const p = L.pos,
+          v = L.vel;
+        for (let i = 0; i < cnt; i++) {
+          p[i * 3]! = p[i * 3]! + v[i * 3]! * dt;
+          p[i * 3 + 1]! = p[i * 3 + 1]! + v[i * 3 + 1]! * dt;
+          p[i * 3 + 2]! = p[i * 3 + 2]! + v[i * 3 + 2]! * dt;
+          const dx = p[i * 3]! - SPHERE_POS.x;
+          const dy = p[i * 3 + 1]! - SPHERE_POS.y;
+          const dz = p[i * 3 + 2]! - SPHERE_POS.z;
+          const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (r < L.shellMin || r > L.shellMax) {
+            const target = (L.shellMin + L.shellMax) * 0.5;
+            const k = 0.02;
+            p[i * 3]! = p[i * 3]! + (SPHERE_POS.x + dx * (target / r) - p[i * 3]!) * k;
+            p[i * 3 + 1]! = p[i * 3 + 1]! + (SPHERE_POS.y + dy * (target / r) - p[i * 3 + 1]!) * k;
+            p[i * 3 + 2]! = p[i * 3 + 2]! + (SPHERE_POS.z + dz * (target / r) - p[i * 3 + 2]!) * k;
+          }
+        }
+        (L.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+
+        // Per-layer parallax rotation around its designated axis
+        L.points.rotation[L.rotAxis] += L.rotSpeed;
+
+        // Atmospheric layer (0): sinusoidal opacity pulse
+        if (li === 0) {
+          L.mat.uniforms.uOpacityScale!.value = 0.5 + 0.3 * Math.sin(t * 0.4);
+        }
+      }
+    };
+
+    // ── Holographic orbital arcs — 3 thin neon rings + traveling node each ──
+    type OrbitalRing = {
+      mesh: THREE.Mesh;
+      geo: THREE.TorusGeometry;
+      mat: THREE.MeshBasicMaterial;
+      nodeMesh: THREE.Mesh;
+      nodeGeo: THREE.SphereGeometry;
+      nodeMat: THREE.MeshBasicMaterial;
+      radius: number;
+      rx: number;
+      rz: number;
+      rotateSpeed: number; // ring spin
+      nodeSpeed: number; // node travel angular speed
+      nodePhase: number;
+    };
+    const orbitalRings: OrbitalRing[] = [];
+    const orbitalRingDefs: Array<{
+      radius: number;
+      tube: number;
+      color: number;
+      opacity: number;
+      rx: number;
+      rz: number;
+      rotSpeed: number;
+      nodeSpeed: number;
+      nodeColor: number;
+    }> = [
+      {
+        radius: 1.72,
+        tube: 0.003,
+        color: 0x66bbff,
+        opacity: 0.65,
+        rx: Math.PI * 0.1,
+        rz: Math.PI * 0.05,
+        rotSpeed: +0.18,
+        nodeSpeed: +0.45,
+        nodeColor: 0x88ddff,
+      },
+      {
+        radius: 1.78,
+        tube: 0.0024,
+        color: 0x9988ff,
+        opacity: 0.5,
+        rx: Math.PI * 0.42,
+        rz: Math.PI * 0.2,
+        rotSpeed: -0.1,
+        nodeSpeed: -0.3,
+        nodeColor: 0xcc88ff,
+      },
+      {
+        radius: 1.85,
+        tube: 0.002,
+        color: 0xaa66ff,
+        opacity: 0.4,
+        rx: Math.PI * 0.65,
+        rz: Math.PI * 0.55,
+        rotSpeed: +0.06,
+        nodeSpeed: +0.22,
+        nodeColor: 0xddaaff,
+      },
+    ];
+    // Custom shader: fades alpha as the ring approaches the planet silhouette,
+    // so depthTest occlusion isn't a binary cut anymore. Combined with depthTest
+    // enabled, the back half is hidden cleanly with a smooth fade-out at the limb.
+    const RING_VERT = `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `;
+    const RING_FRAG = `
+      precision highp float;
+      uniform vec3  uColor;
+      uniform float uOpacity;
+      uniform vec3  uPlanetCenter;
+      varying vec3  vWorldPos;
+      void main() {
+        vec3 toCam = normalize(cameraPosition - uPlanetCenter);
+        vec3 ringDir = normalize(vWorldPos - uPlanetCenter);
+        // backness: -1 = in front of planet (camera side), +1 = behind
+        float backness = -dot(toCam, ringDir);
+        // Smooth fade-out as ring approaches the silhouette from the front
+        float fade = 1.0 - smoothstep(-0.25, 0.05, backness);
+        if (fade < 0.001) discard;
+        gl_FragColor = vec4(uColor, uOpacity * fade);
+      }
+    `;
+
+    for (const d of orbitalRingDefs) {
+      const geo = new THREE.TorusGeometry(d.radius, d.tube, 6, 240);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: new THREE.Color(d.color) },
+          uOpacity: { value: d.opacity },
+          uPlanetCenter: { value: SPHERE_POS },
+        },
+        vertexShader: RING_VERT,
+        fragmentShader: RING_FRAG,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }) as unknown as THREE.MeshBasicMaterial; // type alias kept for OrbitalRing
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(SPHERE_POS);
+      mesh.rotation.x = d.rx;
+      mesh.rotation.z = d.rz;
+      mesh.renderOrder = 2;
+      scene.add(mesh);
+
+      // Traveling node — same shader, just a sphere following the path
+      const nodeGeo = new THREE.SphereGeometry(0.025, 12, 8);
+      const nodeMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: new THREE.Color(d.nodeColor) },
+          uOpacity: { value: 0.95 },
+          uPlanetCenter: { value: SPHERE_POS },
+        },
+        vertexShader: RING_VERT,
+        fragmentShader: RING_FRAG,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }) as unknown as THREE.MeshBasicMaterial;
+      const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
+      nodeMesh.renderOrder = 3;
+      scene.add(nodeMesh);
+
+      orbitalRings.push({
+        mesh,
+        geo,
+        mat,
+        nodeMesh,
+        nodeGeo,
+        nodeMat,
+        radius: d.radius,
+        rx: d.rx,
+        rz: d.rz,
+        rotateSpeed: d.rotSpeed,
+        nodeSpeed: d.nodeSpeed,
+        nodePhase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    // Reusable scratch for node position math
+    const _ringV = new THREE.Vector3();
+    const _ringQ = new THREE.Quaternion();
+    const _ringE = new THREE.Euler();
+
+    const updateOrbitalRings = (t: number) => {
+      for (const ring of orbitalRings) {
+        // Slow ring rotation (the ring itself spins on its own axis)
+        ring.mesh.rotation.y = t * ring.rotateSpeed;
+        // Compute traveling node position
+        const angle = t * ring.nodeSpeed + ring.nodePhase;
+        _ringE.set(ring.rx, t * ring.rotateSpeed, ring.rz);
+        _ringQ.setFromEuler(_ringE);
+        _ringV.set(ring.radius * Math.cos(angle), ring.radius * Math.sin(angle), 0);
+        _ringV.applyQuaternion(_ringQ);
+        _ringV.add(SPHERE_POS);
+        ring.nodeMesh.position.copy(_ringV);
+      }
+    };
+
     // ── Stars ────────────────────────────────────────────────────────────────
     const N = 2500;
     const pA = new Float32Array(N * 3);
@@ -1706,20 +2808,48 @@ export default function HeroMesh() {
     starPoints.renderOrder = 1;
     scene.add(starPoints);
 
-    // ── Post-processing: bloom (skip on mobile/coarse for battery) ───────────
+    // ── Cinematic post-processing pipeline (skip on coarse for battery) ──────
+    // Pass order: Render → SSAO → Bloom → Bokeh DoF → SMAA → Cinematic (CA + vignette + grain)
     let composer: EffectComposer | null = null;
     let bloomPass: UnrealBloomPass | null = null;
+    let ssaoPass: SSAOPass | null = null;
+    let smaaPass: SMAAPass | null = null;
+    let bokehPass: BokehPass | null = null;
     let cinePass: ShaderPass | null = null;
     if (!coarse) {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
+
+      // SSAO — darken grooves between panels, give real depth
+      ssaoPass = new SSAOPass(scene, camera, container.clientWidth, container.clientHeight);
+      ssaoPass.kernelRadius = 0.08;
+      ssaoPass.minDistance = 0.001;
+      ssaoPass.maxDistance = 0.1;
+      ssaoPass.output = SSAOPass.OUTPUT.Default;
+      composer.addPass(ssaoPass);
+
+      // Bloom — only HDR-emissive (>1.0) pixels glow, not specular peaks
       bloomPass = new UnrealBloomPass(
         new THREE.Vector2(container.clientWidth, container.clientHeight),
-        0.35, // strength — moderate, lets structure read
+        0.55, // strength — moderate (was 0.80)
         0.4, // radius
-        0.78 // threshold — only the brightest pixels (HDR traces) bloom
+        0.98 // threshold — only true HDR pixels bloom (was 0.85, raised to skip spec)
       );
       composer.addPass(bloomPass);
+
+      // Bokeh DoF — focus locked on planet center, very subtle blur
+      bokehPass = new BokehPass(scene, camera, {
+        focus: 6.4,
+        aperture: 0.00012, // smaller aperture → less DoF aliasing at silhouette
+        maxblur: 0.003, // less blur → fewer artifacts at sharp edges
+      });
+      composer.addPass(bokehPass);
+
+      // SMAA — smoother edges than FXAA, especially on bright traces
+      smaaPass = new SMAAPass();
+      smaaPass.setSize(container.clientWidth, container.clientHeight);
+      composer.addPass(smaaPass);
+
       // Cinematic pass: chromatic aberration + vignette + film grain
       cinePass = new ShaderPass(CINEMATIC_SHADER);
       composer.addPass(cinePass);
@@ -1733,6 +2863,9 @@ export default function HeroMesh() {
       camera.updateProjectionMatrix();
       composer?.setSize(w, h);
       bloomPass?.setSize(w, h);
+      ssaoPass?.setSize(w, h);
+      smaaPass?.setSize(w, h);
+      bokehPass?.setSize(w, h);
     };
 
     setSize();
@@ -1776,6 +2909,15 @@ export default function HeroMesh() {
         sphere.rotation.x = mCur.y * 0.22;
 
         circuitGroup.rotation.copy(sphere.rotation);
+        circuitPathGroup.rotation.copy(sphere.rotation);
+
+        // Task 2.4: update uTime on all 14 circuit tube materials (8 primary + 6 forks)
+        for (const mat of circuitPathMats) {
+          const u = (
+            mat as THREE.MeshBasicMaterial & { _uniforms?: Record<string, { value: number }> }
+          )._uniforms;
+          if (u?.uTime) u.uTime.value = t;
+        }
 
         // Ship orbits the planet + rotates on its own axis + engines spin
         shipPivot.rotation.y = t * 0.12; // orbit speed (~52s per revolution)
@@ -1783,18 +2925,41 @@ export default function HeroMesh() {
         leftEngine.rotation.z = t * 0.85;
         rightEngine.rotation.z = -t * 0.85;
 
-        camera.rotation.x = camCur.rx;
-        camera.rotation.y = camCur.ry;
+        // Auto-orbit camera rig — slow rotation around Y axis
+        cameraRig.rotation.y = t * 0.04;
+
+        // Handheld drift (low-frequency noise on local position)
+        camNoise.set(
+          Math.sin(t * 0.31) * 0.04 + Math.sin(t * 0.83) * 0.012,
+          Math.cos(t * 0.27) * 0.03 + Math.sin(t * 0.91) * 0.01,
+          Math.sin(t * 0.19) * 0.018
+        );
+
+        // Mouse parallax target
+        camTargetLocal.x = camNoise.x + mCur.x * 0.18;
+        camTargetLocal.y = camNoise.y + mCur.y * 0.1;
+        camTargetLocal.z = 6.4 + camNoise.z;
+
+        // Lerp inertia so camera glides smoothly to target
+        camCurrentLocal.lerp(camTargetLocal, 0.04);
+        camera.position.copy(camCurrentLocal);
+
+        // Camera always points at planet center (slightly look-at the sphere)
+        camera.lookAt(SPHERE_POS.x, SPHERE_POS.y, SPHERE_POS.z);
 
         bgUniforms.uTime.value = t;
         sphUniforms.uTime.value = t;
         starUniforms.uTime.value = t;
         nodeUniforms.uTime.value = t;
         if (cinePass) cinePass.uniforms.uTime!.value = t;
+        holoUniforms.uTime.value = t;
 
         updatePulses(t);
         updateHubFires(t);
         updateSurges(t);
+        updateParticles(0.016, t);
+        updateOrbitalRings(t);
+        updateReactors(t);
 
         renderFrame();
       }
@@ -1883,7 +3048,39 @@ export default function HeroMesh() {
       (glow2.material as THREE.SpriteMaterial).dispose();
       composer?.dispose();
       bloomPass?.dispose();
+      ssaoPass?.dispose();
+      smaaPass?.dispose();
+      bokehPass?.dispose();
       cinePass?.material.dispose();
+      pmremGenerator.dispose();
+      envTarget.dispose();
+      particleLayers.forEach((L) => {
+        L.geo.dispose();
+        L.mat.dispose();
+      });
+      orbitalRings.forEach((r) => {
+        r.geo.dispose();
+        r.mat.dispose();
+        r.nodeGeo.dispose();
+        r.nodeMat.dispose();
+      });
+      holoGeo.dispose();
+      holoMat.dispose();
+      reactorGeos.forEach((g) => {
+        g.dispose();
+      });
+      reactorMats.forEach((m) => {
+        m.dispose();
+      });
+      circuitEmissiveTex.dispose();
+      albedoTex.dispose();
+      roughnessTex.dispose();
+      circuitPathGeos.forEach((g) => {
+        g.dispose();
+      });
+      circuitPathMats.forEach((m) => {
+        m.dispose();
+      });
       renderer.dispose();
       renderer.domElement.parentNode?.removeChild(renderer.domElement);
     };
