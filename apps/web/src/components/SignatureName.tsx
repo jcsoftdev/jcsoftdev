@@ -146,10 +146,15 @@ export function SignatureName({ delay = 0.1 }: Props) {
                   // Two colored shadows that converge as --glitch-x → 0.
                   // Colors match the HeroMesh planet: violet (#7722ff, rim
                   // glow + outer ring) on the left, cyan (#00aaff, fresnel +
-                  // inner ring + circuit nodes) on the right.
+                  // inner ring + circuit nodes) on the right. The dark
+                  // multi-radius halo is for legibility over the bright
+                  // hemisphere of the planet — does not affect convergence.
                   textShadow: `
                     calc(-1 * var(--glitch-x, 0px)) 0 0 oklch(0.50 0.27 290 / 0.88),
-                    var(--glitch-x, 0px) 0 0 oklch(0.71 0.17 240 / 0.88)
+                    var(--glitch-x, 0px) 0 0 oklch(0.71 0.17 240 / 0.88),
+                    0 0 6px oklch(0.04 0 0 / 0.95),
+                    0 2px 14px oklch(0.04 0 0 / 0.92),
+                    0 0 36px oklch(0.04 0 0 / 0.75)
                   `,
                 }}
               >

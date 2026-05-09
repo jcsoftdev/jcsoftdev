@@ -268,16 +268,22 @@ function voronoi2DJS(px: number, py: number): { F2mF1: number; cellHash: number 
   return { F2mF1: F2 - F1, cellHash: hash2JS(cellX, cellY)[0] };
 }
 
-// Multi-scale cellular displacement — big panels + medium sub-panels + grooves.
-// Total height range: ~−0.022 (groove) to +0.16 (raised panel + sub-panel peak).
+// Multi-scale cellular displacement — tech-city architecture: flat plateaus,
+// tiered block heights (low-rise / mid-rise / tower), stepped sub-panels, deep
+// avenue grooves.  Silhouette stays clean (≤ 5.5 % of radius 1.55).
 const SPHERE_RADIUS_BAKE = 1.55;
 const VORONOI_SCALE = 5.5; // matches SCALE_BIG in SPHERE_FRAG
 const VORONOI_SCALE_MED = 14.0; // matches SCALE_MED in SPHERE_FRAG
-const CELL_LIFT_AMP = 0.13; // max big-panel lift (~8.4 % of radius)
-const CELL_EDGE_FADE = 0.028; // sharper transitions to groove
-const CELL_GROOVE_DEPTH = 0.022; // edges dip BELOW base radius → real PCB grooves
-const SUB_LIFT_AMP = 0.03; // sub-panel relief on top of big panels
-const SUB_EDGE_FADE = 0.02;
+// Per-tier lift amplitudes (replaces single CELL_LIFT_AMP)
+const CELL_LIFT_T0 = 0.02; // low-rise  (~60 % of cells, cellHash < 0.60)
+const CELL_LIFT_T1 = 0.045; // mid-rise  (~30 % of cells, cellHash 0.60–0.90)
+const CELL_LIFT_T2 = 0.075; // tower     (~10 % of cells, cellHash ≥ 0.90) — clamped below 0.085
+const CELL_EDGE_FADE = 0.018; // sharper wall onset (was 0.028)
+const CELL_PLATEAU_START = 0.6; // plateau begins at 60 % of half-edge
+const CELL_PLATEAU_END = 0.8; // plateau fully flat beyond 80 %
+const CELL_GROOVE_DEPTH = 0.014; // avenue-width groove (was 0.008)
+const SUB_LIFT_AMP = 0.005; // sub-panel micro-relief (unchanged)
+const SUB_EDGE_FADE = 0.012; // crisper sub-cell edges (was 0.02)
 
 function smoothstep01(x: number): number {
   const t = Math.min(Math.max(x, 0), 1);
@@ -305,24 +311,61 @@ function terrainDisp(nx: number, ny: number, nz: number): number {
   const v_xy = voronoi2DJS(px * VORONOI_SCALE, py * VORONOI_SCALE);
   const v_yz = voronoi2DJS(py * VORONOI_SCALE, pz * VORONOI_SCALE);
   const v_xz = voronoi2DJS(px * VORONOI_SCALE, pz * VORONOI_SCALE);
-  const bigTone = v_xy.cellHash * nWz + v_yz.cellHash * nWx + v_xz.cellHash * nWy;
   const bigEdge = v_xy.F2mF1 * nWz + v_yz.F2mF1 * nWx + v_xz.F2mF1 * nWy;
-  const bigMask = smoothstep01(bigEdge / CELL_EDGE_FADE);
-  // Cell center sticks out, edge dips to a NEGATIVE depth → physical groove
-  const bigLift = bigTone * CELL_LIFT_AMP * bigMask - CELL_GROOVE_DEPTH * (1.0 - bigMask);
+
+  // Plateau profile: rises sharply from the groove wall, stays flat across
+  // most of the cell interior — reads as architectural block, not organic bump.
+  // wallRise: 0 at groove edge → 1 within CELL_EDGE_FADE of the edge.
+  // plateauDrop: 1 inside CELL_PLATEAU_START → 0 past CELL_PLATEAU_END (unused
+  // at this scale — bigEdge rarely exceeds 0.5, so plateau stays fully raised).
+  const wallRise = smoothstep01(bigEdge / CELL_EDGE_FADE);
+  const plateauDrop = smoothstep01(
+    (bigEdge - CELL_PLATEAU_START) / (CELL_PLATEAU_END - CELL_PLATEAU_START)
+  );
+  const plateauMask = wallRise * (1.0 - plateauDrop);
+
+  // Per-cell tier from dominant-axis cellHash (use highest triplanar weight).
+  // Dominant axis gives cleanest single-cell read without blending seams.
+  let cellHash: number;
+  if (nWz >= nWx && nWz >= nWy) {
+    cellHash = v_xy.cellHash;
+  } else if (nWx >= nWy) {
+    cellHash = v_yz.cellHash;
+  } else {
+    cellHash = v_xz.cellHash;
+  }
+
+  // Tier classification: low-rise 60 %, mid-rise 30 %, tower 10 %
+  const tierLift = cellHash >= 0.9 ? CELL_LIFT_T2 : cellHash >= 0.6 ? CELL_LIFT_T1 : CELL_LIFT_T0;
+
+  // Cell plateau sticks out by tier height; groove edge dips to negative depth
+  const bigLift = tierLift * plateauMask - CELL_GROOVE_DEPTH * (1.0 - wallRise);
 
   // ── MEDIUM sub-panels (matches SPHERE_FRAG SCALE_MED = 14.0) ─────────────
   const m_xy = voronoi2DJS(px * VORONOI_SCALE_MED, py * VORONOI_SCALE_MED);
   const m_yz = voronoi2DJS(py * VORONOI_SCALE_MED, pz * VORONOI_SCALE_MED);
   const m_xz = voronoi2DJS(px * VORONOI_SCALE_MED, pz * VORONOI_SCALE_MED);
-  const medTone = m_xy.cellHash * nWz + m_yz.cellHash * nWx + m_xz.cellHash * nWy;
   const medEdge = m_xy.F2mF1 * nWz + m_yz.F2mF1 * nWx + m_xz.F2mF1 * nWy;
   const medMask = smoothstep01(medEdge / SUB_EDGE_FADE);
-  // ±half-amplitude: some sub-panels raised, others recessed
-  const medLift = (medTone - 0.5) * SUB_LIFT_AMP * medMask;
 
-  // Sub-panel relief only INSIDE big panels (not in grooves)
-  return bigLift + medLift * Math.max(bigMask, 0.0);
+  // Stepped sub-cell: binary tier (0 or +SUB_LIFT_AMP) — architectural ledge,
+  // not a smooth gradient.  Uses dominant-axis sub-cell hash via fract trick.
+  let subHash: number;
+  if (nWz >= nWx && nWz >= nWy) {
+    subHash = m_xy.cellHash;
+  } else if (nWx >= nWy) {
+    subHash = m_yz.cellHash;
+  } else {
+    subHash = m_xz.cellHash;
+  }
+  const subStep = subHash >= 0.5 ? 1.0 : 0.0;
+  const medLift = subStep * SUB_LIFT_AMP * medMask;
+
+  // Sub-panel relief only inside big panels (not in grooves)
+  const totalDisp = bigLift + medLift * Math.max(wallRise, 0.0);
+
+  // Silhouette safety clamp: cap at 0.085 (≤ 5.5 % of radius 1.55)
+  return Math.min(totalDisp, 0.085);
 }
 
 // ─── Cinematic post-process — chromatic aberration + vignette + film grain ───
@@ -333,7 +376,7 @@ const CINEMATIC_SHADER = {
     uTime: { value: 0 },
     uAberration: { value: 0.0035 },
     uVignette: { value: 0.85 },
-    uGrain: { value: 0.045 },
+    uGrain: { value: 0.015 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -925,7 +968,7 @@ export default function HeroMesh() {
     scene.add(bgMesh);
 
     // ── Sphere — high-res icosphere with CPU vertex displacement ─────────────
-    const SPHERE_POS = new THREE.Vector3(1.0, -0.1, 0);
+    const SPHERE_POS = new THREE.Vector3(2.1, -0.1, 0);
     const SPHERE_RADIUS = 1.55;
     const SPHERE_DETAIL = coarse ? 4 : 6; // detail 6 = ~40k verts (desktop)
 
@@ -1215,7 +1258,7 @@ export default function HeroMesh() {
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       vertexShader: `
         varying vec3 vViewPos;
         varying vec3 vWorldNormal;
@@ -1335,14 +1378,9 @@ export default function HeroMesh() {
     const circuitPathGeos: THREE.BufferGeometry[] = [];
 
     // Shared GLSL color injection for the animated UV-band packet effect.
-    // Replaces <color_fragment> in MeshBasicMaterial's fragment shader.
+    // MeshBasicMaterial in r184 only declares vUv when a map is assigned, so
+    // we inject our own varying (vCircuitUv) in both vertex + fragment.
     // UV.x runs 0→1 along tube length; the band scrolls toward the tube end.
-    const CIRCUIT_COLOR_INJECT = `
-      #include <color_fragment>
-      float _ct = fract(vUv.x - uTime * 0.15);
-      diffuseColor.rgb *= step(0.85, _ct) * 3.0 + 0.2;
-    `;
-
     const makeTubeMat = (): THREE.MeshBasicMaterial => {
       const mat = new THREE.MeshBasicMaterial({
         color: 0x00ffcc,
@@ -1353,17 +1391,30 @@ export default function HeroMesh() {
       });
       mat.onBeforeCompile = (shader) => {
         shader.uniforms.uTime = { value: 0 };
-        // Inject uTime declaration into fragment common
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <common>',
-          `#include <common>
-           uniform float uTime;`
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <color_fragment>',
-          CIRCUIT_COLOR_INJECT
-        );
-        // Attach uniforms reference so we can update uTime in the tick loop
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+             varying vec2 vCircuitUv;`
+          )
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+             vCircuitUv = uv;`
+          );
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+             uniform float uTime;
+             varying vec2 vCircuitUv;`
+          )
+          .replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+             float _ct = fract(vCircuitUv.x - uTime * 0.15);
+             diffuseColor.rgb *= step(0.85, _ct) * 3.0 + 0.2;`
+          );
         (
           mat as THREE.MeshBasicMaterial & { _uniforms?: Record<string, { value: number }> }
         )._uniforms = shader.uniforms as Record<string, { value: number }>;
@@ -2896,6 +2947,7 @@ export default function HeroMesh() {
     const _ringQ = new THREE.Quaternion();
     const _ringE = new THREE.Euler();
     const _shipWP = new THREE.Vector3(); // ship world-position scratch for depth-fade
+    const _camWP = new THREE.Vector3(); // camera world-position (camera is child of cameraRig)
 
     const updateOrbitalRings = (t: number) => {
       for (const ring of orbitalRings) {
@@ -2989,6 +3041,18 @@ export default function HeroMesh() {
       // Cinematic pass: chromatic aberration + vignette + film grain
       cinePass = new ShaderPass(CINEMATIC_SHADER);
       composer.addPass(cinePass);
+    } else {
+      // Cheap bloom for coarse/touch devices — RenderPass + low-strength bloom only.
+      // No SSAO, Bokeh, SMAA, or CinematicPass — keeps GPU/battery budget low.
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(container.clientWidth, container.clientHeight),
+        0.3, // strength — half of desktop 0.42
+        0.3, // radius
+        0.96 // threshold — slightly lower than desktop 0.98 to catch chip emissive
+      );
+      composer.addPass(bloomPass);
     }
 
     const setSize = () => {
@@ -3062,16 +3126,18 @@ export default function HeroMesh() {
         rightEngine.rotation.z = -t * 0.85;
 
         // Satellite depth-fade — ray-occlusion test: hide only when the planet
-        // actually blocks the camera→ship line.
+        // actually blocks the camera→ship line. Camera is a child of cameraRig,
+        // so its world position must be derived from the rig's transform.
         shipGroup.getWorldPosition(_shipWP);
+        camera.getWorldPosition(_camWP);
         {
-          const dx = _shipWP.x - camera.position.x;
-          const dy = _shipWP.y - camera.position.y;
-          const dz = _shipWP.z - camera.position.z;
+          const dx = _shipWP.x - _camWP.x;
+          const dy = _shipWP.y - _camWP.y;
+          const dz = _shipWP.z - _camWP.z;
           const shipDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          const px = SPHERE_POS.x - camera.position.x;
-          const py = SPHERE_POS.y - camera.position.y;
-          const pz = SPHERE_POS.z - camera.position.z;
+          const px = SPHERE_POS.x - _camWP.x;
+          const py = SPHERE_POS.y - _camWP.y;
+          const pz = SPHERE_POS.z - _camWP.z;
           const tProj = (px * dx + py * dy + pz * dz) / shipDist;
           const perpSq = px * px + py * py + pz * pz - tProj * tProj;
           const dPerp = Math.sqrt(Math.max(0, perpSq));
@@ -3258,55 +3324,63 @@ export default function HeroMesh() {
       className="pointer-events-none absolute inset-0"
       style={{ zIndex: 'var(--z-orbs)' as unknown as number }}
     >
-      <div ref={containerRef} className="absolute inset-0 opacity-40 md:opacity-100" />
+      <div ref={containerRef} className="absolute inset-0 opacity-65 md:opacity-100" />
 
       {/* HUD overlay — sci-fi branding labels (purely cosmetic, hidden on mobile to avoid overlap) */}
-      <div className="absolute inset-0 hidden md:block font-mono text-[10px] tracking-[0.2em] text-cyan-200/70 mix-blend-screen">
+      <div className="absolute inset-0 hidden md:block font-mono text-[10px] tracking-[0.2em] text-[oklch(0.85_0.18_249_/_0.7)] mix-blend-screen">
         {/* Top-left bracketed title */}
-        <div className="absolute left-6 top-6 border-l border-t border-cyan-300/40 pl-3 pt-2 pr-12 pb-1">
-          <div className="text-[14px] tracking-[0.32em] text-cyan-100/90 font-bold">
+        <div className="absolute left-6 top-6 border-l border-t border-[oklch(0.78_0.18_249_/_0.4)] pl-3 pt-2 pr-12 pb-1">
+          <div className="text-[14px] tracking-[0.32em] text-[oklch(0.92_0.14_249_/_0.9)] font-bold">
             CIRCUIT&nbsp;PLANET
           </div>
-          <div className="mt-0.5 text-[9px] tracking-[0.28em] text-cyan-200/55">
+          <div className="mt-0.5 text-[9px] tracking-[0.28em] text-[oklch(0.85_0.18_249_/_0.55)]">
             DIGITAL&nbsp;CORE&nbsp;·&nbsp;LIMITLESS&nbsp;CONNECTIONS
           </div>
         </div>
 
         {/* System status (mid-left) */}
         <div className="absolute left-6 top-28 leading-relaxed">
-          <div className="text-[9px] text-cyan-300/55 mb-1">SYSTEM&nbsp;STATUS</div>
+          <div className="text-[9px] text-[oklch(0.78_0.18_249_/_0.55)] mb-1">
+            SYSTEM&nbsp;STATUS
+          </div>
           <div className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-cyan-300 shadow-[0_0_4px_rgba(180,230,255,0.8)]" />{' '}
+            <span className="size-1.5 rounded-full bg-[oklch(0.78_0.18_249)] shadow-[0_0_4px_oklch(0.78_0.18_249_/_0.8)]" />{' '}
             ONLINE
           </div>
           <div className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-cyan-300 shadow-[0_0_4px_rgba(180,230,255,0.8)]" />{' '}
+            <span className="size-1.5 rounded-full bg-[oklch(0.78_0.18_249)] shadow-[0_0_4px_oklch(0.78_0.18_249_/_0.8)]" />{' '}
             SECURE
           </div>
           <div className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-cyan-300 shadow-[0_0_4px_rgba(180,230,255,0.8)]" />{' '}
+            <span className="size-1.5 rounded-full bg-[oklch(0.78_0.18_249)] shadow-[0_0_4px_oklch(0.78_0.18_249_/_0.8)]" />{' '}
             STABLE
           </div>
         </div>
 
         {/* Top-right node activity */}
-        <div className="absolute right-6 top-6 border-r border-t border-cyan-300/40 pr-3 pt-2 pl-12 pb-1 text-right">
-          <div className="text-[10px] tracking-[0.3em] text-cyan-200/70">NODE&nbsp;ACTIVITY</div>
-          <div className="mt-1 text-[16px] font-bold text-cyan-100/95">98.7%</div>
+        <div className="absolute right-6 top-6 border-r border-t border-[oklch(0.78_0.18_249_/_0.4)] pr-3 pt-2 pl-12 pb-1 text-right">
+          <div className="text-[10px] tracking-[0.3em] text-[oklch(0.85_0.18_249_/_0.7)]">
+            NODE&nbsp;ACTIVITY
+          </div>
+          <div className="mt-1 text-[16px] font-bold text-[oklch(0.92_0.14_249_/_0.95)]">98.7%</div>
         </div>
 
         {/* Bottom-left data flow */}
-        <div className="absolute left-6 bottom-6 border-l border-b border-cyan-300/40 pl-3 pb-2 pr-12 pt-1">
-          <div className="text-[9px] tracking-[0.3em] text-cyan-300/60">DATA&nbsp;FLOW</div>
-          <div className="mt-0.5 text-[14px] tracking-[0.06em] text-cyan-100/90 font-bold">
+        <div className="absolute left-6 bottom-6 border-l border-b border-[oklch(0.78_0.18_249_/_0.4)] pl-3 pb-2 pr-12 pt-1">
+          <div className="text-[9px] tracking-[0.3em] text-[oklch(0.78_0.18_249_/_0.6)]">
+            DATA&nbsp;FLOW
+          </div>
+          <div className="mt-0.5 text-[14px] tracking-[0.06em] text-[oklch(0.92_0.14_249_/_0.9)] font-bold">
             2.34&nbsp;PB/s
           </div>
         </div>
 
         {/* Bottom-right core temp */}
-        <div className="absolute right-6 bottom-6 border-r border-b border-cyan-300/40 pr-3 pb-2 pl-12 pt-1 text-right">
-          <div className="text-[9px] tracking-[0.3em] text-cyan-300/60">CORE&nbsp;TEMP</div>
-          <div className="mt-0.5 text-[14px] tracking-[0.06em] text-cyan-100/90 font-bold">
+        <div className="absolute right-6 bottom-6 border-r border-b border-[oklch(0.78_0.18_249_/_0.4)] pr-3 pb-2 pl-12 pt-1 text-right">
+          <div className="text-[9px] tracking-[0.3em] text-[oklch(0.78_0.18_249_/_0.6)]">
+            CORE&nbsp;TEMP
+          </div>
+          <div className="mt-0.5 text-[14px] tracking-[0.06em] text-[oklch(0.92_0.14_249_/_0.9)] font-bold">
             37.2°C
           </div>
         </div>

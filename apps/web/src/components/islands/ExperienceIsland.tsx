@@ -36,7 +36,7 @@ const TECH_BY_COMPANY: Record<string, string[]> = {
 
 /** Brand color hint per company (subtle accent on monogram). */
 const COMPANY_HUE: Record<string, string> = {
-  Pulzifi: 'oklch(0.74 0.16 280)', // violet (brand)
+  Pulzifi: 'oklch(0.70 0.20 249)', // circuit blue (site brand)
   Travitur: 'oklch(0.70 0.15 200)', // teal
   GlobalLogic: 'oklch(0.70 0.15 30)', // orange
   DD3: 'oklch(0.70 0.18 350)', // pink

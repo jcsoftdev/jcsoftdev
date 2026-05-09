@@ -171,7 +171,7 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
                 className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-[var(--duration-base)] group-hover:opacity-100"
                 style={{
                   background:
-                    'radial-gradient(circle at var(--tilt-mx, 50%) var(--tilt-my, 50%), oklch(0.74 0.16 280 / 0.18), transparent 35%)',
+                    'radial-gradient(circle at var(--tilt-mx, 50%) var(--tilt-my, 50%), oklch(0.70 0.20 249 / 0.18), transparent 35%)',
                   zIndex: 1,
                 }}
               />
