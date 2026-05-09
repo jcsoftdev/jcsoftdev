@@ -19,9 +19,9 @@ RUN pnpm run build
 
 # Stage 2: Runtime
 FROM node:24-alpine AS runtime
-WORKDIR /app
-COPY --from=build /repo/apps/web/dist ./dist
-COPY --from=build /repo/node_modules ./node_modules
+WORKDIR /repo
+COPY --from=build /repo /repo
+WORKDIR /repo/apps/web
 EXPOSE 4321
 ENV HOST=0.0.0.0
 ENV PORT=4321
