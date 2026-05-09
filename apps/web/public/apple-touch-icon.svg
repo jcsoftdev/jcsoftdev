@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none" role="img" aria-label="jcsoftdev">
+  <rect width="180" height="180" rx="40" fill="#0a0a0a"/>
+  <circle cx="160" cy="20" r="42" fill="#a78bfa" opacity="0.14"/>
+  <path
+    d="M 92 62 V 124 C 92 141 81 152 64 152"
+    stroke="#fafafa"
+    stroke-width="20"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <circle cx="92" cy="34" r="13" fill="#a78bfa"/>
+</svg>

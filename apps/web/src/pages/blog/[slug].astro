@@ -30,6 +30,11 @@ import Container from "../../components/ui/Container.astro";
 import Heading from "../../components/ui/Heading.astro";
 import Mono from "../../components/ui/Mono.astro";
 import { buildHeroImageUrl, fetchBlogPost } from "../../lib/blog-fetch";
+import {
+  buildBlogPostingSchema,
+  buildBreadcrumbSchema,
+  SITE_URL,
+} from "../../lib/seo";
 
 // SSR — no prerender
 export const prerender = false;
@@ -51,9 +56,36 @@ const heroImageUrl = buildHeroImageUrl(post.heroImageUrl);
 
 const pageTitle = `${post.title} — jcsoftdev`;
 const pageDescription = post.excerpt ?? `Read "${post.title}" on jcsoftdev`;
+
+const articleJsonLd = [
+  buildBlogPostingSchema({
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    publishedAt: post.publishedAt,
+    updatedAt: post.updatedAt,
+    heroImageUrl,
+  }),
+  buildBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Writing", url: "/blog" },
+    { name: post.title, url: `/blog/${post.slug}` },
+  ]),
+];
 ---
 
-<RootLayout title={pageTitle} description={pageDescription}>
+<RootLayout
+  title={pageTitle}
+  description={pageDescription}
+  canonical={`${SITE_URL}/blog/${post.slug}`}
+  type="article"
+  publishedTime={post.publishedAt ?? undefined}
+  modifiedTime={post.updatedAt}
+  image={heroImageUrl ?? undefined}
+  imageAlt={post.title}
+  ogEyebrow="Writing"
+  jsonLd={articleJsonLd}
+>
   <main>
     <Container>
       <div

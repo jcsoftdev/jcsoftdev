@@ -13,6 +13,7 @@ import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
 import RootLayout from "../layouts/RootLayout.astro";
 import { fetchPortfolio } from "../lib/portfolio-fetch";
+import { buildPersonSchema, buildWebSiteSchema } from "../lib/seo";
 
 export const prerender = false;
 
@@ -22,6 +23,8 @@ const canonicalUrl = `${siteOrigin}/`;
 const pageTitle = "Juan Carlos Valencia — Senior Full-Stack Developer";
 const pageDescription =
   "9 years building scalable web apps end-to-end. Currently designing a multi-tenant SaaS in Go + Next.js 16. Available for new work.";
+
+const homeJsonLd = [buildPersonSchema(), buildWebSiteSchema()];
 
 let projects: Awaited<ReturnType<typeof fetchPortfolio>>["projects"] = [];
 let experiences: Awaited<ReturnType<typeof fetchPortfolio>>["experiences"] = [];
@@ -40,8 +43,22 @@ try {
   title={pageTitle}
   description={pageDescription}
   canonical={canonicalUrl}
-  ogTitle={pageTitle}
-  ogDescription={pageDescription}
+  type="website"
+  ogEyebrow="Portfolio"
+  keywords={[
+    "Juan Carlos Valencia",
+    "jcsoftdev",
+    "full-stack developer",
+    "senior software engineer",
+    "TypeScript",
+    "Go",
+    "React",
+    "Next.js",
+    "Hexagonal architecture",
+    "Domain-Driven Design",
+    "portfolio",
+  ]}
+  jsonLd={homeJsonLd}
 >
   <main>
     {/* Scroll progress bar — fixed at top of viewport */}

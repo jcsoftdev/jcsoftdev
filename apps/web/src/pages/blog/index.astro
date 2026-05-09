@@ -23,6 +23,11 @@ import Section from "../../components/ui/Section.astro";
 import SectionHeader from "../../components/ui/SectionHeader.astro";
 import Text from "../../components/ui/Text.astro";
 import { fetchBlogPosts, parseCursorFromUrl } from "../../lib/blog-fetch";
+import {
+  buildBlogSchema,
+  buildBreadcrumbSchema,
+  SITE_URL,
+} from "../../lib/seo";
 
 // SSR — no prerender
 export const prerender = false;
@@ -53,11 +58,36 @@ const prevUrl = cursor ? `/blog` : null; // No true "prev" with cursor paginatio
 const nextUrl = nextCursor
   ? `/blog?cursor=${encodeURIComponent(nextCursor)}&limit=${limit}`
   : null;
+
+const blogJsonLd = [
+  buildBlogSchema(),
+  buildBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Writing", url: "/blog" },
+  ]),
+];
+
+// Paginated pages should not be indexed as duplicates of /blog.
+const isPaginated = cursor !== null;
 ---
 
 <RootLayout
-  title="Blog — jcsoftdev"
-  description="Engineering articles, tutorials, and portfolio posts by jcsoftdev"
+  title="Writing — jcsoftdev"
+  description="Engineering articles, tutorials, and notes on full-stack development by Juan Carlos Valencia."
+  canonical={`${SITE_URL}/blog`}
+  type="website"
+  ogEyebrow="Writing"
+  noindex={isPaginated}
+  keywords={[
+    "blog",
+    "engineering",
+    "tutorials",
+    "TypeScript",
+    "Go",
+    "React",
+    "architecture",
+  ]}
+  jsonLd={blogJsonLd}
 >
   <main>
     <Container>

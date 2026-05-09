@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /*?cursor=
+
+Sitemap: https://jcsoftdev.com/sitemap-index.xml
+Sitemap: https://jcsoftdev.com/sitemap-posts.xml

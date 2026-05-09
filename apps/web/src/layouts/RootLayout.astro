@@ -10,38 +10,145 @@ import Footer from "../components/Footer.astro";
 const geistSansUrl = "/fonts/geist-sans-variable.woff2";
 const geistMonoUrl = "/fonts/geist-mono-variable.woff2";
 
+type JsonLdValue = Record<string, unknown> | Array<Record<string, unknown>>;
+
 interface Props {
-  title?: string;
-  description?: string;
-  canonical?: string;
-  ogTitle?: string;
-  ogDescription?: string;
+  title?: string | undefined;
+  description?: string | undefined;
+  canonical?: string | undefined;
+  image?: string | undefined;
+  imageAlt?: string | undefined;
+  ogEyebrow?: string | undefined;
+  type?: "website" | "article" | "profile" | undefined;
+  publishedTime?: string | undefined;
+  modifiedTime?: string | undefined;
+  author?: string | undefined;
+  keywords?: string[] | undefined;
+  noindex?: boolean | undefined;
+  lang?: string | undefined;
+  ogTitle?: string | undefined;
+  ogDescription?: string | undefined;
+  jsonLd?: JsonLdValue | undefined;
 }
 
+const SITE_NAME = "jcsoftdev";
+const DEFAULT_AUTHOR = "Juan Carlos Valencia";
+const DEFAULT_TWITTER = "@jcsoftdev";
+
 const {
-  title = "jcsoftdev",
-  description = "Personal portfolio and blog by jcsoftdev",
+  title = "jcsoftdev — Senior Full-Stack Developer",
+  description = "Personal portfolio and blog by Juan Carlos Valencia (jcsoftdev) — senior full-stack engineer specializing in clean architecture, performance, and end-to-end product engineering.",
   canonical,
+  image,
+  imageAlt,
+  ogEyebrow,
+  type = "website",
+  publishedTime,
+  modifiedTime,
+  author = DEFAULT_AUTHOR,
+  keywords,
+  noindex = false,
+  lang = "en",
   ogTitle,
   ogDescription,
+  jsonLd,
 } = Astro.props;
+
+const siteOrigin = Astro.site?.origin ?? Astro.url.origin;
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, siteOrigin).href;
+
+const finalOgTitleEarly = ogTitle ?? title;
+const finalOgDescriptionEarly = ogDescription ?? description;
+
+function buildDynamicOgUrl(): string {
+  const ogUrl = new URL("/og.png", siteOrigin);
+  ogUrl.searchParams.set("title", finalOgTitleEarly);
+  ogUrl.searchParams.set("description", finalOgDescriptionEarly);
+  if (ogEyebrow) ogUrl.searchParams.set("eyebrow", ogEyebrow);
+  return ogUrl.href;
+}
+
+const ogImageUrl = image ?? buildDynamicOgUrl();
+const ogImageAlt = imageAlt ?? `${title} — ${SITE_NAME}`;
+
+const ogLocale = lang.toLowerCase().startsWith("es") ? "es_ES" : "en_US";
+const robotsContent = noindex
+  ? "noindex, nofollow"
+  : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
+
+const finalOgTitle = finalOgTitleEarly;
+const finalOgDescription = finalOgDescriptionEarly;
+
+const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content={description} />
-    <title>{title}</title>
+    <meta name="generator" content={Astro.generator} />
 
-    {canonical && <link rel="canonical" href={canonical} />}
-    {ogTitle && <meta property="og:title" content={ogTitle} />}
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={author} />
     {
-      ogDescription && (
-        <meta property="og:description" content={ogDescription} />
+      keywords && keywords.length > 0 && (
+        <meta name="keywords" content={keywords.join(", ")} />
       )
     }
+    <meta name="robots" content={robotsContent} />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="color-scheme" content="dark light" />
+
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:locale" content={ogLocale} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={finalOgTitle} />
+    <meta property="og:description" content={finalOgDescription} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    {
+      type === "article" && publishedTime && (
+        <meta property="article:published_time" content={publishedTime} />
+      )
+    }
+    {
+      type === "article" && modifiedTime && (
+        <meta property="article:modified_time" content={modifiedTime} />
+      )
+    }
+    {type === "article" && <meta property="article:author" content={author} />}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content={DEFAULT_TWITTER} />
+    <meta name="twitter:creator" content={DEFAULT_TWITTER} />
+    <meta name="twitter:title" content={finalOgTitle} />
+    <meta name="twitter:description" content={finalOgDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+
+    <!-- Favicons / PWA hints -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/favicon.svg" color="#a78bfa" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${SITE_NAME} Blog`}
+      href="/rss.xml"
+    />
 
     <!-- Geist font preloads — critical path, must be before ClientRouter -->
     <link
@@ -108,6 +215,16 @@ const {
         ]
       }
     </script>
+
+    {
+      jsonLdArray.map((schema) => (
+        <script
+          is:inline
+          type="application/ld+json"
+          set:html={JSON.stringify(schema)}
+        />
+      ))
+    }
   </head>
   <body>
     <Header />
