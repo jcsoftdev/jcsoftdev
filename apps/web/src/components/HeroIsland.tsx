@@ -93,8 +93,7 @@ function HeroMeshPlaceholder() {
       aria-hidden
       className="absolute inset-0"
       style={{
-        background:
-          'radial-gradient(circle at 75% 50%, oklch(0.18 0.09 249 / 0.45) 0%, oklch(0.04 0.005 270) 70%)',
+        background: 'oklch(0 0 0)',
       }}
     />
   );

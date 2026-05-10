@@ -45,21 +45,8 @@ const BG_VERT = `
 
 const BG_FRAG = `
   precision mediump float;
-  uniform float uTime;
-  varying vec2 vUv;
-  float hash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-  float noise(vec2 p) {
-    vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.-2.*f);
-    return mix(mix(hash(i),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y);
-  }
   void main() {
-    vec2 uv = vUv;
-    vec3 col = vec3(0.008, 0.012, 0.045);
-    float d = length(uv - vec2(0.58, 0.50));
-    col += vec3(0.014, 0.022, 0.085) * smoothstep(0.8, 0.0, d);
-    col += noise(uv * 220.0 + uTime * 0.008) * 0.018;
-    col *= 0.55 + 0.45 * smoothstep(1.0, 0.1, length(uv - 0.5));
-    gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
   }
 `;
 
@@ -905,7 +892,7 @@ export default function HeroMesh() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'default' });
     renderer.setPixelRatio(coarse ? 1 : Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x020510, 1);
+    renderer.setClearColor(0x000000, 1);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -956,7 +943,7 @@ export default function HeroMesh() {
     const camNoise = new THREE.Vector3();
 
     // ── Background plane ─────────────────────────────────────────────────────
-    const bgGeo = new THREE.PlaneGeometry(26, 14);
+    const bgGeo = new THREE.PlaneGeometry(60, 36);
     const bgMat = new THREE.ShaderMaterial({
       uniforms: bgUniforms,
       vertexShader: BG_VERT,
