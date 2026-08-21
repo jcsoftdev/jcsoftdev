@@ -19,7 +19,7 @@ import { media } from '@jcsoftdev/db';
 import { Hono } from 'hono';
 import type { createMinioPresigner } from '../lib/minio.js';
 import { ALLOWED_CONTENT_TYPES, MAX_SIZE_BYTES } from '../lib/minio.js';
-import { requireAuth } from '../middleware/auth.js';
+import { getSessionUserId, requireAdmin, requireAuth } from '../middleware/auth.js';
 import { FinalizeUploadSchema, PresignUploadSchema } from '../schemas/posts.js';
 
 // ---------------------------------------------------------------------------
@@ -35,8 +35,8 @@ export function createUploadRouter(
     // -------------------------------------------------------------------------
     // POST /api/v1/upload/presign
     // -------------------------------------------------------------------------
-    .post('/presign', requireAuth(), async (c) => {
-      const session = (c as any).get('auth_session') as { userId: string };
+    .post('/presign', requireAuth(), requireAdmin(), async (c) => {
+      const userId = getSessionUserId(c) as string;
 
       // Parse body manually so we can give specific error messages
       let body: unknown;
@@ -75,7 +75,7 @@ export function createUploadRouter(
       }
 
       const result = await presigner.createPresignedPutUrl({
-        userId: session.userId,
+        userId,
         filename,
         contentType,
         sizeBytes,
@@ -90,43 +90,49 @@ export function createUploadRouter(
     // -------------------------------------------------------------------------
     // POST /api/v1/upload/finalize
     // -------------------------------------------------------------------------
-    .post('/finalize', requireAuth(), zValidator('json', FinalizeUploadSchema), async (c) => {
-      const session = (c as any).get('auth_session') as { userId: string };
-      const body = c.req.valid('json');
+    .post(
+      '/finalize',
+      requireAuth(),
+      requireAdmin(),
+      zValidator('json', FinalizeUploadSchema),
+      async (c) => {
+        const userId = getSessionUserId(c) as string;
+        const body = c.req.valid('json');
 
-      // The default Hono serve target is 'posts-media'. The bucket name is stored
-      // in the media row for future flexibility (e.g., serving from a CDN bucket).
-      // We infer it from the objectKey prefix or use the configured default.
-      const bucket = 'posts-media';
+        // The default Hono serve target is 'posts-media'. The bucket name is stored
+        // in the media row for future flexibility (e.g., serving from a CDN bucket).
+        // We infer it from the objectKey prefix or use the configured default.
+        const bucket = 'posts-media';
 
-      // pgBouncer constraint: single insert, no transaction needed (single table).
-      const insertResult = await db
-        .insert(media)
-        .values({
-          objectKey: body.objectKey,
-          bucket,
-          mimeType: body.mimeType,
-          sizeBytes: body.sizeBytes, // number (bigint mode:'number')
-          width: body.width,
-          height: body.height,
-          alt: body.alt,
-          uploadedBy: session.userId,
-        })
-        .returning();
+        // pgBouncer constraint: single insert, no transaction needed (single table).
+        const insertResult = await db
+          .insert(media)
+          .values({
+            objectKey: body.objectKey,
+            bucket,
+            mimeType: body.mimeType,
+            sizeBytes: body.sizeBytes, // number (bigint mode:'number')
+            width: body.width,
+            height: body.height,
+            alt: body.alt,
+            uploadedBy: userId,
+          })
+          .returning();
 
-      const inserted = insertResult[0];
-      if (!inserted) {
-        return c.json({ error: 'Failed to insert media record' }, 500);
+        const inserted = insertResult[0];
+        if (!inserted) {
+          return c.json({ error: 'Failed to insert media record' }, 500);
+        }
+
+        return c.json(
+          {
+            ...inserted,
+            createdAt: inserted.createdAt.toISOString(),
+          },
+          201
+        );
       }
-
-      return c.json(
-        {
-          ...inserted,
-          createdAt: inserted.createdAt.toISOString(),
-        },
-        201
-      );
-    });
+    );
 
   return router;
 }

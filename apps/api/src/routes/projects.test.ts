@@ -71,6 +71,7 @@ function buildApp(db: DbClient, valkey: ValkeyClient, authenticated = true) {
 
   // Inject session (mimics authMiddleware)
   app.use('*', async (c, next) => {
+    (c as any).set('admin_emails', ['admin@example.com']);
     if (authenticated) {
       (c as any).set('auth_session', mockSession());
       (c as any).set('auth_user', mockUser());

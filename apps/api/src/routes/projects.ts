@@ -19,15 +19,14 @@
  * Hono chained registration is mandatory for AppType inference.
  */
 
-import { zValidator } from '@hono/zod-validator';
 import type { DbClient, Project } from '@jcsoftdev/db';
 import { projects } from '@jcsoftdev/db';
 import { count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import type { z } from 'zod';
 import { invalidatePortfolioCache } from '../lib/portfolio-cache.js';
+import { zv422 } from '../lib/validation.js';
 import type { ValkeyClient } from '../lib/valkey.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import {
   type CreateProjectInput,
   CreateProjectSchema,
@@ -36,23 +35,6 @@ import {
   type UpdateProjectInput,
   UpdateProjectSchema,
 } from '../schemas/portfolio.js';
-
-// ---------------------------------------------------------------------------
-// Validation helper — returns 422 instead of default 400
-// ---------------------------------------------------------------------------
-
-// biome-ignore lint/suspicious/noExplicitAny: needed for zValidator hook generics
-function zv422<S extends z.ZodTypeAny>(target: 'json' | 'query', schema: S) {
-  return zValidator(target, schema, (result, c) => {
-    if (!result.success) {
-      const firstIssue = result.error.issues[0];
-      return c.json(
-        { error: firstIssue?.message ?? 'Validation failed', issues: result.error.issues },
-        422
-      );
-    }
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Serializer
@@ -105,7 +87,7 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // POST /api/v1/projects — create
     // -------------------------------------------------------------------------
-    .post('/', requireAuth(), zv422('json', CreateProjectSchema), async (c) => {
+    .post('/', requireAuth(), requireAdmin(), zv422('json', CreateProjectSchema), async (c) => {
       const body = c.req.valid('json') as CreateProjectInput;
 
       // Slug uniqueness check (citext handles case-insensitivity at DB level)
@@ -167,7 +149,7 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // PATCH /api/v1/projects/:id — partial update
     // -------------------------------------------------------------------------
-    .patch('/:id', requireAuth(), zv422('json', UpdateProjectSchema), async (c) => {
+    .patch('/:id', requireAuth(), requireAdmin(), zv422('json', UpdateProjectSchema), async (c) => {
       const id = c.req.param('id');
       const body = c.req.valid('json') as UpdateProjectInput;
 
@@ -217,7 +199,7 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // DELETE /api/v1/projects/:id — HARD DELETE (V1 — no soft-delete column)
     // -------------------------------------------------------------------------
-    .delete('/:id', requireAuth(), async (c) => {
+    .delete('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       // Verify project exists

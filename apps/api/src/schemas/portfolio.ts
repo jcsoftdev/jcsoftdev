@@ -10,6 +10,16 @@
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
+// Length caps — defensive upper bounds so a request body cannot balloon
+// unbounded (works alongside the global bodyLimit middleware).
+// ---------------------------------------------------------------------------
+
+/** Max summary length (short blurb). */
+export const MAX_SUMMARY_LENGTH = 2_000;
+/** Max description length (long-form project write-up). */
+export const MAX_DESCRIPTION_LENGTH = 20_000;
+
+// ---------------------------------------------------------------------------
 // Project schemas
 // ---------------------------------------------------------------------------
 
@@ -17,10 +27,11 @@ export const CreateProjectSchema = z.object({
   slug: z
     .string()
     .min(1, 'Slug is required')
+    .max(300, 'Slug is too long')
     .transform((s) => s.toLowerCase()),
-  name: z.string().min(1, 'Name is required'),
-  summary: z.string().min(1, 'Summary is required'),
-  description: z.string().optional(),
+  name: z.string().min(1, 'Name is required').max(300, 'Name is too long'),
+  summary: z.string().min(1, 'Summary is required').max(MAX_SUMMARY_LENGTH, 'Summary is too long'),
+  description: z.string().max(MAX_DESCRIPTION_LENGTH, 'Description is too long').optional(),
   repoUrl: z.string().url().optional().or(z.literal('')).optional(),
   liveUrl: z.string().url().optional().or(z.literal('')).optional(),
   featuredOrder: z.number().int().min(0).optional(),
@@ -37,9 +48,13 @@ export const UpdateProjectSchema = z.object({
     .min(1)
     .transform((s) => s.toLowerCase())
     .optional(),
-  name: z.string().min(1).optional(),
-  summary: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
+  name: z.string().min(1).max(300, 'Name is too long').optional(),
+  summary: z.string().min(1).max(MAX_SUMMARY_LENGTH, 'Summary is too long').optional(),
+  description: z
+    .string()
+    .max(MAX_DESCRIPTION_LENGTH, 'Description is too long')
+    .nullable()
+    .optional(),
   repoUrl: z.string().url().nullable().optional(),
   liveUrl: z.string().url().nullable().optional(),
   featuredOrder: z.number().int().min(0).nullable().optional(),
@@ -63,9 +78,9 @@ export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
 // ---------------------------------------------------------------------------
 
 export const CreateExperienceSchema = z.object({
-  company: z.string().min(1, 'Company is required'),
-  role: z.string().min(1, 'Role is required'),
-  summary: z.string().optional(),
+  company: z.string().min(1, 'Company is required').max(300, 'Company is too long'),
+  role: z.string().min(1, 'Role is required').max(300, 'Role is too long'),
+  summary: z.string().max(MAX_SUMMARY_LENGTH, 'Summary is too long').optional(),
   startedAt: z.string().min(1, 'startedAt is required'),
   endedAt: z.string().nullable().optional(),
   location: z.string().optional(),
@@ -75,9 +90,9 @@ export const CreateExperienceSchema = z.object({
 export type CreateExperienceInput = z.infer<typeof CreateExperienceSchema>;
 
 export const UpdateExperienceSchema = z.object({
-  company: z.string().min(1).optional(),
-  role: z.string().min(1).optional(),
-  summary: z.string().nullable().optional(),
+  company: z.string().min(1).max(300, 'Company is too long').optional(),
+  role: z.string().min(1).max(300, 'Role is too long').optional(),
+  summary: z.string().max(MAX_SUMMARY_LENGTH, 'Summary is too long').nullable().optional(),
   startedAt: z.string().optional(),
   endedAt: z.string().nullable().optional(),
   location: z.string().nullable().optional(),

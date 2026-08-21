@@ -162,8 +162,10 @@ export function createAuthInstance(input: CreateAuthInstanceInput): any {
         sendMagicLink: async ({ email, url, token }) => {
           await sendMagicLinkEmail({ email, url, token });
         },
-        // Disable sign-up — this is a single-admin site
-        disableSignUp: false,
+        // Disable sign-up — this is a single-admin site. Authorization is
+        // additionally enforced by requireAdmin() against the ADMIN_EMAILS
+        // allowlist, so a leaked/stray session for a non-admin cannot mutate.
+        disableSignUp: true,
       }),
     ],
   });

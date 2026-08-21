@@ -13,7 +13,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { compileMdx } from '../lib/mdx.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -39,7 +39,7 @@ export function createPreviewRouter() {
     new Hono()
 
       // POST /api/v1/preview
-      .post('/', requireAuth(), async (c) => {
+      .post('/', requireAuth(), requireAdmin(), async (c) => {
         // Parse body
         let body: unknown;
         try {

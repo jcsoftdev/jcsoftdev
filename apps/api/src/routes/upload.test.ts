@@ -34,6 +34,7 @@ function buildApp(
   const app = new Hono();
 
   app.use('*', async (c, next) => {
+    (c as any).set('admin_emails', ['admin@example.com']);
     if (authenticated) {
       (c as any).set('auth_session', mockSession(userId));
       (c as any).set('auth_user', mockUser(userId));

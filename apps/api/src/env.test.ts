@@ -117,24 +117,27 @@ describe('EnvSchema', () => {
     });
   });
 
-  describe('URL field validation', () => {
-    it('fails when DATABASE_URL is not a valid URL', () => {
-      const result = EnvSchema.safeParse({ ...VALID_ENV, DATABASE_URL: 'not-a-url' });
+  // Per ADR-16, connection URLs are validated as non-empty strings (z.string().min(1)),
+  // NOT as z.url() — z.url() rejected valid Docker-network/pgbouncer URLs. These tests
+  // assert the real contract: an empty value fails, a non-empty string is accepted.
+  describe('connection string validation (ADR-16)', () => {
+    it('fails when DATABASE_URL is empty', () => {
+      const result = EnvSchema.safeParse({ ...VALID_ENV, DATABASE_URL: '' });
       expect(result.success).toBe(false);
     });
 
-    it('fails when DATABASE_DIRECT_URL is not a valid URL', () => {
-      const result = EnvSchema.safeParse({ ...VALID_ENV, DATABASE_DIRECT_URL: 'not-a-url' });
+    it('fails when DATABASE_DIRECT_URL is empty', () => {
+      const result = EnvSchema.safeParse({ ...VALID_ENV, DATABASE_DIRECT_URL: '' });
       expect(result.success).toBe(false);
     });
 
-    it('fails when VALKEY_URL is not a valid URL', () => {
-      const result = EnvSchema.safeParse({ ...VALID_ENV, VALKEY_URL: 'not-a-url' });
+    it('fails when VALKEY_URL is empty', () => {
+      const result = EnvSchema.safeParse({ ...VALID_ENV, VALKEY_URL: '' });
       expect(result.success).toBe(false);
     });
 
-    it('fails when MINIO_ENDPOINT is not a valid URL', () => {
-      const result = EnvSchema.safeParse({ ...VALID_ENV, MINIO_ENDPOINT: 'not-a-url' });
+    it('fails when MINIO_ENDPOINT is empty', () => {
+      const result = EnvSchema.safeParse({ ...VALID_ENV, MINIO_ENDPOINT: '' });
       expect(result.success).toBe(false);
     });
 

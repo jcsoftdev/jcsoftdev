@@ -65,6 +65,7 @@ function buildApp(db: DbClient, valkey: ValkeyClient, authenticated = true) {
   const app = new Hono();
 
   app.use('*', async (c, next) => {
+    (c as any).set('admin_emails', ['admin@example.com']);
     if (authenticated) {
       (c as any).set('auth_session', mockSession());
       (c as any).set('auth_user', mockUser());

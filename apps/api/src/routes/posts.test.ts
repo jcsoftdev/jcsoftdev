@@ -31,6 +31,8 @@ function buildApp(db: DbClient, authenticated = true, userId = 'user-123') {
 
   // Inject session into context (mimics authMiddleware)
   app.use('*', async (c, next) => {
+    // Admin allowlist — matches mockUser email so requireAdmin() passes
+    (c as any).set('admin_emails', ['admin@example.com']);
     if (authenticated) {
       (c as any).set('auth_session', mockSession(userId));
       (c as any).set('auth_user', mockUser(userId));
@@ -139,6 +141,30 @@ describe('POST /api/v1/posts', () => {
       body: JSON.stringify({ title: 'Hello', slug: 'hello', content: 'body' }),
     });
     expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for a valid session whose email is NOT in the admin allowlist', async () => {
+    const db = createMockDb();
+    const app = new Hono();
+
+    // Valid session, but the user's email is not allowlisted (C1 authz fix)
+    app.use('*', async (c, next) => {
+      (c as any).set('admin_emails', ['owner@jcsoftdev.com']);
+      (c as any).set('auth_session', mockSession());
+      (c as any).set('auth_user', { id: 'user-123', email: 'intruder@evil.com' });
+      await next();
+    });
+    app.route('/api/v1/posts', createPostsRouter(db));
+
+    const res = await app.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Hello', slug: 'hello', content: '# body' }),
+    });
+
+    expect(res.status).toBe(403);
+    // The DB must never be touched for an unauthorized write
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it('returns 409 on slug collision', async () => {

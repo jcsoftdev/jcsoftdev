@@ -14,15 +14,14 @@
  * Hono chained registration mandatory for AppType inference.
  */
 
-import { zValidator } from '@hono/zod-validator';
 import type { DbClient, Experience } from '@jcsoftdev/db';
 import { experiences } from '@jcsoftdev/db';
 import { count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import type { z } from 'zod';
 import { invalidatePortfolioCache } from '../lib/portfolio-cache.js';
+import { zv422 } from '../lib/validation.js';
 import type { ValkeyClient } from '../lib/valkey.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import {
   type CreateExperienceInput,
   CreateExperienceSchema,
@@ -31,23 +30,6 @@ import {
   type UpdateExperienceInput,
   UpdateExperienceSchema,
 } from '../schemas/portfolio.js';
-
-// ---------------------------------------------------------------------------
-// Validation helper — returns 422 instead of default 400
-// ---------------------------------------------------------------------------
-
-// biome-ignore lint/suspicious/noExplicitAny: needed for zValidator hook generics
-function zv422<S extends z.ZodTypeAny>(target: 'json' | 'query', schema: S) {
-  return zValidator(target, schema, (result, c) => {
-    if (!result.success) {
-      const firstIssue = result.error.issues[0];
-      return c.json(
-        { error: firstIssue?.message ?? 'Validation failed', issues: result.error.issues },
-        422
-      );
-    }
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Serializer
@@ -97,7 +79,7 @@ export function createExperiencesRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // POST /api/v1/experiences — create
     // -------------------------------------------------------------------------
-    .post('/', requireAuth(), zv422('json', CreateExperienceSchema), async (c) => {
+    .post('/', requireAuth(), requireAdmin(), zv422('json', CreateExperienceSchema), async (c) => {
       const body = c.req.valid('json') as CreateExperienceInput;
 
       // displayOrder uniqueness check (unique constraint in schema — guard here for 409)
@@ -162,53 +144,59 @@ export function createExperiencesRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // PATCH /api/v1/experiences/:id — partial update
     // -------------------------------------------------------------------------
-    .patch('/:id', requireAuth(), zv422('json', UpdateExperienceSchema), async (c) => {
-      const id = c.req.param('id');
-      const body = c.req.valid('json') as UpdateExperienceInput;
+    .patch(
+      '/:id',
+      requireAuth(),
+      requireAdmin(),
+      zv422('json', UpdateExperienceSchema),
+      async (c) => {
+        const id = c.req.param('id');
+        const body = c.req.valid('json') as UpdateExperienceInput;
 
-      // Verify experience exists
-      const [current] = await db
-        .select({ id: experiences.id })
-        .from(experiences)
-        .where(eq(experiences.id, id))
-        .limit(1);
+        // Verify experience exists
+        const [current] = await db
+          .select({ id: experiences.id })
+          .from(experiences)
+          .where(eq(experiences.id, id))
+          .limit(1);
 
-      if (!current) {
-        return c.json({ error: 'Experience not found' }, 404);
+        if (!current) {
+          return c.json({ error: 'Experience not found' }, 404);
+        }
+
+        // Build update payload
+        const updatePayload: Partial<typeof experiences.$inferInsert> = {};
+
+        if (body.company !== undefined) updatePayload.company = body.company;
+        if (body.role !== undefined) updatePayload.role = body.role;
+        if (body.summary !== undefined) updatePayload.summary = body.summary ?? undefined;
+        if (body.startedAt !== undefined) updatePayload.startedAt = body.startedAt;
+        if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt ?? undefined;
+        if (body.location !== undefined) updatePayload.location = body.location ?? undefined;
+        if (body.displayOrder !== undefined) updatePayload.displayOrder = body.displayOrder;
+
+        const updateResult = await db
+          .update(experiences)
+          .set(updatePayload)
+          .where(eq(experiences.id, id))
+          .returning();
+
+        const updated = updateResult[0];
+        if (!updated) {
+          return c.json({ error: 'Experience not found after update' }, 404);
+        }
+
+        // Invalidate cache AFTER successful DB write
+        await invalidatePortfolioCache(valkey);
+
+        return c.json(serializeExperience(updated));
       }
-
-      // Build update payload
-      const updatePayload: Partial<typeof experiences.$inferInsert> = {};
-
-      if (body.company !== undefined) updatePayload.company = body.company;
-      if (body.role !== undefined) updatePayload.role = body.role;
-      if (body.summary !== undefined) updatePayload.summary = body.summary ?? undefined;
-      if (body.startedAt !== undefined) updatePayload.startedAt = body.startedAt;
-      if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt ?? undefined;
-      if (body.location !== undefined) updatePayload.location = body.location ?? undefined;
-      if (body.displayOrder !== undefined) updatePayload.displayOrder = body.displayOrder;
-
-      const updateResult = await db
-        .update(experiences)
-        .set(updatePayload)
-        .where(eq(experiences.id, id))
-        .returning();
-
-      const updated = updateResult[0];
-      if (!updated) {
-        return c.json({ error: 'Experience not found after update' }, 404);
-      }
-
-      // Invalidate cache AFTER successful DB write
-      await invalidatePortfolioCache(valkey);
-
-      return c.json(serializeExperience(updated));
-    })
+    )
 
     // -------------------------------------------------------------------------
     // DELETE /api/v1/experiences/:id — HARD DELETE (V1)
     // -------------------------------------------------------------------------
-    .delete('/:id', requireAuth(), async (c) => {
+    .delete('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       // Verify experience exists

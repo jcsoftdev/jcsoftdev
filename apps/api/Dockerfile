@@ -16,10 +16,15 @@ COPY apps/api ./apps/api
 # Stage 2: Runtime with Bun
 FROM oven/bun:1-alpine AS runtime
 WORKDIR /repo
-COPY --from=deps /repo /repo
+# oven/bun:1-alpine ships a built-in non-root `bun` user (uid/gid 1000).
+# --chown flips ownership of the copied tree so the runtime can read it as that user.
+COPY --from=deps --chown=bun:bun /repo /repo
 WORKDIR /repo/apps/api
+USER bun
 EXPOSE 3000
-# 1. Run DB migrations (idempotent, uses DATABASE_DIRECT_URL -> postgres:5432 direct)
-# 2. Run seed (idempotent, ON CONFLICT DO NOTHING — inserts experiences + projects)
-# 3. Start the API server
-CMD ["sh", "-c", "cd /repo/packages/db && bun run src/migrate.ts && bun run src/seeds/index.ts && cd /repo/apps/api && bun run src/index.ts"]
+# Migrations + seed do NOT run here (H3 fix): the Pre-Deploy migrator
+# (docker-compose.prod.yml `migrator` service, gated before deploy) is the
+# ONLY migration mechanism. Running migrate/seed on every container start
+# duplicated that gate and raced an unlocked drizzle migrator across replicas.
+# See docs/dokploy.md §4.6/§8 for the full migration flow.
+CMD ["bun", "run", "src/index.ts"]

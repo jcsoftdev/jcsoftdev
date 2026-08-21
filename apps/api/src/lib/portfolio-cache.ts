@@ -12,6 +12,7 @@
  *   - INVALIDATE: delete the key; cache miss on next read re-populates
  */
 
+import { log } from './logger.js';
 import type { ValkeyClient } from './valkey.js';
 
 /** Single Valkey key for the entire public portfolio payload (ADR-13). */
@@ -38,8 +39,9 @@ export async function getCachedPortfolio<T>(
     if (cached) {
       return JSON.parse(cached) as T;
     }
-  } catch {
-    // Valkey unavailable — fall through to DB
+  } catch (err) {
+    // Valkey unavailable — fall through to DB, but do not swallow silently
+    log.warn('portfolio-cache.read_failed', { key: PORTFOLIO_CACHE_KEY, err });
   }
 
   // 2. Cache miss (or failure) → fetch from DB
@@ -48,8 +50,9 @@ export async function getCachedPortfolio<T>(
   // 3. Write to cache asynchronously; failure must NOT propagate to caller
   try {
     await valkey.set(PORTFOLIO_CACHE_KEY, JSON.stringify(payload), CACHE_TTL_SECONDS);
-  } catch {
+  } catch (err) {
     // Cache write failure is non-fatal — data was still fetched from DB
+    log.warn('portfolio-cache.write_failed', { key: PORTFOLIO_CACHE_KEY, err });
   }
 
   return payload;
@@ -67,7 +70,8 @@ export async function getCachedPortfolio<T>(
 export async function invalidatePortfolioCache(valkey: ValkeyClient): Promise<void> {
   try {
     await valkey.del(PORTFOLIO_CACHE_KEY);
-  } catch {
-    // Silent fail — next cache get will miss and re-populate from DB
+  } catch (err) {
+    // Non-fatal — next cache get will miss and re-populate from DB
+    log.warn('portfolio-cache.invalidate_failed', { key: PORTFOLIO_CACHE_KEY, err });
   }
 }

@@ -13,15 +13,21 @@
  */
 export interface ResendEmailsClient {
   emails: {
-    send(payload: {
-      from: string;
-      to: string;
-      subject: string;
-      text: string;
-      html: string;
-    }): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+    send(
+      payload: {
+        from: string;
+        to: string;
+        subject: string;
+        text: string;
+        html: string;
+      },
+      options?: { signal?: AbortSignal }
+    ): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
   };
 }
+
+/** How long to wait for Resend before aborting the send (ms). */
+const SEND_TIMEOUT_MS = 10_000;
 
 export interface MagicLinkEmailInput {
   /** Recipient email address */
@@ -49,16 +55,34 @@ export async function sendMagicLink(
   const text = buildPlainText(url);
   const html = buildHtml(url);
 
-  const { error } = await client.emails.send({
-    from: fromEmail,
-    to: email,
-    subject: 'Your sign-in link for jcsoftdev',
-    text,
-    html,
-  });
+  // Bound the Resend call with a timeout so a hung upstream never blocks the
+  // magic-link request path indefinitely.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
 
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
+  let result: Awaited<ReturnType<ResendEmailsClient['emails']['send']>>;
+  try {
+    result = await client.emails.send(
+      {
+        from: fromEmail,
+        to: email,
+        subject: 'Your sign-in link for jcsoftdev',
+        text,
+        html,
+      },
+      { signal: controller.signal }
+    );
+  } catch (cause) {
+    if (controller.signal.aborted) {
+      throw new Error(`Resend send timed out after ${SEND_TIMEOUT_MS}ms`);
+    }
+    throw cause instanceof Error ? cause : new Error('Resend send failed');
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (result.error) {
+    throw new Error(`Resend error: ${result.error.message}`);
   }
 }
 

@@ -14,13 +14,12 @@
  * pgBouncer constraint: multi-table writes MUST use db.transaction().
  */
 
-import { zValidator } from '@hono/zod-validator';
 import type { DbClient, Post } from '@jcsoftdev/db';
 import { posts } from '@jcsoftdev/db';
 import { count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import type { z } from 'zod';
-import { requireAuth } from '../middleware/auth.js';
+import { zv422 } from '../lib/validation.js';
+import { getSessionUserId, requireAdmin, requireAuth } from '../middleware/auth.js';
 import {
   type CreatePostInput,
   CreatePostSchema,
@@ -29,24 +28,6 @@ import {
   type UpdatePostInput,
   UpdatePostSchema,
 } from '../schemas/posts.js';
-
-// ---------------------------------------------------------------------------
-// Validation helper — returns 422 instead of zValidator's default 400.
-// Uses typed output so callers can access c.req.valid() with proper types.
-// ---------------------------------------------------------------------------
-
-// biome-ignore lint/suspicious/noExplicitAny: needed for zValidator hook generics
-function zv422<S extends z.ZodTypeAny>(target: 'json' | 'query', schema: S) {
-  return zValidator(target, schema, (result, c) => {
-    if (!result.success) {
-      const firstIssue = result.error.issues[0];
-      return c.json(
-        { error: firstIssue?.message ?? 'Validation failed', issues: result.error.issues },
-        422
-      );
-    }
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Status transition table
@@ -81,8 +62,8 @@ export function createPostsRouter(db: DbClient) {
     // -------------------------------------------------------------------------
     // POST /api/v1/posts — create post
     // -------------------------------------------------------------------------
-    .post('/', requireAuth(), zv422('json', CreatePostSchema), async (c) => {
-      const session = (c as any).get('auth_session') as { userId: string };
+    .post('/', requireAuth(), requireAdmin(), zv422('json', CreatePostSchema), async (c) => {
+      const userId = getSessionUserId(c);
       // Cast is necessary because the 422-hook breaks Hono's inferred type for valid()
       const body = c.req.valid('json') as CreatePostInput;
 
@@ -108,7 +89,7 @@ export function createPostsRouter(db: DbClient) {
           content: body.content,
           excerpt: body.excerpt,
           status: body.status,
-          userId: session.userId,
+          userId: userId as string,
           heroMediaId: body.heroMediaId,
         })
         .returning();
@@ -180,7 +161,7 @@ export function createPostsRouter(db: DbClient) {
     // -------------------------------------------------------------------------
     // PATCH /api/v1/posts/:id — update post
     // -------------------------------------------------------------------------
-    .patch('/:id', requireAuth(), zv422('json', UpdatePostSchema), async (c) => {
+    .patch('/:id', requireAuth(), requireAdmin(), zv422('json', UpdatePostSchema), async (c) => {
       const id = c.req.param('id');
       // Cast necessary because the 422-hook breaks Hono's type inference for valid()
       const body = c.req.valid('json') as UpdatePostInput;
@@ -239,7 +220,7 @@ export function createPostsRouter(db: DbClient) {
     // -------------------------------------------------------------------------
     // DELETE /api/v1/posts/:id — soft-archive (sets status=archived)
     // -------------------------------------------------------------------------
-    .delete('/:id', requireAuth(), async (c) => {
+    .delete('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       // Verify post exists

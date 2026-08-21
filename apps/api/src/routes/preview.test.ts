@@ -22,6 +22,9 @@ vi.mock('../middleware/auth.js', () => ({
   requireAuth: () => async (_c: unknown, next: () => Promise<void>) => {
     await next();
   },
+  requireAdmin: () => async (_c: unknown, next: () => Promise<void>) => {
+    await next();
+  },
 }));
 
 // ---------------------------------------------------------------------------

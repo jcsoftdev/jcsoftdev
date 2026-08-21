@@ -273,8 +273,9 @@ describe('GET /api/v1/public/blog/:slug', () => {
     const db = createMockDb();
     const valkey = createMockValkey();
 
-    // Malformed MDX — compile will fail
-    const brokenPost = makePublishedPost({ content: '<div unclosed' });
+    // Custom component — rejected by the restricted AST engine (compile fails).
+    // (Raw/malformed HTML like '<div unclosed' is now safely stripped, not failed.)
+    const brokenPost = makePublishedPost({ content: '<CustomWidget foo="bar" />' });
     const mockSelectChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),

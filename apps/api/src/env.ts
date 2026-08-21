@@ -27,6 +27,19 @@ export const EnvSchema = z.object({
   BETTER_AUTH_URL: z.string().min(1),
   COOKIE_DOMAIN: z.string().optional(), // undefined in dev, '.jcsoftdev.com' in prod
 
+  // Admin authorization allowlist — comma-separated emails permitted to perform
+  // admin mutations (requireAdmin). Sign-up is disabled; this is the allowlist
+  // that gates who may write. Optional (defaults to empty = nobody, fail-closed).
+  ADMIN_EMAILS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0)
+    ),
+
   // Resend (transactional email — magic-link)
   RESEND_API_KEY: z.string().min(1),
   RESEND_FROM_EMAIL: z.email(),

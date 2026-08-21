@@ -51,6 +51,7 @@ const app = createApp({
   corsOrigins: env.CORS_ORIGINS,
   authHandler: auth.handler.bind(auth),
   authMiddlewareHandler: authMiddleware(auth),
+  adminEmails: env.ADMIN_EMAILS,
   db,
   valkey,
   presigner,
