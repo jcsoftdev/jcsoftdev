@@ -330,6 +330,57 @@ A soft-delete pattern (`archived_at` column + filter in public routes) is deferr
 
 ---
 
+## Uptime Monitoring (H5 — partial)
+
+External, out-of-VPS monitoring so an outage is caught even when the VPS
+itself is unreachable (Dokploy's own health checks don't help if the whole
+box is down).
+
+### HTTP check on `/health`
+
+Configure an external monitor (UptimeRobot, Better Stack, or similar free
+tier) against:
+
+```
+GET https://api.jcsoftdev.com/health
+```
+
+- Interval: 1–5 min.
+- Alert channel: email/Slack/Discord webhook on the monitor's own config.
+- The `/health` endpoint contract itself (what it checks, status codes) is
+  owned by another workstream — this section only covers wiring an external
+  watcher to it, not the endpoint's implementation.
+
+### Dead-man's-switch heartbeat on the backup cron
+
+The nightly `pg_dump` cron (see §10 in `docs/dokploy.md` / Backup Strategy
+above) is a background job with no built-in alerting — a silent failure
+(disk full, cron disabled, VPS down) would go unnoticed until a restore is
+needed. A dead-man's-switch closes that gap: the monitor alerts if it does
+**not** hear from the cron, instead of alerting on an active failure signal.
+
+Setup (UptimeRobot "Heartbeat" monitor or Better Stack "Heartbeat" work the
+same way):
+
+1. Create a heartbeat monitor, get its ping URL (e.g.
+   `https://hc-ping.com/<uuid>` or the UptimeRobot equivalent).
+2. Append a ping to the backup cron job, only on success:
+
+   ```cron
+   0 2 * * * docker exec $(docker ps -qf name=postgres) pg_dump -U jcsoftdev jcsoftdev | gzip > /backups/jcsoftdev-$(date +\%Y\%m\%d).sql.gz && curl -fsS -m 10 --retry 3 https://hc-ping.com/<uuid> > /dev/null
+   ```
+
+3. Set the monitor's expected period to slightly more than 24h (e.g. "every
+   1 day, grace 2h") so a single slow run doesn't false-positive.
+4. Alert channel: same as the `/health` monitor above.
+
+This is docs-only — no cron or infra file in this repo currently wires the
+heartbeat URL in; whoever owns the VPS crontab (see `docs/dokploy.md` §10)
+needs to add the `curl` call and provision the monitor UUID as a secret,
+not committed to the repo.
+
+---
+
 ## Design System Overview
 
 The `apps/web` design system (DSI — design-system-immersive) uses Tailwind v4 `@theme` tokens declared in `apps/web/src/styles/global.css`. All tokens are CSS custom properties prefixed with `--color-`, `--text-`, `--font-`, `--spacing-`, `--duration-`, etc.
@@ -415,12 +466,30 @@ See `docs/dokploy.md` for the full Dokploy deployment guide.
 
 Quick reference for re-deploying after a code change:
 
-1. Push to `main` → CI runs lint + typecheck + test + migration gate.
-2. If CI passes, Dokploy webhook triggers a redeploy of affected apps.
-3. Migration is **not** automatic on deploy — run `db:migrate` manually or via a Dokploy pre-deploy hook before deploying a migration-bearing commit.
+1. Push to `main` → CI runs lint + typecheck + test + migration gate + blocking DB integration tests.
+2. If CI passes, Dokploy webhook triggers a redeploy of the `api` application.
+3. Migrations run automatically via the api service's **Pre Deploy Command**
+   (`docker-compose.prod.yml`'s `migrator` service, built from
+   `packages/db/Dockerfile`) — this is the ONLY migration mechanism (H3 fix).
+   It builds the migrator image, runs it once against `postgres:5432`
+   directly (session mode, required for DDL — never through pgBouncer), and
+   applies pending Drizzle migrations + the idempotent seed.
+   - Exit 0 → the api build/deploy proceeds.
+   - Exit ≠ 0 → the deploy **aborts**; the previous api container keeps running untouched.
+   The api container itself no longer runs migrations on startup — see
+   `docs/dokploy.md` §4.6/§8 for the full runbook and manual fallback options.
 
 **Pre-deploy checklist for migration-bearing commits:**
 1. Take a Postgres snapshot (Dokploy backup or `pg_dump`).
-2. `DATABASE_DIRECT_URL=... pnpm --filter @jcsoftdev/db db:migrate`
-3. Verify migration applied: `pnpm --filter @jcsoftdev/db db:studio`
-4. Deploy app (Dokploy redeploy or `git push`).
+2. Confirm the Pre Deploy Command is configured on the `api` service (see
+   `docs/dokploy.md` §4.6) — this is what actually applies the migration.
+3. Deploy (Dokploy redeploy or `git push`) — the Pre Deploy Command runs
+   automatically before the new api container is built.
+4. Verify migration applied: `pnpm --filter @jcsoftdev/db db:studio`, or
+   query `drizzle.__drizzle_migrations` directly (see `docs/dokploy.md` §12).
+
+**Rollback**: Drizzle has no automatic "down" migration at runtime (ADR-9,
+forward-only). To roll back a bad migration, write and deploy a new forward
+migration that reverses the change — do not attempt to hand-edit
+`drizzle.__drizzle_migrations` or the applied SQL. If the migration already
+corrupted data, restore from the pre-deploy Postgres snapshot instead.

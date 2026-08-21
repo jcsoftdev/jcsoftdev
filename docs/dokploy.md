@@ -2,6 +2,8 @@
 
 Runbook end-to-end para deployar el monorepo (`apps/api`, `apps/web`, `apps/admin`) más infraestructura (Postgres, pgBouncer, Valkey, MinIO, Plausible) en un VPS con Dokploy.
 
+> Todo el stack corre en un único VPS a propósito — es un SPOF asumido, no un descuido. Ver ADR-24 en `docs/architecture.md` para el razonamiento y cuándo revisitar esta decisión.
+
 ---
 
 ## 0. Pre-requisitos
@@ -58,6 +60,8 @@ Guarda los 5 valores en un password manager. Los vas a usar en varios lugares �
 | A    | admin     | <VPS_IP>   | **DNS only**  |
 | A    | analytics | <VPS_IP>   | **DNS only**  |
 | A    | minio     | <VPS_IP>   | **DNS only**  |
+
+> El record `minio` es opcional (C3 fix): Traefik ya no rutea `minio.${DOMAIN}` públicamente — la consola solo se accede vía túnel SSH (ver §11). Puedes omitirlo por completo.
 
 > ⚠️ **Crítico: mantén TODOS los records en DNS only (gris) permanentemente.**
 > Traefik usa HTTP-01 challenge para emitir certs Let's Encrypt. El proxy de Cloudflare rompe ese challenge Y además interfiere con el routing de Traefik en producción. Con DNS only, el TLS termina directamente en el VPS (Traefik), que es lo correcto.
@@ -159,6 +163,8 @@ El Dockerfile usa **dos stages**:
 
 > ⚠️ **No compilar a binario** con `bun build --compile`. Un binario compilado en Alpine (musl libc) no corre en imágenes glibc (distroless, debian-slim), resultando en exit 255 sin logs. Usar `bun run src/index.ts` directamente desde `oven/bun:1-alpine`.
 
+> ℹ️ **El CMD solo arranca el servidor — no corre migraciones ni seed.** Antes lo hacía (`migrate.ts && seeds/index.ts && index.ts` en cada arranque del container), duplicando el Pre Deploy migrator (§4.6) y compitiendo contra un drizzle migrator sin lock. Se eligió un único mecanismo de migración: el Pre Deploy Command. El runtime corre como el usuario no-root `bun` (built-in en `oven/bun:1-alpine`), no como root.
+
 ```dockerfile
 # Stage 1: Install dependencies with Node+pnpm
 FROM node:24-alpine AS deps
@@ -178,15 +184,18 @@ COPY apps/api ./apps/api
 # Stage 2: Runtime with Bun
 FROM oven/bun:1-alpine AS runtime
 WORKDIR /repo
-COPY --from=deps /repo /repo
+COPY --from=deps --chown=bun:bun /repo /repo
 WORKDIR /repo/apps/api
+USER bun
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]
 ```
 
-### 4.3 Zod v4 — env.ts (fix requerido)
+### 4.3 Zod v4 — env.ts (fix ya aplicado)
 
-Zod v4 cambió `z.url()` para seguir el estándar WHATWG URL, que **rechaza** protocolos como `redis://`, `postgresql://`, `http://minio:9000`. Cambia los validators en `apps/api/src/env.ts`:
+> ✅ Este fix **ya está aplicado** en `apps/api/src/env.ts` — se documenta aquí como referencia histórica (por qué el código es como es), no como un paso pendiente del runbook.
+
+Zod v4 cambió `z.url()` para seguir el estándar WHATWG URL, que **rechaza** protocolos como `redis://`, `postgresql://`, `http://minio:9000`. Los validators en `apps/api/src/env.ts` usan `z.string()` en vez de `z.url()` por esta razón:
 
 ```typescript
 // ❌ Antes (Zod v4 rechaza estos protocolos)
@@ -240,7 +249,9 @@ RESEND_FROM_EMAIL=noreply@jcsoftdev.com
 | HTTPS           | ON                   |
 | Cert Provider   | `letsencrypt`        |
 
-### 4.6 Pre Deploy Command — migraciones automáticas
+### 4.6 Pre Deploy Command — el ÚNICO mecanismo de migración
+
+> Este es el **único** lugar donde corren migraciones. El container del `api` (§4.2) NO corre `migrate.ts` en su `CMD` — solo arranca el servidor. Tener dos mecanismos activos a la vez (CMD + Pre Deploy) causaba migraciones duplicadas en cada deploy y una carrera contra un drizzle migrator sin lock (issue H3 del audit). Si en algún momento se desactiva el Pre Deploy Command sin querer, las migraciones nuevas **no se van a aplicar** — no hay fallback automático.
 
 En Dokploy → api → **Advanced** → **Pre Deploy Command**:
 
@@ -337,11 +348,12 @@ RUN pnpm run build
 # Stage 2: Runtime
 FROM node:24-alpine AS runtime
 WORKDIR /repo
-COPY --from=build /repo /repo
+COPY --from=build --chown=node:node /repo /repo
 WORKDIR /repo/apps/web
 EXPOSE 4321
 ENV HOST=0.0.0.0
 ENV PORT=4321
+USER node
 CMD ["node", "./dist/server/entry.mjs"]
 ```
 
@@ -428,23 +440,27 @@ Si muestra error:
 
 ## 8. Migraciones — referencia completa
 
-El repo tiene un migrator dedicado en `packages/db/Dockerfile` que el compose llama como one-shot container.
+El repo tiene un migrator dedicado en `packages/db/Dockerfile` que el compose llama como one-shot container. **El mecanismo automático (Opción A) es el único que corre en cada deploy** — las opciones B y C son manuales, para hotfixes o troubleshooting, y nunca corren solas en producción salvo que las invoques a mano.
 
-### Opción A: Pre Deploy automático (recomendado)
+### Opción A: Pre Deploy automático (el mecanismo real, no opcional)
 
 Configurado en el paso 4.6. Corre automáticamente antes de cada deploy del api. El comando:
 - Buildea la imagen del migrator desde `packages/db/Dockerfile`.
 - Corre el container con `DATABASE_DIRECT_URL` apuntando a `postgres:5432` directamente (no pgbouncer — DDL requiere session mode).
-- Sale 0 → deploy continúa. Sale ≠ 0 → deploy abortado, api viejo sigue.
+- Sale 0 → deploy continúa. Sale ≠ 0 → deploy abortado, api viejo sigue corriendo sin cambios.
 
-### Opción B: Via docker compose profile (manual en VPS)
+**Comportamiento de falla**: si el migrator falla (SQL inválido, conexión rechazada, timeout), Dokploy aborta el deploy completo del api — no llega a buildear ni reemplazar el container corriendo. No hay rollback automático de la migración en sí (Drizzle es forward-only, ADR-9); si la migración quedó parcialmente aplicada, corregir con una migración forward nueva, no editando el historial de `drizzle.__drizzle_migrations` a mano.
+
+### Opción B: Via docker compose profile (manual en VPS, no corre en autodeploy)
 
 ```bash
 # En el VPS, dentro del directorio donde el compose está deployado
 docker compose -f docker-compose.prod.yml --profile migrate run --rm migrator
 ```
 
-### Opción C: Via Docker Terminal de Dokploy (hotfix rápido)
+Útil para aplicar una migración fuera del ciclo normal de deploy (ej. antes de habilitar el Pre Deploy Command por primera vez).
+
+### Opción C: Via Docker Terminal de Dokploy (hotfix rápido, no corre en autodeploy)
 
 1. api → General → **Open Terminal**
 2. Selecciona container **running** en el dropdown
@@ -455,7 +471,7 @@ cd /repo/packages/db && bun run src/migrate.ts
 # Migrations completed successfully.
 ```
 
-> ⚠️ `migrate.ts` requiere `DATABASE_DIRECT_URL` (postgres directo, puerto 5432). En el api container esta variable ya está en el env — confirma antes de correr.
+> ⚠️ `migrate.ts` requiere `DATABASE_DIRECT_URL` (postgres directo, puerto 5432). En el api container esta variable ya está en el env — confirma antes de correr. Nota: el `CMD` del api container ya no incluye `migrate.ts` (fix H3) — este comando lo corre manualmente dentro del container, no es lo que pasa por defecto al arrancar.
 
 ---
 
@@ -525,13 +541,23 @@ URL: `https://analytics.jcsoftdev.com`
 Primera vez:
 1. Abre la URL → te pide crear admin user.
 2. Crea cuenta → Add site → `jcsoftdev.com`.
-3. El snippet ya está embebido en `apps/web` via `PUBLIC_PLAUSIBLE_HOST`.
+3. `apps/web` ya lee `PUBLIC_PLAUSIBLE_HOST` / `PLAUSIBLE_DOMAIN` para construir la URL del snippet — falta embeber el `<script>` en el layout público (en progreso, otro workstream). Hasta que eso esté hecho, Plausible corre y recibe tráfico solo si algo apunta al endpoint manualmente.
 
-### MinIO Console
+### MinIO Console (C3 fix — sin acceso público)
 
-URL: `http://<VPS_IP>:9001` o `https://minio.jcsoftdev.com`
+> ⚠️ **La consola de MinIO (puerto 9001) NO está expuesta por Traefik.** Solo tiene una password root estática protegiéndola — dejarla pública detrás de un subdominio era el hallazgo crítico C3 del audit. `docker-compose.prod.yml` ya no define labels de Traefik para `minio-console`; el registro DNS `minio.jcsoftdev.com` puede quedar en Cloudflare pero no resuelve a nada servido por Traefik.
+
+Acceso a la consola vía túnel SSH:
+
+```bash
+ssh -L 9001:localhost:9001 root@<VPS_IP>
+# En otra terminal / el navegador:
+open http://localhost:9001
+```
 
 Login con `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`.
+
+La API S3 (`:9000`) tampoco está expuesta públicamente — solo es alcanzable desde `dokploy-network` vía `minio:9000` (usada por `apps/api`). Si en el futuro se necesita acceso público de solo-lectura a objetos (ej. imágenes de blog), preferir presigned URLs o un bucket público read-only vía la API — no reabrir el puerto de la consola.
 
 ---
 
@@ -577,7 +603,7 @@ docker exec $(docker ps -qf name=postgres) psql -U jcsoftdev -d jcsoftdev \
 | `https://api.jcsoftdev.com` | Hono API | `api` |
 | `https://admin.jcsoftdev.com` | React SPA (Caddy) | `admin` |
 | `https://analytics.jcsoftdev.com` | Plausible Analytics | `plausible` |
-| `https://minio.jcsoftdev.com` | MinIO Console | `minio` |
+| `ssh -L 9001:localhost:9001` + `http://localhost:9001` | MinIO Console (SSH-tunnel only, C3 fix — no public route) | `minio` |
 | `http://<VPS>:3000` | Dokploy UI | `dokploy` |
 
 | DNS interno (dokploy-network) | Qué resuelve |

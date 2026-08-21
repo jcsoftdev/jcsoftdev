@@ -45,7 +45,8 @@ jcsoftdev/
 │   ├── db/        — Drizzle schema, migrations, pgBouncer-safe client
 │   ├── types/     — Shared TypeScript types + Hono AppType re-export
 │   ├── ui/        — Shared React components (web + admin)
-│   └── animations/ — GSAP timelines + Lenis scroll factory (SSR-safe)
+│   ├── animations/ — GSAP timelines + Lenis scroll factory (SSR-safe)
+│   └── mdx-runtime/ — Server-side MDX compilation + Valkey cache (apps/api only)
 ├── docs/
 │   ├── architecture.md
 │   └── dokploy.md

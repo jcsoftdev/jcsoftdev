@@ -557,4 +557,22 @@ Both conditions are required simultaneously. Failing either exits with code 1 an
 
 **Consequence**: `apps/web/src/lib/gradient-from-slug.ts` is the canonical implementation. `GradientPlaceholder` in `ImmersiveProjectsGallery.tsx` uses it. When real hero images are available via signed MinIO URLs, the `<img>` replaces the gradient placeholder without layout shift (same aspect ratio container).
 
+---
+
+## ADRs — audit-remediation change (ADR-24)
+
+### ADR-24: Single-VPS deployment is a deliberate SPOF tradeoff
+
+**Status**: stub — accepted as a known/accepted risk, not resolved.
+
+**Decision**: The entire stack (Postgres, pgBouncer, Valkey, MinIO, Plausible + ClickHouse, and all three apps) runs on one Dokploy-managed VPS (see `docs/dokploy.md`). There is no multi-node failover, no standby replica, and no automatic DR beyond nightly `pg_dump` backups (see "Backup Strategy" in `docs/operations.md`).
+
+**Rationale**: This is a personal portfolio platform with a single operator and no SLA commitments. A multi-node / HA setup (managed Postgres with replicas, multi-region Traefik, external object storage) would multiply operational cost and complexity for a workload that tolerates minutes-to-hours of downtime. The tradeoff is made consciously, not by omission.
+
+**Consequence**:
+- A VPS-level failure (disk, provider outage, kernel panic) takes down every service simultaneously — api, web, admin, and the data layer all live in the same failure domain.
+- Recovery path is restore-from-backup on a new VPS, not automatic failover — see the rollback/recovery guidance in `docs/operations.md` and `docs/dokploy.md` §10.
+- The external uptime + dead-man's-switch monitoring in `docs/operations.md` ("Uptime Monitoring") exists specifically because there is no in-cluster health signal once the VPS itself is down.
+- Revisit this decision if the platform gains paying users, uptime commitments, or team members who need on-call coverage — at that point a managed Postgres (e.g. RDS/Neon) and multi-instance app deployment become worth the added cost.
+
 **Where**: `apps/web/src/lib/gradient-from-slug.ts`, `apps/web/src/components/islands/ImmersiveProjectsGallery.tsx`.

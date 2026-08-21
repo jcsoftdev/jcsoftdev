@@ -36,3 +36,6 @@ pnpm-debug.log
 
 # Local scratch / design refs at repo root
 /*.png
+
+# project-brain local index
+.project-brain/
