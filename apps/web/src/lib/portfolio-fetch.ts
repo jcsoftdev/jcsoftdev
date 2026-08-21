@@ -12,6 +12,7 @@
  */
 
 import { api } from './api.js';
+import { fetchApiJson } from './fetch-api-json.js';
 
 // ---------------------------------------------------------------------------
 // Types — mirror the API serializer output (serializePublicProject/Experience)
@@ -69,14 +70,10 @@ export async function fetchPortfolio(): Promise<PortfolioResult> {
   // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
   const res = await (api as any).api.v1.public.portfolio.$get();
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch portfolio data: HTTP ${res.status}`);
-  }
-
-  const data = (await res.json()) as {
+  const data = await fetchApiJson<{
     projects: { items: PublicProject[] };
     experiences: { items: PublicExperience[] };
-  };
+  }>(res, 'portfolio data');
 
   return {
     projects: data.projects.items,

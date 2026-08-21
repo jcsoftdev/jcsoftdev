@@ -2991,7 +2991,7 @@ export default function HeroMesh() {
     let smaaPass: SMAAPass | null = null;
     let bokehPass: BokehPass | null = null;
     let cinePass: ShaderPass | null = null;
-    if (!coarse) {
+    if (!coarse && !reduced) {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
 
@@ -3029,8 +3029,9 @@ export default function HeroMesh() {
       cinePass = new ShaderPass(CINEMATIC_SHADER);
       composer.addPass(cinePass);
     } else {
-      // Cheap bloom for coarse/touch devices — RenderPass + low-strength bloom only.
-      // No SSAO, Bokeh, SMAA, or CinematicPass — keeps GPU/battery budget low.
+      // Cheap bloom for coarse/touch devices and reduced-motion users —
+      // RenderPass + low-strength bloom only. No SSAO, Bokeh, SMAA, or
+      // CinematicPass — keeps GPU/battery budget low.
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       bloomPass = new UnrealBloomPass(

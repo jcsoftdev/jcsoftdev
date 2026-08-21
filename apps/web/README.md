@@ -30,17 +30,15 @@ Site starts on `http://localhost:4321`.
 | `/` | SSR | Home / landing page with hero island |
 | `/blog` | SSR | Public blog list |
 | `/blog/[slug]` | SSR | Individual blog post (MDX rendered) |
-| `/portfolio` | SSR | Portfolio page — projects + work experience |
 
 ## Islands (React components with hydration)
 
 | Island | Directive | Description |
 |---|---|---|
 | `HeroIsland.tsx` | `client:load` | Home hero section with GSAP fade + Lenis scroll |
-| `PortfolioHeroIsland.tsx` | `client:load` | Portfolio hero with portfolio-specific copy and anchor links |
+| `HeroMesh.tsx` | `client:load` | WebGL/Three.js hero planet mesh; reduced-motion and coarse-pointer both fall back to the cheap render pipeline |
 | `ExperienceIsland.tsx` | `client:visible` | Work experience cards; `createExperienceFadeUpTimeline` on mount |
-| `ImmersiveProjectsGallery.tsx` | `client:visible` | Full-screen pinned gallery (desktop), static grid (reduced-motion), scroll-snap (mobile); Lenis + ScrollTrigger bridge |
-| `ProjectsIsland.tsx` | `client:visible` | Legacy project cards (kept for reference; superseded by ImmersiveProjectsGallery) |
+| `ProjectsGrid.tsx` | `client:visible` | Project cards grid (home page) |
 
 Islands use `client:load` (above-fold) or `client:visible` (below-fold, intersection observer) per ADR-15. All animation factories are pre-wrapped with `createReducedMotionSafe` — no GSAP timelines start when `prefers-reduced-motion: reduce` is set.
 

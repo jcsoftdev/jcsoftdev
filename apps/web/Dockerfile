@@ -27,9 +27,12 @@ RUN pnpm run build
 # Stage 2: Runtime
 FROM node:24-alpine AS runtime
 WORKDIR /repo
-COPY --from=build /repo /repo
+# node:24-alpine ships a built-in non-root `node` user (uid/gid 1000).
+# --chown flips ownership of the copied tree so the runtime can read it as that user.
+COPY --from=build --chown=node:node /repo /repo
 WORKDIR /repo/apps/web
 EXPOSE 4321
 ENV HOST=0.0.0.0
 ENV PORT=4321
+USER node
 CMD ["node", "./dist/server/entry.mjs"]

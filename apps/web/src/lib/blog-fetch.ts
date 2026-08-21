@@ -14,6 +14,7 @@
  */
 
 import { api } from './api.js';
+import { fetchApiJson } from './fetch-api-json.js';
 
 // ---------------------------------------------------------------------------
 // Types — mirror the API serializer output (serializePublicPost)
@@ -97,12 +98,7 @@ export async function fetchBlogPosts({
   // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
   const res = await (api as any).api.v1.public.blog.$get({ query });
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch blog posts: HTTP ${res.status}`);
-  }
-
-  const data = (await res.json()) as BlogListResult;
-  return data;
+  return fetchApiJson<BlogListResult>(res, 'blog posts');
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +120,8 @@ export async function fetchBlogPost(slug: string): Promise<BlogPostResult | null
     param: { slug },
   });
 
+  // Not using fetchApiJson here: 404 means "not found" (return null), not an
+  // error to throw — different control flow than the other fetch* helpers.
   if (!res.ok) {
     if (res.status === 404) return null;
     throw new Error(`Failed to fetch blog post "${slug}": HTTP ${res.status}`);
