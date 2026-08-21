@@ -111,6 +111,41 @@ describe('ExperienceForm — new experience', () => {
     });
     expect(mockCreate).not.toHaveBeenCalled();
   });
+
+  it('marks invalid fields with aria-invalid and aria-describedby', async () => {
+    const user = userEvent.setup();
+    const { ExperienceForm } = await import('./ExperienceForm.js');
+    render(<ExperienceForm />, { wrapper });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    const companyInput = await screen.findByRole('textbox', { name: /company/i });
+    await waitFor(() => {
+      expect(companyInput).toHaveAttribute('aria-invalid', 'true');
+      expect(companyInput).toHaveAttribute('aria-describedby', 'company-input-error');
+    });
+  });
+
+  it('rejects the create mutation when the API responds with a non-2xx status', async () => {
+    mockCreate.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Invalid experience payload' }),
+    });
+
+    const user = userEvent.setup();
+    const { ExperienceForm } = await import('./ExperienceForm.js');
+    render(<ExperienceForm />, { wrapper });
+
+    await user.type(screen.getByRole('textbox', { name: /company/i }), 'Acme Corp');
+    await user.type(screen.getByRole('textbox', { name: /role/i }), 'Software Engineer');
+    await user.type(screen.getByRole('spinbutton', { name: /display order/i }), '1');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid experience payload');
+    });
+  });
 });
 
 describe('ExperienceForm — edit existing experience', () => {

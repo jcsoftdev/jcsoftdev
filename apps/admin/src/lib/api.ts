@@ -55,11 +55,11 @@ export interface Post {
   content: string;
   excerpt?: string;
   status: PostStatus;
-  published_at?: string | null;
-  hero_media_id?: string | null;
-  user_id?: string;
-  created_at: string;
-  updated_at: string;
+  publishedAt?: string | null;
+  heroMediaId?: string | null;
+  userId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PostsListResponse {
@@ -76,8 +76,8 @@ export interface Media {
   mimeType?: string;
   sizeBytes?: number;
   alt?: string;
-  uploaded_by?: string;
-  created_at?: string;
+  uploadedBy?: string;
+  createdAt?: string;
 }
 
 // Posts CRUD

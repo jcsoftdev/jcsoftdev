@@ -12,8 +12,9 @@
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Post, postsClient, previewClient } from '../lib/api.js';
+import { type Media, type Post, type PostStatus, postsClient, previewClient } from '../lib/api.js';
 import { queryKeys } from '../lib/query.js';
+import { ImageUploadWidget } from './ImageUploadWidget.js';
 
 interface PostEditorProps {
   post?: Post;
@@ -22,8 +23,10 @@ interface PostEditorProps {
 
 interface PostValues {
   title: string;
+  slug: string;
   content: string;
   excerpt: string;
+  status: PostStatus;
 }
 
 const PREVIEW_DEBOUNCE_MS = 400;
@@ -82,6 +85,11 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Hero image state
+  // ---------------------------------------------------------------------------
+  const [heroMedia, setHeroMedia] = useState<Media | null>(null);
+
+  // ---------------------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------------------
 
@@ -89,9 +97,15 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
     mutationFn: async (values: PostValues) => {
       const res = await postsClient.create({
         title: values.title,
+        slug: values.slug,
         content: values.content,
         excerpt: values.excerpt || undefined,
+        ...(heroMedia ? { heroMediaId: heroMedia.id } : {}),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Post>;
     },
     onSuccess: () => {
@@ -104,9 +118,16 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
       if (!post) throw new Error('No post to update');
       const res = await postsClient.update(post.id, {
         title: values.title,
+        slug: values.slug,
         content: values.content,
         excerpt: values.excerpt || undefined,
+        status: values.status,
+        heroMediaId: heroMedia?.id ?? post.heroMediaId ?? undefined,
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Post>;
     },
     onSuccess: (data) => {
@@ -125,13 +146,19 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
   const form = useForm({
     defaultValues: {
       title: post?.title ?? '',
+      slug: post?.slug ?? '',
       content: post?.content ?? '',
       excerpt: post?.excerpt ?? '',
+      status: post?.status ?? 'draft',
     } satisfies PostValues,
     onSubmit: async ({ value }) => {
-      const saved = await activeMutation.mutateAsync(value);
-      if (!isEditing) {
-        onSaved?.(saved);
+      try {
+        const saved = await activeMutation.mutateAsync(value);
+        if (!isEditing) {
+          onSaved?.(saved);
+        }
+      } catch {
+        // Surfaced via activeMutation.error — nothing further to do here.
       }
     },
   });
@@ -167,6 +194,10 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
                 id="title-input"
                 type="text"
                 aria-label="Title"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'title-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -174,8 +205,96 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
                 placeholder="Post title"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="title-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
+            </div>
+          )}
+        </form.Field>
+
+        {/* Slug field */}
+        <form.Field
+          name="slug"
+          validators={{
+            onChange: ({ value }) => {
+              if (!value || value.trim() === '') {
+                return 'Slug is required';
+              }
+              if (!/^[a-z0-9-]+$/.test(value)) {
+                return 'Slug may only contain lowercase letters, numbers, and hyphens';
+              }
+              return undefined;
+            },
+          }}
+        >
+          {(field) => (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="post-slug-input" className="text-sm font-medium">
+                Slug
+              </label>
+              <input
+                id="post-slug-input"
+                type="text"
+                aria-label="Slug"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'post-slug-input-error' : undefined
+                }
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                className="rounded border px-3 py-2"
+                placeholder="my-post"
+              />
+              {field.state.meta.errors.length > 0 && (
+                <span id="post-slug-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
+              )}
+            </div>
+          )}
+        </form.Field>
+
+        {/* Excerpt field */}
+        <form.Field name="excerpt">
+          {(field) => (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="excerpt-input" className="text-sm font-medium">
+                Excerpt
+              </label>
+              <textarea
+                id="excerpt-input"
+                aria-label="Excerpt"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                className="min-h-[80px] rounded border px-3 py-2 text-sm"
+                placeholder="Short summary shown in listings..."
+              />
+            </div>
+          )}
+        </form.Field>
+
+        {/* Status field */}
+        <form.Field name="status">
+          {(field) => (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="status-input" className="text-sm font-medium">
+                Status
+              </label>
+              <select
+                id="status-input"
+                aria-label="Status"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value as PostStatus)}
+                onBlur={field.handleBlur}
+                className="rounded border px-2 py-1 text-sm"
+              >
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
           )}
         </form.Field>
@@ -222,8 +341,23 @@ export function PostEditor({ post, onSaved }: PostEditorProps) {
           </div>
         </div>
 
+        {/* Hero Image Upload */}
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium">Hero Image</p>
+          {(heroMedia || post?.heroMediaId) && (
+            <p className="text-xs text-gray-500">
+              Current: {heroMedia ? heroMedia.objectKey : post?.heroMediaId}
+            </p>
+          )}
+          <ImageUploadWidget
+            onSuccess={(media) => {
+              setHeroMedia(media);
+            }}
+          />
+        </div>
+
         {activeMutation.error && (
-          <p className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600">
             {activeMutation.error instanceof Error
               ? activeMutation.error.message
               : 'Failed to save post'}

@@ -41,18 +41,18 @@ const fakePosts = [
     title: 'First Post',
     slug: 'first-post',
     status: 'published',
-    created_at: '2024-01-01T00:00:00Z',
+    createdAt: '2024-01-01T00:00:00Z',
     content: '',
-    updated_at: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
   },
   {
     id: '2',
     title: 'Draft Post',
     slug: 'draft-post',
     status: 'draft',
-    created_at: '2024-01-02T00:00:00Z',
+    createdAt: '2024-01-02T00:00:00Z',
     content: '',
-    updated_at: '2024-01-02T00:00:00Z',
+    updatedAt: '2024-01-02T00:00:00Z',
   },
 ];
 
@@ -132,6 +132,36 @@ describe('PostsTable', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+    });
+  });
+
+  it('renders the Created column using the camelCase createdAt field', async () => {
+    mockPostsList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakePosts, total: 2 }),
+    });
+
+    const { PostsTable } = await import('./PostsTable.js');
+    render(<PostsTable />, { wrapper });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(new Date(fakePosts[0]!.createdAt).toLocaleDateString())
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('renders sort headers as keyboard-accessible buttons', async () => {
+    mockPostsList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakePosts, total: 2 }),
+    });
+
+    const { PostsTable } = await import('./PostsTable.js');
+    render(<PostsTable />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^title$/i })).toBeInTheDocument();
     });
   });
 });

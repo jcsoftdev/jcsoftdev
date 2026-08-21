@@ -17,8 +17,8 @@ App starts on `http://localhost:5173`.
 ## Architecture
 
 - **Router**: TanStack Router with file-based routing + `autoCodeSplitting`
-- **Auth**: Stub `getSession()` in `src/lib/auth.ts` — wire better-auth in core-platform phase
-- **Auth guard**: `src/routes/_auth.tsx` layout — `beforeLoad` redirects to `/` if no session
+- **Auth**: `getSession()` in `src/lib/auth.ts` wraps the better-auth client — finished, not a stub
+- **Auth guard**: `src/routes/_auth.tsx` layout — `beforeLoad` redirects to `/login` if no session
 - **Styling**: Tailwind v4 via `@tailwindcss/vite` plugin
 - **RPC**: `src/lib/api.ts` with Hono client — `AppType` wired in Phase 6.2
 

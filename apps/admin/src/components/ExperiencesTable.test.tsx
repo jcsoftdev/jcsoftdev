@@ -136,12 +136,64 @@ describe('ExperiencesTable', () => {
     });
   });
 
-  it('calls delete client when delete button is clicked', async () => {
+  it('asks for confirmation and calls delete client when confirmed', async () => {
     mockExperiencesList.mockResolvedValue({
       ok: true,
       json: async () => ({ items: fakeExperiences, total: 2 }),
     });
-    mockExperiencesDelete.mockResolvedValue({ ok: true, status: 204 });
+    mockExperiencesDelete.mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const user = userEvent.setup();
+    const { ExperiencesTable } = await import('./ExperiencesTable.js');
+    render(<ExperiencesTable />, { wrapper });
+
+    const deleteBtns = await screen.findAllByRole('button', { name: /delete/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) throw new Error('No delete button found');
+    await user.click(firstDeleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockExperiencesDelete).toHaveBeenCalledWith('exp-1');
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call delete client when confirmation is cancelled', async () => {
+    mockExperiencesList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeExperiences, total: 2 }),
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const user = userEvent.setup();
+    const { ExperiencesTable } = await import('./ExperiencesTable.js');
+    render(<ExperiencesTable />, { wrapper });
+
+    const deleteBtns = await screen.findAllByRole('button', { name: /delete/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) throw new Error('No delete button found');
+    await user.click(firstDeleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockExperiencesDelete).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('surfaces delete mutation errors on a non-2xx response', async () => {
+    mockExperiencesList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeExperiences, total: 2 }),
+    });
+    mockExperiencesDelete.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'Experience is referenced elsewhere' }),
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = userEvent.setup();
     const { ExperiencesTable } = await import('./ExperiencesTable.js');
@@ -153,7 +205,23 @@ describe('ExperiencesTable', () => {
     await user.click(firstDeleteBtn);
 
     await waitFor(() => {
-      expect(mockExperiencesDelete).toHaveBeenCalledWith('exp-1');
+      expect(screen.getByRole('alert')).toHaveTextContent('Experience is referenced elsewhere');
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('renders sort headers as keyboard-accessible buttons', async () => {
+    mockExperiencesList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeExperiences, total: 2 }),
+    });
+
+    const { ExperiencesTable } = await import('./ExperiencesTable.js');
+    render(<ExperiencesTable />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^company$/i })).toBeInTheDocument();
     });
   });
 });

@@ -41,7 +41,14 @@ export function ProjectsTable() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => projectsClient.delete(id),
+    mutationFn: async (id: string) => {
+      const res = await projectsClient.delete(id);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
+      return res;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects.all });
     },
@@ -79,7 +86,11 @@ export function ProjectsTable() {
         <button
           type="button"
           aria-label="Delete"
-          onClick={() => deleteMutation.mutate(row.original.id)}
+          onClick={() => {
+            if (window.confirm(`Delete project "${row.original.name}"? This cannot be undone.`)) {
+              deleteMutation.mutate(row.original.id);
+            }
+          }}
           disabled={deleteMutation.isPending}
           className="rounded border border-red-400 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40"
         >
@@ -112,18 +123,28 @@ export function ProjectsTable() {
 
   return (
     <div className="flex flex-col gap-4">
+      {deleteMutation.error && (
+        <p role="alert" className="text-sm text-red-600">
+          {deleteMutation.error instanceof Error
+            ? deleteMutation.error.message
+            : 'Failed to delete project'}
+        </p>
+      )}
+
       {/* Table */}
       <table className="w-full border-collapse text-sm">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-b bg-gray-50">
               {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
-                  onClick={header.column.getToggleSortingHandler()}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
+                <th key={header.id} className="px-4 py-2 text-left font-medium text-gray-700">
+                  <button
+                    type="button"
+                    onClick={header.column.getToggleSortingHandler()}
+                    className="cursor-pointer font-medium"
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </button>
                 </th>
               ))}
             </tr>

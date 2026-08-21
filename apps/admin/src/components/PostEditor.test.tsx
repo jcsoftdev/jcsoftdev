@@ -50,8 +50,9 @@ const fakePost = {
   content: '# Hello',
   excerpt: 'A short excerpt',
   status: 'draft' as const,
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
+  heroMediaId: null,
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z',
 };
 
 describe('PostEditor — new post', () => {
@@ -86,11 +87,14 @@ describe('PostEditor — new post', () => {
     render(<PostEditor />, { wrapper });
 
     await user.type(screen.getByRole('textbox', { name: /title/i }), 'My New Post');
+    await user.type(screen.getByRole('textbox', { name: /slug/i }), 'my-new-post');
     await user.type(screen.getByRole('textbox', { name: /content/i }), '# Hello World');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
     await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'My New Post', slug: 'my-new-post' })
+      );
     });
   });
 
@@ -106,6 +110,74 @@ describe('PostEditor — new post', () => {
     });
     expect(mockCreate).not.toHaveBeenCalled();
   });
+
+  it('shows validation error when slug is empty', async () => {
+    const user = userEvent.setup();
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/slug is required/i)).toBeInTheDocument();
+    });
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('marks invalid fields with aria-invalid and aria-describedby', async () => {
+    const user = userEvent.setup();
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    const titleInput = await screen.findByRole('textbox', { name: /title/i });
+    await waitFor(() => {
+      expect(titleInput).toHaveAttribute('aria-invalid', 'true');
+      expect(titleInput).toHaveAttribute('aria-describedby', 'title-input-error');
+    });
+  });
+
+  it('rejects the create mutation when the API responds with a non-2xx status', async () => {
+    mockCreate.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Slug already taken' }),
+    });
+
+    const user = userEvent.setup();
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    await user.type(screen.getByRole('textbox', { name: /title/i }), 'My New Post');
+    await user.type(screen.getByRole('textbox', { name: /slug/i }), 'my-new-post');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Slug already taken');
+    });
+  });
+
+  it('renders a status selector defaulting to draft', async () => {
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    expect(screen.getByRole('combobox', { name: /status/i })).toHaveValue('draft');
+  });
+
+  it('renders an excerpt field', async () => {
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    expect(screen.getByRole('textbox', { name: /excerpt/i })).toBeInTheDocument();
+  });
+
+  it('renders the hero image upload widget', async () => {
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor />, { wrapper });
+
+    expect(screen.getByTestId('file-input')).toBeInTheDocument();
+  });
 });
 
 describe('PostEditor — edit existing post', () => {
@@ -118,7 +190,10 @@ describe('PostEditor — edit existing post', () => {
     render(<PostEditor post={fakePost} />, { wrapper });
 
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Test Post');
+    expect(screen.getByRole('textbox', { name: /^slug/i })).toHaveValue('test-post');
     expect(screen.getByRole('textbox', { name: /content/i })).toHaveValue('# Hello');
+    expect(screen.getByRole('textbox', { name: /excerpt/i })).toHaveValue('A short excerpt');
+    expect(screen.getByRole('combobox', { name: /status/i })).toHaveValue('draft');
   });
 
   it('calls updatePost mutation when editing existing post', async () => {
@@ -138,6 +213,45 @@ describe('PostEditor — edit existing post', () => {
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it('includes the selected status transition in the PATCH payload', async () => {
+    mockUpdate.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...fakePost, status: 'published' }),
+    });
+
+    const user = userEvent.setup();
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor post={fakePost} />, { wrapper });
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /status/i }), 'published');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'post-1',
+        expect.objectContaining({ status: 'published' })
+      );
+    });
+  });
+
+  it('rejects the update mutation when the API responds with a non-2xx status', async () => {
+    mockUpdate.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: 'Forbidden' }),
+    });
+
+    const user = userEvent.setup();
+    const { PostEditor } = await import('./PostEditor.js');
+    render(<PostEditor post={fakePost} />, { wrapper });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Forbidden');
     });
   });
 });

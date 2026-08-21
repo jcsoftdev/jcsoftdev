@@ -77,6 +77,21 @@ describe('auth client — requestMagicLink', () => {
     expect(result).toEqual(sessionData);
   });
 
+  it('builds the auth client baseURL from resolveApiUrl (no dead-port fallback)', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com');
+    vi.stubEnv('MODE', 'development');
+
+    const { createAuthClient } = await import('better-auth/client');
+    vi.resetModules();
+    await import('./auth.js');
+
+    expect(vi.mocked(createAuthClient)).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: 'https://api.example.com' })
+    );
+
+    vi.unstubAllEnvs();
+  });
+
   it('getSession returns null when better-auth returns error', async () => {
     const { createAuthClient } = await import('better-auth/client');
     const mockGetSession = vi

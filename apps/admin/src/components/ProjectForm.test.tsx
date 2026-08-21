@@ -135,6 +135,41 @@ describe('ProjectForm — new project', () => {
     });
     expect(mockCreate).not.toHaveBeenCalled();
   });
+
+  it('marks invalid fields with aria-invalid and aria-describedby', async () => {
+    const user = userEvent.setup();
+    const { ProjectForm } = await import('./ProjectForm.js');
+    render(<ProjectForm />, { wrapper });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    const slugInput = await screen.findByRole('textbox', { name: /slug/i });
+    await waitFor(() => {
+      expect(slugInput).toHaveAttribute('aria-invalid', 'true');
+      expect(slugInput).toHaveAttribute('aria-describedby', 'slug-input-error');
+    });
+  });
+
+  it('rejects the create mutation when the API responds with a non-2xx status', async () => {
+    mockCreate.mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: 'Slug already taken' }),
+    });
+
+    const user = userEvent.setup();
+    const { ProjectForm } = await import('./ProjectForm.js');
+    render(<ProjectForm />, { wrapper });
+
+    await user.type(screen.getByRole('textbox', { name: /slug/i }), 'my-project');
+    await user.type(screen.getByRole('textbox', { name: /name/i }), 'My Project');
+    await user.type(screen.getByRole('textbox', { name: /summary/i }), 'A cool project');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Slug already taken');
+    });
+  });
 });
 
 describe('ProjectForm — edit existing project', () => {
@@ -240,6 +275,33 @@ describe('ProjectForm — markdown preview', () => {
     // The input to sanitize must be the marked-parsed HTML (contains <h2>)
     const callArg = sanitizeSpy.mock.calls[0]?.[0] as string;
     expect(callArg).toContain('<h2>');
+
+    vi.useRealTimers();
+  });
+
+  it('parses markdown with gfm enabled so GitHub-flavored tables render', async () => {
+    const { fireEvent, act } = await import('@testing-library/react');
+    vi.useFakeTimers();
+
+    const { marked } = await import('marked');
+    const parseSpy = vi.spyOn(marked, 'parse');
+
+    const { ProjectForm } = await import('./ProjectForm.js');
+    render(<ProjectForm />, { wrapper });
+
+    const descriptionInput = screen.getByRole('textbox', { name: /description/i });
+
+    await act(async () => {
+      fireEvent.change(descriptionInput, { target: { value: '## Hello\n\nWorld' } });
+      vi.advanceTimersByTime(400);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(parseSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ gfm: true })
+    );
 
     vi.useRealTimers();
   });

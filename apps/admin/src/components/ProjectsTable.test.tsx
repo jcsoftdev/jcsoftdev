@@ -134,12 +134,64 @@ describe('ProjectsTable', () => {
     });
   });
 
-  it('calls delete client when delete button is clicked', async () => {
+  it('asks for confirmation and calls delete client when confirmed', async () => {
     mockProjectsList.mockResolvedValue({
       ok: true,
       json: async () => ({ items: fakeProjects, total: 2 }),
     });
-    mockProjectsDelete.mockResolvedValue({ ok: true, status: 204 });
+    mockProjectsDelete.mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const user = userEvent.setup();
+    const { ProjectsTable } = await import('./ProjectsTable.js');
+    render(<ProjectsTable />, { wrapper });
+
+    const deleteBtns = await screen.findAllByRole('button', { name: /delete/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) throw new Error('No delete button found');
+    await user.click(firstDeleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockProjectsDelete).toHaveBeenCalledWith('proj-1');
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call delete client when confirmation is cancelled', async () => {
+    mockProjectsList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeProjects, total: 2 }),
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const user = userEvent.setup();
+    const { ProjectsTable } = await import('./ProjectsTable.js');
+    render(<ProjectsTable />, { wrapper });
+
+    const deleteBtns = await screen.findAllByRole('button', { name: /delete/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) throw new Error('No delete button found');
+    await user.click(firstDeleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockProjectsDelete).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('surfaces delete mutation errors on a non-2xx response', async () => {
+    mockProjectsList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeProjects, total: 2 }),
+    });
+    mockProjectsDelete.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'Project is referenced elsewhere' }),
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = userEvent.setup();
     const { ProjectsTable } = await import('./ProjectsTable.js');
@@ -151,7 +203,23 @@ describe('ProjectsTable', () => {
     await user.click(firstDeleteBtn);
 
     await waitFor(() => {
-      expect(mockProjectsDelete).toHaveBeenCalledWith('proj-1');
+      expect(screen.getByRole('alert')).toHaveTextContent('Project is referenced elsewhere');
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('renders sort headers as keyboard-accessible buttons', async () => {
+    mockProjectsList.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: fakeProjects, total: 2 }),
+    });
+
+    const { ProjectsTable } = await import('./ProjectsTable.js');
+    render(<ProjectsTable />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^name$/i })).toBeInTheDocument();
     });
   });
 });

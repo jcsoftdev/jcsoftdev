@@ -51,7 +51,7 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
       setPreviewHtml(null);
       return;
     }
-    const raw = marked.parse(source, { async: false }) as string;
+    const raw = marked.parse(source, { async: false, gfm: true }) as string;
     const safe = DOMPurify.sanitize(raw);
     setPreviewHtml(safe);
   }, []);
@@ -99,6 +99,10 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
         ...(values.endedAt ? { endedAt: values.endedAt } : {}),
         ...(heroMedia ? { heroMediaId: heroMedia.id } : {}),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Project>;
     },
     onSuccess: () => {
@@ -121,6 +125,10 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
         endedAt: values.endedAt || null,
         heroMediaId: heroMedia?.id ?? project.heroMediaId ?? null,
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Project>;
     },
     onSuccess: (data) => {
@@ -149,9 +157,13 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
       heroMediaId: project?.heroMediaId ?? '',
     } satisfies ProjectValues,
     onSubmit: async ({ value }) => {
-      const saved = await activeMutation.mutateAsync(value);
-      if (!isEditing) {
-        onSaved?.(saved);
+      try {
+        const saved = await activeMutation.mutateAsync(value);
+        if (!isEditing) {
+          onSaved?.(saved);
+        }
+      } catch {
+        // Surfaced via activeMutation.error — nothing further to do here.
       }
     },
   });
@@ -190,6 +202,10 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 id="slug-input"
                 type="text"
                 aria-label="Slug"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'slug-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -197,7 +213,9 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 placeholder="my-project"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="slug-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -220,6 +238,10 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 id="name-input"
                 type="text"
                 aria-label="Name"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'name-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -227,7 +249,9 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 placeholder="My Awesome Project"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="name-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -250,6 +274,10 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 id="summary-input"
                 type="text"
                 aria-label="Summary"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'summary-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -257,7 +285,9 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
                 placeholder="Brief one-liner about the project"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="summary-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -424,7 +454,7 @@ export function ProjectForm({ project, onSaved }: ProjectFormProps) {
         </div>
 
         {activeMutation.error && (
-          <p className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600">
             {activeMutation.error instanceof Error
               ? activeMutation.error.message
               : 'Failed to save project'}

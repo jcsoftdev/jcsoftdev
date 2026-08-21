@@ -49,7 +49,7 @@ const columns: ColumnDef<Post>[] = [
     },
   },
   {
-    accessorKey: 'created_at',
+    accessorKey: 'createdAt',
     header: 'Created',
     cell: ({ getValue }) => new Date(getValue<string>()).toLocaleDateString(),
   },
@@ -128,12 +128,14 @@ export function PostsTable() {
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-b bg-gray-50">
               {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="px-4 py-2 text-left font-medium text-gray-700"
-                  onClick={header.column.getToggleSortingHandler()}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
+                <th key={header.id} className="px-4 py-2 text-left font-medium text-gray-700">
+                  <button
+                    type="button"
+                    onClick={header.column.getToggleSortingHandler()}
+                    className="font-medium"
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </button>
                 </th>
               ))}
             </tr>

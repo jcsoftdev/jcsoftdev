@@ -1,10 +1,9 @@
 /**
- * Tests for auth guard logic — tests the beforeLoad function directly.
- * TDD RED phase.
+ * Tests for the auth guard — imports the real beforeLoad from _auth.tsx
+ * instead of reimplementing its logic inline.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock auth module — session null means redirect; session present means proceed
 const mockGetSession = vi.fn();
 vi.mock('../lib/auth.js', () => ({
   getSession: mockGetSession,
@@ -12,30 +11,18 @@ vi.mock('../lib/auth.js', () => ({
   signOut: vi.fn(),
 }));
 
-describe('auth guard beforeLoad logic', () => {
+describe('_auth beforeLoad guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('throws redirect when session is null', async () => {
+  it('throws redirect to /login when session is null', async () => {
     mockGetSession.mockResolvedValue(null);
+    const { Route } = await import('./_auth.js');
 
-    // Import redirect utility from @tanstack/react-router
-    const { redirect } = await import('@tanstack/react-router');
-    const { getSession } = await import('../lib/auth.js');
-
-    let threw = false;
-    try {
-      const session = await getSession();
-      if (!session) {
-        throw redirect({ to: '/login' });
-      }
-    } catch (err) {
-      threw = true;
-      // TanStack Router redirect is a special object, not an Error
-      expect(err).toBeDefined();
-    }
-    expect(threw).toBe(true);
+    await expect(Route.options.beforeLoad!({} as never)).rejects.toMatchObject({
+      options: { to: '/login' },
+    });
   });
 
   it('returns session data when session is valid', async () => {
@@ -44,32 +31,19 @@ describe('auth guard beforeLoad logic', () => {
       session: { id: 'sess1' },
     };
     mockGetSession.mockResolvedValue(sessionData);
+    const { Route } = await import('./_auth.js');
 
-    const { getSession } = await import('../lib/auth.js');
-    const session = await getSession();
-    expect(session).toEqual(sessionData);
-    expect(session).not.toBeNull();
+    const result = await Route.options.beforeLoad!({} as never);
+    expect(result).toEqual({ session: sessionData });
   });
 
   it('does not throw when session exists', async () => {
-    const sessionData = {
+    mockGetSession.mockResolvedValue({
       user: { email: 'admin@example.com', id: '1' },
       session: { id: 'sess1' },
-    };
-    mockGetSession.mockResolvedValue(sessionData);
+    });
+    const { Route } = await import('./_auth.js');
 
-    const { redirect } = await import('@tanstack/react-router');
-    const { getSession } = await import('../lib/auth.js');
-
-    let threw = false;
-    try {
-      const session = await getSession();
-      if (!session) {
-        throw redirect({ to: '/login' });
-      }
-    } catch {
-      threw = true;
-    }
-    expect(threw).toBe(false);
+    await expect(Route.options.beforeLoad!({} as never)).resolves.toBeDefined();
   });
 });

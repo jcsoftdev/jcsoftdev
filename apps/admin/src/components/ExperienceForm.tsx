@@ -40,6 +40,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
         ...(values.startedAt ? { startedAt: values.startedAt } : {}),
         ...(values.endedAt ? { endedAt: values.endedAt } : {}),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Experience>;
     },
     onSuccess: () => {
@@ -59,6 +63,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
         startedAt: values.startedAt || null,
         endedAt: values.endedAt || null,
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Request failed');
+      }
       return res.json() as Promise<Experience>;
     },
     onSuccess: (data) => {
@@ -84,9 +92,13 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
       endedAt: experience?.endedAt ?? '',
     } satisfies ExperienceValues,
     onSubmit: async ({ value }) => {
-      const saved = await activeMutation.mutateAsync(value);
-      if (!isEditing) {
-        onSaved?.(saved);
+      try {
+        const saved = await activeMutation.mutateAsync(value);
+        if (!isEditing) {
+          onSaved?.(saved);
+        }
+      } catch {
+        // Surfaced via activeMutation.error — nothing further to do here.
       }
     },
   });
@@ -118,6 +130,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                 id="company-input"
                 type="text"
                 aria-label="Company"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'company-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -125,7 +141,9 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                 placeholder="Acme Corp"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="company-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -148,6 +166,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                 id="role-input"
                 type="text"
                 aria-label="Role"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? 'role-input-error' : undefined
+                }
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -155,7 +177,9 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                 placeholder="Software Engineer"
               />
               {field.state.meta.errors.length > 0 && (
-                <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                <span id="role-input-error" className="text-sm text-red-600">
+                  {field.state.meta.errors.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -220,6 +244,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                   id="display-order-input"
                   type="number"
                   aria-label="Display Order"
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={
+                    field.state.meta.errors.length > 0 ? 'display-order-input-error' : undefined
+                  }
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
@@ -227,7 +255,9 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
                   placeholder="1"
                 />
                 {field.state.meta.errors.length > 0 && (
-                  <span className="text-sm text-red-600">{field.state.meta.errors.join(', ')}</span>
+                  <span id="display-order-input-error" className="text-sm text-red-600">
+                    {field.state.meta.errors.join(', ')}
+                  </span>
                 )}
               </div>
             )}
@@ -273,7 +303,7 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
         </div>
 
         {activeMutation.error && (
-          <p className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600">
             {activeMutation.error instanceof Error
               ? activeMutation.error.message
               : 'Failed to save experience'}
