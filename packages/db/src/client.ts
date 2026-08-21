@@ -23,6 +23,11 @@ export function createClient(url: string) {
     prepare: false, // REQUIRED for pgbouncer transaction mode
     idle_timeout: 20,
     connect_timeout: 10,
+    connection: {
+      // Bound any single query so a locked/runaway statement can't hang a
+      // connection (and by extension a pgbouncer slot) forever.
+      statement_timeout: 15_000,
+    },
   });
 
   return drizzle(sql, {

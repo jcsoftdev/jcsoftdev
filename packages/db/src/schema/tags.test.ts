@@ -48,22 +48,22 @@ describe('tags + post_tags schema', () => {
     expect(pkCols).toContain('tag_id');
   });
 
-  it('postTags has FK from post_id to posts(id)', async () => {
+  it('postTags has FK from post_id to posts(id) with ON DELETE CASCADE', async () => {
     const { postTags } = await import('./tags.js');
     const tableConfig = getTableConfig(postTags);
     const postFk = tableConfig.foreignKeys.find((fk) =>
       fk.reference().columns.some((c) => c.name === 'post_id')
     );
-    expect(postFk).toBeDefined();
+    expect(postFk?.onDelete).toBe('cascade');
   });
 
-  it('postTags has FK from tag_id to tags(id)', async () => {
+  it('postTags has FK from tag_id to tags(id) with ON DELETE CASCADE', async () => {
     const { postTags } = await import('./tags.js');
     const tableConfig = getTableConfig(postTags);
     const tagFk = tableConfig.foreignKeys.find((fk) =>
       fk.reference().columns.some((c) => c.name === 'tag_id')
     );
-    expect(tagFk).toBeDefined();
+    expect(tagFk?.onDelete).toBe('cascade');
   });
 
   it('barrel exports tags and postTags', async () => {

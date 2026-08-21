@@ -11,4 +11,13 @@ describe('@jcsoftdev/db', () => {
     expect(schema).toBeDefined();
     expect(typeof schema).toBe('object');
   });
+
+  it('sets a statement_timeout so a locked query cannot hang forever', async () => {
+    const { createClient } = await import('./client.js');
+    const db = createClient('postgres://user:pass@localhost:6432/db');
+    const client = (
+      db as unknown as { $client: { options: { connection: { statement_timeout?: number } } } }
+    ).$client;
+    expect(client.options.connection.statement_timeout).toBe(15_000);
+  });
 });

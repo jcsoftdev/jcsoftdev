@@ -53,25 +53,25 @@ describe('posts schema', () => {
     expect(slugCol.isUnique).toBe(true);
   });
 
-  it('userId FK references users(id) and is NOT NULL', async () => {
+  it('userId FK references users(id) with ON DELETE RESTRICT and is NOT NULL', async () => {
     const { posts } = await import('./posts.js');
     const tableConfig = getTableConfig(posts);
     const userFk = tableConfig.foreignKeys.find((fk) =>
       fk.reference().columns.some((c) => c.name === 'user_id')
     );
-    expect(userFk).toBeDefined();
+    expect(userFk?.onDelete).toBe('restrict');
     // user_id must NOT be null (required author)
     const userIdCol = (posts as unknown as ColRecord).userId;
     expect(userIdCol?.notNull).toBe(true);
   });
 
-  it('heroMediaId FK references media(id) and is nullable', async () => {
+  it('heroMediaId FK references media(id) with ON DELETE SET NULL and is nullable', async () => {
     const { posts } = await import('./posts.js');
     const tableConfig = getTableConfig(posts);
     const mediaFk = tableConfig.foreignKeys.find((fk) =>
       fk.reference().columns.some((c) => c.name === 'hero_media_id')
     );
-    expect(mediaFk).toBeDefined();
+    expect(mediaFk?.onDelete).toBe('set null');
     // hero_media_id must be nullable (post may not have a hero image)
     const heroMediaIdCol = (posts as unknown as ColRecord).heroMediaId;
     expect(heroMediaIdCol?.notNull).toBeFalsy();

@@ -15,5 +15,9 @@ RUN pnpm install --frozen-lockfile --filter @jcsoftdev/db...
 COPY packages/config ./packages/config
 COPY packages/db ./packages/db
 
+# node:24-alpine ships a built-in non-root `node` user (uid/gid 1000).
+# chown after all root-owned installs/copies are done, then drop privileges.
+RUN chown -R node:node /repo
 WORKDIR /repo/packages/db
+USER node
 CMD ["sh", "-c", "node_modules/.bin/tsx src/migrate.ts && node_modules/.bin/tsx src/seeds/index.ts"]

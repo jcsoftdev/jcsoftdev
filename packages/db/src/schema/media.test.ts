@@ -37,6 +37,15 @@ describe('media schema', () => {
     expect(ref?.foreignColumns[0]?.name).toBe('id');
   });
 
+  it('uploadedBy FK has explicit ON DELETE RESTRICT (matches posts.userId pattern)', async () => {
+    const { media } = await import('./media.js');
+    const tableConfig = getTableConfig(media);
+    const uploadedByFk = tableConfig.foreignKeys.find((fk) =>
+      fk.reference().columns.some((c) => c.name === 'uploaded_by')
+    );
+    expect(uploadedByFk?.onDelete).toBe('restrict');
+  });
+
   it('uploadedBy column is NOT NULL', async () => {
     const { media } = await import('./media.js');
     const uploadedByCol = (media as unknown as ColRecord).uploadedBy;

@@ -13,7 +13,7 @@ export const media = pgTable(
     height: integer('height'),
     alt: text('alt'),
     uploadedBy: uuid('uploaded_by')
-      .references(() => users.id)
+      .references(() => users.id, { onDelete: 'restrict' })
       .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
