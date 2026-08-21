@@ -27,7 +27,7 @@ The return type is a discriminated union:
 ```ts
 type CompileResult =
   | { ok: true; html: string }
-  | { ok: false; error: Error };
+  | { ok: false; error: string };
 ```
 
 `compileMdx` **never throws** — errors are returned as `{ ok: false, error }`.

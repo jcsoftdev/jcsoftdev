@@ -83,4 +83,79 @@ describe('compileMdx', () => {
     // Error message must be a safe string, not a raw stack trace or internal path
     expect(result.error).not.toContain('node_modules');
   });
+
+  // --- C2 (Critical RCE) regression tests ---
+  // The old engine compiled with outputFormat:'function-body' and executed the
+  // result via run()/Function — so an MDX {} expression ran server-side. These
+  // tests prove user {} expressions are NEVER evaluated by the new AST renderer.
+
+  it('does NOT evaluate {process.env.X} — server secrets never leak', async () => {
+    process.env.MDXRCESECRET = 'TOP-SECRET-VALUE-DO-NOT-LEAK';
+    try {
+      const source = 'Payload: {process.env.MDXRCESECRET}';
+      const result = await compileMdx(source);
+
+      // Whether rejected or rendered, the secret value must never appear.
+      if (result.ok) {
+        expect(result.html).not.toContain('TOP-SECRET-VALUE-DO-NOT-LEAK');
+        // The expression is rendered inert, as literal text (never evaluated).
+        expect(result.html).toContain('process.env.MDXRCESECRET');
+      } else {
+        expect(result.error.length).toBeGreaterThan(0);
+      }
+    } finally {
+      delete process.env.MDXRCESECRET;
+    }
+  });
+
+  it('does NOT execute {await import("node:child_process")} injection', async () => {
+    const source = "Danger: {await import('node:child_process')}";
+    const result = await compileMdx(source);
+
+    // Must not throw, must not execute. Either inert text or a clean error.
+    if (result.ok) {
+      // Rendered inert as literal text — no execution, no module loaded.
+      expect(result.html).toContain('node:child_process');
+      expect(result.html).not.toContain('node_modules');
+    } else {
+      expect(typeof result.error).toBe('string');
+    }
+  });
+
+  it('does NOT evaluate a global-mutating expression', async () => {
+    const marker = '__mdx_rce_executed__';
+    // If this expression were executed, it would set a global flag.
+    const source = `{(globalThis.${marker} = true)}`;
+    const result = await compileMdx(source);
+
+    // The expression must not have run.
+    expect((globalThis as Record<string, unknown>)[marker]).toBeUndefined();
+    if (result.ok) {
+      expect(result.html.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('renders GFM (tables, strikethrough, task lists, autolinks)', async () => {
+    const source = [
+      '| A | B |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      '~~struck~~',
+      '',
+      '- [x] done',
+      '- [ ] todo',
+      '',
+      'Visit https://example.com now.',
+    ].join('\n');
+
+    const result = await compileMdx(source);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.html).toContain('<table>');
+    expect(result.html).toContain('<del>');
+    expect(result.html).toContain('type="checkbox"');
+    expect(result.html).toContain('<a href="https://example.com"');
+  });
 });
