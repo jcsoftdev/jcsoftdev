@@ -18,6 +18,7 @@ import {
 } from '@tanstack/react-table';
 import { useState } from 'react';
 import { type Post, type PostStatus, type PostsListResponse, postsClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 const PAGE_SIZE = 10;
@@ -73,7 +74,7 @@ export function PostsTable() {
         offset: String(page * PAGE_SIZE),
         ...(statusFilter ? { status: statusFilter } : {}),
       });
-      return res.json() as Promise<PostsListResponse>;
+      return assertOkJson<PostsListResponse>(res, 'posts');
     },
   });
 

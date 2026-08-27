@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ExperienceForm } from '../components/ExperienceForm.js';
 import { type Experience, experiencesClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 export const Route = createFileRoute('/_auth/experiences/$id/edit')({
@@ -27,7 +28,7 @@ function EditExperiencePage() {
     queryKey: queryKeys.experiences.detail(id),
     queryFn: async () => {
       const res = await experiencesClient.get(id);
-      return res.json() as Promise<Experience>;
+      return assertOkJson<Experience>(res, 'experience');
     },
   });
 

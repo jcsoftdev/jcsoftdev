@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { PostEditor } from '../components/PostEditor.js';
 import { type Post, postsClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 export const Route = createFileRoute('/_auth/posts/$id/edit')({
@@ -27,7 +28,7 @@ function EditPostPage() {
     queryKey: queryKeys.posts.detail(id),
     queryFn: async () => {
       const res = await postsClient.get(id);
-      return res.json() as Promise<Post>;
+      return assertOkJson<Post>(res, 'post');
     },
   });
 

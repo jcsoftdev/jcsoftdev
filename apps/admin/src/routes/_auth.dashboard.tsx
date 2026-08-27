@@ -7,6 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type PostsListResponse, postsClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 export const Route = createFileRoute('/_auth/dashboard')({
@@ -14,19 +15,19 @@ export const Route = createFileRoute('/_auth/dashboard')({
 });
 
 function DashboardPage() {
-  const { data: drafts } = useQuery<PostsListResponse>({
+  const { data: drafts, isError: draftsError } = useQuery<PostsListResponse>({
     queryKey: queryKeys.posts.list({ status: 'draft' }),
     queryFn: async () => {
       const res = await postsClient.list({ status: 'draft', limit: '1', offset: '0' });
-      return res.json() as Promise<PostsListResponse>;
+      return assertOkJson<PostsListResponse>(res, 'draft posts');
     },
   });
 
-  const { data: published } = useQuery<PostsListResponse>({
+  const { data: published, isError: publishedError } = useQuery<PostsListResponse>({
     queryKey: queryKeys.posts.list({ status: 'published' }),
     queryFn: async () => {
       const res = await postsClient.list({ status: 'published', limit: '1', offset: '0' });
-      return res.json() as Promise<PostsListResponse>;
+      return assertOkJson<PostsListResponse>(res, 'published posts');
     },
   });
 
@@ -35,14 +36,22 @@ function DashboardPage() {
       <h1 className="text-3xl font-bold">Dashboard</h1>
       <p className="mt-2 text-gray-500">Welcome to the jcsoftdev admin panel.</p>
 
-      <div className="mt-8 grid grid-cols-3 gap-4">
+      {(draftsError || publishedError) && (
+        <p role="alert" className="mt-6 text-sm text-red-600">
+          Could not load post counts. The API may be unavailable.
+        </p>
+      )}
+
+      <div className="mt-8 grid grid-cols-2 gap-4">
         <div className="rounded-lg border p-6">
           <p className="text-sm text-gray-500">Draft Posts</p>
-          <p className="mt-1 text-3xl font-bold">{drafts?.total ?? '—'}</p>
+          <p className="mt-1 text-3xl font-bold">{draftsError ? '—' : (drafts?.total ?? '…')}</p>
         </div>
         <div className="rounded-lg border p-6">
           <p className="text-sm text-gray-500">Published Posts</p>
-          <p className="mt-1 text-3xl font-bold">{published?.total ?? '—'}</p>
+          <p className="mt-1 text-3xl font-bold">
+            {publishedError ? '—' : (published?.total ?? '…')}
+          </p>
         </div>
       </div>
 

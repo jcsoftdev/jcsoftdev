@@ -16,6 +16,7 @@ import {
 } from '@tanstack/react-table';
 import { useState } from 'react';
 import { type Experience, type ExperiencesListResponse, experiencesClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 const PAGE_SIZE = 10;
@@ -36,7 +37,7 @@ export function ExperiencesTable() {
         limit: String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       });
-      return res.json() as Promise<ExperiencesListResponse>;
+      return assertOkJson<ExperiencesListResponse>(res, 'experiences');
     },
   });
 

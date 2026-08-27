@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ProjectForm } from '../components/ProjectForm.js';
 import { type Project, projectsClient } from '../lib/api.js';
+import { assertOkJson } from '../lib/assert-ok.js';
 import { queryKeys } from '../lib/query.js';
 
 export const Route = createFileRoute('/_auth/projects/$id/edit')({
@@ -27,7 +28,7 @@ function EditProjectPage() {
     queryKey: queryKeys.projects.detail(id),
     queryFn: async () => {
       const res = await projectsClient.get(id);
-      return res.json() as Promise<Project>;
+      return assertOkJson<Project>(res, 'project');
     },
   });
 
