@@ -68,6 +68,31 @@ function buildBlockedElementPattern(): RegExp {
 const BLOCKED_ELEMENT_PATTERN = buildBlockedElementPattern();
 
 /**
+ * Blank out fenced code blocks, indented code blocks, and inline code spans.
+ *
+ * The guards below scan raw source, not the parsed tree, so without this a post
+ * that merely *documents* markup — a ```jsx fence containing `<Button />`, or an
+ * inline `<script>` mention — was rejected in full and rendered as "Content
+ * failed to render." On a developer's blog that is the common case, not the
+ * edge case.
+ *
+ * Code regions are replaced with same-length blanks rather than removed so the
+ * guards keep matching at meaningful offsets and line structure is preserved.
+ */
+function blankCodeRegions(source: string): string {
+  const blank = (m: string) => m.replace(/[^\n]/g, ' ');
+  return (
+    source
+      // fenced blocks: ``` or ~~~ (any length >= 3), open to matching fence or EOF
+      .replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^\1?\2[^\n]*$|$)/gm, blank)
+      // indented code blocks: 4+ leading spaces or a tab on a whole line
+      .replace(/^(?: {4}|\t)[^\n]*$/gm, blank)
+      // inline code spans: `x`, ``x``
+      .replace(/(`+)(?:[^`]|(?!\1)`)*\1/g, blank)
+  );
+}
+
+/**
  * The render pipeline. Built once and reused across calls.
  *
  * remark-parse   → parse as CommonMark (NO MDX, so `{}` is never JS)
@@ -84,8 +109,12 @@ const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype).us
  * @returns CompileResult — either `{ ok: true, html }` or `{ ok: false, error }`
  */
 export async function compileMdx(source: string): Promise<CompileResult> {
+  // Guards run against source with code regions blanked out — documenting
+  // markup in a code block is not the same as using it.
+  const guarded = blankCodeRegions(source);
+
   // Allow-list guard: reject PascalCase custom components (empty allow-list).
-  if (CUSTOM_COMPONENT_PATTERN.test(source)) {
+  if (CUSTOM_COMPONENT_PATTERN.test(guarded)) {
     return {
       ok: false,
       error: 'custom components / expressions are not allowed',
@@ -93,7 +122,7 @@ export async function compileMdx(source: string): Promise<CompileResult> {
   }
 
   // Guard: reject dangerous lowercase elements.
-  if (BLOCKED_ELEMENT_PATTERN.test(source)) {
+  if (BLOCKED_ELEMENT_PATTERN.test(guarded)) {
     return {
       ok: false,
       error:

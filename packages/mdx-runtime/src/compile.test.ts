@@ -158,4 +158,65 @@ describe('compileMdx', () => {
     expect(result.html).toContain('type="checkbox"');
     expect(result.html).toContain('<a href="https://example.com"');
   });
+  describe('guards ignore code regions', () => {
+    // Regression: the PascalCase and blocked-element guards ran against the raw
+    // source, so a post that merely DOCUMENTED markup was rejected in full and
+    // rendered as "Content failed to render." On a developer's blog — where
+    // fenced JSX and <script> examples are the whole point — that is the common
+    // case, not the edge case.
+
+    it('allows a PascalCase component inside a fenced code block', async () => {
+      const source = ['# Using the Button', '', '```jsx', '<Button onClick={fn} />', '```'].join(
+        '\n'
+      );
+
+      const result = await compileMdx(source);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.html).toContain('<code');
+      expect(result.html).toContain('&#x3C;Button');
+    });
+
+    it('allows a blocked element inside a fenced code block', async () => {
+      const source = ['Never do this:', '', '```html', '<script>alert(1)</script>', '```'].join(
+        '\n'
+      );
+
+      const result = await compileMdx(source);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.html).toContain('&#x3C;script>');
+    });
+
+    it('allows a PascalCase reference inside an inline code span', async () => {
+      const result = await compileMdx('Render the `<Card />` component.');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.html).toContain('<code>');
+    });
+
+    it('allows a tilde-fenced block and an indented code block', async () => {
+      const source = ['~~~tsx', '<Widget />', '~~~', '', '    <Legacy />'].join('\n');
+      const result = await compileMdx(source);
+      expect(result.ok).toBe(true);
+    });
+
+    it('still rejects a PascalCase component used OUTSIDE a code block', async () => {
+      const source = ['```jsx', '<Button />', '```', '', '<Button />'].join('\n');
+      const result = await compileMdx(source);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatch(/not allowed/i);
+    });
+
+    it('still rejects a blocked element used OUTSIDE a code block', async () => {
+      const source = ['```html', '<script>ok</script>', '```', '', '<script>real</script>'].join(
+        '\n'
+      );
+      const result = await compileMdx(source);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatch(/blocked element/i);
+    });
+  });
 });
