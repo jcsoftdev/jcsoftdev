@@ -510,11 +510,18 @@ The Pre Deploy Command runs the plain `seed`, which uses `ON CONFLICT DO NOTHING
 is also why a deploy can never push *changed* seed content to a database that has
 already been seeded. Rewriting `data.ts` and deploying does nothing.
 
-For that, run the `sync` profile once, by hand, on the server:
+For that, trigger the **Seed sync** workflow (Actions → Seed sync → Run workflow, and type `sync` to confirm). It asks Dokploy to run the sync on the server and then checks jcsoftdev.com to confirm the superseded content is actually gone. Setup notes live at the top of `.github/workflows/seed-sync.yml`.
+
+It cannot connect to Postgres from a runner: the `postgres` service in the infrastructure stack declares no `ports:` and is reachable only on `dokploy-network`.
+
+To run it by hand instead, do it **from a repo checkout on the server** — not from the Dokploy infrastructure stack:
 
 ```bash
+cd /etc/dokploy/applications/<any-app>/code   # Dokploy clones the repo per application
 docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
 ```
+
+The directory matters. The infrastructure stack in Dokploy is a **raw compose file pasted into the UI**, not this repository's `docker-compose.prod.yml` — it has no `migrator` and no `syncer`, and `build: context: .` needs the repo anyway. Both one-shot services only exist in the per-application checkout, which is also how the Pre Deploy Command reaches the migrator.
 
 It upserts every row from `data.ts`, deletes the slugs in
 `SUPERSEDED_PROJECT_SLUGS`, prunes experiences past the current `display_order`

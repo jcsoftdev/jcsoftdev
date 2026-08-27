@@ -1,0 +1,140 @@
+name: Seed sync
+
+# Pushes packages/db/src/seeds/data.ts into the production database.
+#
+# Why this is not part of `deploy`: the api's Pre Deploy Command runs the plain
+# `seed`, which uses ON CONFLICT DO NOTHING so an edit made in the admin UI
+# survives a deploy (ADR-17). Running the sync on every push would overwrite
+# those edits every time — which is the behaviour ADR-17 exists to prevent. So
+# it is deliberately a button, not a trigger.
+#
+# Why it does not talk to Postgres directly: the `postgres` service in the
+# infrastructure stack declares no `ports:`. It is reachable only on
+# dokploy-network, so a GitHub runner cannot connect to it at all. Exposing the
+# database to the internet to let CI reach it would be a far worse trade than
+# asking Dokploy to run the command on the host.
+#
+# So the job asks Dokploy to run a schedule that already exists on the server,
+# reusing the same two secrets the deploy job needs. No SSH key, no database
+# credentials, no new credential surface.
+#
+# ── One-time setup ──────────────────────────────────────────────────────────
+# 1. In Dokploy → Schedules, create a schedule of type "Dokploy Server":
+#
+#      Name:  seed-sync
+#      Cron:  0 0 31 2 *      ← 31 February. A date that does not exist, so the
+#                               schedule can never fire on its own; the only way
+#                               it runs is runManually, from this workflow.
+#      Shell: bash
+#      Command:
+#        set -e
+#        d=""
+#        for p in /etc/dokploy/applications/*/code; do
+#          if [ -f "$p/docker-compose.prod.yml" ]; then d="$p"; break; fi
+#        done
+#        if [ -z "$d" ]; then
+#          echo "FAIL: no repo checkout containing docker-compose.prod.yml"
+#          exit 1
+#        fi
+#        echo "using $d"
+#        cd "$d"
+#        docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
+#
+#    It locates the checkout rather than hardcoding a path, and exits non-zero
+#    when it finds nothing — a sync that silently does nothing is the failure
+#    mode worth designing against, since the symptom is a stale portfolio that
+#    still looks deployed.
+#
+# 2. Add the schedule's id as the repository secret DOKPLOY_SYNC_SCHEDULE_ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "sync" to confirm — this overwrites seed-managed rows in production'
+        required: true
+        type: string
+
+concurrency:
+  group: seed-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync seed data into production
+    runs-on: ubuntu-latest
+
+    env:
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      SCHEDULE_ID: ${{ secrets.DOKPLOY_SYNC_SCHEDULE_ID }}
+
+    steps:
+      # The input is the whole safety mechanism — this workflow deletes rows.
+      # Checked before the secrets so a mistyped run fails on the harmless step.
+      - name: Verify confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "sync" ]; then
+            echo "::error::Confirmation input must be exactly 'sync'. Nothing was run."
+            exit 1
+          fi
+
+      - name: Verify secrets are configured
+        run: |
+          missing=""
+          [ -z "$DOKPLOY_URL" ] && missing="$missing DOKPLOY_URL"
+          [ -z "$DOKPLOY_API_KEY" ] && missing="$missing DOKPLOY_API_KEY"
+          [ -z "$SCHEDULE_ID" ] && missing="$missing DOKPLOY_SYNC_SCHEDULE_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing — see the setup notes at the top of this file."
+            exit 1
+          fi
+
+      - name: Run the seed sync on the server
+        run: |
+          set -euo pipefail
+
+          # --retry-all-errors covers a Dokploy restart, not a rejected request:
+          # -f makes curl exit non-zero on 4xx/5xx, and a 401 or a bad schedule
+          # id must fail the job rather than be retried into looking like a
+          # network blip.
+          curl -fsS --retry 3 --retry-delay 5 --retry-all-errors \
+            -X POST "$DOKPLOY_URL/api/schedule.runManually" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -H 'Content-Type: application/json' \
+            -d "{\"scheduleId\":\"$SCHEDULE_ID\"}" \
+            -o response.json
+
+          cat response.json
+          echo
+
+          # Dokploy answers 200 for "I accepted the request", so a green curl is
+          # not evidence the sync succeeded. Read the body before believing it.
+          if grep -qi '"success"[[:space:]]*:[[:space:]]*false' response.json; then
+            echo "::error::Dokploy reported the schedule run as failed — check its logs in the Dokploy UI."
+            exit 1
+          fi
+
+      # The job above proves Dokploy accepted the request. This proves the
+      # database actually changed, which is the only thing anyone cares about.
+      - name: Verify production no longer serves superseded content
+        run: |
+          set -uo pipefail
+          # The sync flushes the portfolio cache, but the page still has to be
+          # re-rendered and fetched; give it a moment before judging.
+          sleep 20
+
+          html=$(curl -fsS --max-time 30 https://jcsoftdev.com/ || true)
+          if [ -z "$html" ]; then
+            echo "::warning::Could not fetch jcsoftdev.com to verify. The sync may still have succeeded."
+            exit 0
+          fi
+
+          # These are the slugs SUPERSEDED_PROJECT_SLUGS deletes. If any survives
+          # on the rendered page, the sync did not take.
+          stale=$(printf '%s' "$html" | grep -oiE 'pulzifi|travitur' | sort -u | tr '\n' ' ')
+          if [ -n "$stale" ]; then
+            echo "::error::Production still renders superseded content: $stale"
+            exit 1
+          fi
+          echo "Production is clean — no superseded content on the homepage."
