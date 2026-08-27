@@ -124,7 +124,7 @@ jobs:
         run: pnpm --filter @jcsoftdev/db db:migrate
 
       - name: Seed database
-        run: pnpm --filter @jcsoftdev/db db:seed
+        run: pnpm --filter @jcsoftdev/db seed
 
       - name: Test
         run: pnpm turbo test
@@ -268,7 +268,7 @@ jobs:
         run: pnpm --filter @jcsoftdev/db db:migrate
 
       - name: Seed database
-        run: pnpm --filter @jcsoftdev/db db:seed
+        run: pnpm --filter @jcsoftdev/db seed
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

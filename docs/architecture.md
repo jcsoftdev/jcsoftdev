@@ -384,7 +384,7 @@ The two never conflict because pnpm resolves packages into `node_modules` and Bu
 - VPS deployments can tolerate a short downtime window for rollback. The standard rollback path is: revert the code, write a corrective forward migration if the schema needs adjusting.
 - Down migrations are rarely run in practice (they require coordination between schema and data rollback) and create false safety.
 
-**Consequence**: `packages/db/migrations/` contains only forward SQL. The CI gate runs `db:migrate` and `db:seed` to confirm migrations are clean on every PR.
+**Consequence**: `packages/db/migrations/` contains only forward SQL. The CI gate runs `db:migrate` and `seed` to confirm migrations are clean on every PR.
 
 **Where**: `packages/db/migrations/`, `packages/db/src/migrate.ts`.
 
