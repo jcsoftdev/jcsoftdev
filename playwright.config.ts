@@ -13,13 +13,20 @@
  *   - Web:   http://localhost:4321
  *   - Admin: http://localhost:5173
  *
- * In CI, the e2e workflow job starts services and sets ADMIN_URL / WEB_URL env vars.
+ * In CI, Playwright starts the three apps itself via the webServer block below.
+ * That claim used to be made in this comment while nothing actually started
+ * them, so every spec failed to connect — and because the job is
+ * continue-on-error, it stayed red for months without anyone reading it.
  */
 
 import { defineConfig, devices } from '@playwright/test';
 
 const ADMIN_URL = process.env.ADMIN_URL ?? 'http://localhost:5173';
-// API_URL and WEB_URL are read directly via process.env in e2e specs, not needed here
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:4321';
+const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+
+// Dev servers are slower to boot cold in CI than on a warm local machine.
+const SERVER_TIMEOUT = process.env.CI ? 180_000 : 60_000;
 
 export default defineConfig({
   testDir: './e2e',
@@ -53,28 +60,32 @@ export default defineConfig({
   // Env vars available in tests
   globalSetup: undefined,
 
-  // Do NOT start any webServer automatically in this config.
-  // Specs assume pnpm dev is already running (or CI starts services manually).
-  // If you want auto-start for CI, uncomment the block below and adjust:
-  //
-  // webServer: [
-  //   {
-  //     command: 'pnpm --filter @jcsoftdev/api dev',
-  //     url: API_URL,
-  //     reuseExistingServer: !process.env.CI,
-  //     timeout: 60_000,
-  //   },
-  //   {
-  //     command: 'pnpm --filter @jcsoftdev/admin dev',
-  //     url: ADMIN_URL,
-  //     reuseExistingServer: !process.env.CI,
-  //     timeout: 60_000,
-  //   },
-  //   {
-  //     command: 'pnpm --filter @jcsoftdev/web dev',
-  //     url: WEB_URL,
-  //     reuseExistingServer: !process.env.CI,
-  //     timeout: 60_000,
-  //   },
-  // ],
+  // Playwright owns the app lifecycle. reuseExistingServer keeps the local
+  // workflow intact: with `pnpm dev` already running, these are no-ops.
+  webServer: [
+    {
+      command: 'pnpm --filter @jcsoftdev/api dev',
+      url: `${API_URL}/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: SERVER_TIMEOUT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: 'pnpm --filter @jcsoftdev/admin dev',
+      url: ADMIN_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: SERVER_TIMEOUT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: 'pnpm --filter @jcsoftdev/web dev',
+      url: WEB_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: SERVER_TIMEOUT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 });

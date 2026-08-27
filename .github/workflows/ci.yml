@@ -261,6 +261,17 @@ jobs:
           # Wait for MinIO to be ready
           until curl -sf http://localhost:9000/minio/health/live; do sleep 2; done
 
+      # bootstrap.sh requires mc on PATH and exits 1 without it, which is where
+      # this job died every run. Installed to a user path so no sudo is needed.
+      - name: Install MinIO client (mc)
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
+            -o "$HOME/.local/bin/mc"
+          chmod +x "$HOME/.local/bin/mc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/mc" --version
+
       - name: Bootstrap MinIO bucket
         run: bash infra/minio/bootstrap.sh
 
