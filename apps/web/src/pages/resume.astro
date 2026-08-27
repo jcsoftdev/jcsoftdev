@@ -1,0 +1,238 @@
+---
+/**
+ * /resume — the recruiter's second click.
+ *
+ * There was nowhere to send someone asking for a CV: /resume, /cv and /uses all
+ * 404'd. This renders the same portfolio data the homepage already fetches, so
+ * it costs no new content and can never drift from the Experience section.
+ *
+ * Cmd-P produces a clean single-column PDF via the print block at the bottom —
+ * the artifact for free, from data that already exists.
+ */
+import RootLayout from "../layouts/RootLayout.astro";
+import { fetchPortfolioResilient } from "../lib/portfolio-fetch";
+import {
+  AUTHOR_EMAIL,
+  AUTHOR_GITHUB,
+  AUTHOR_LINKEDIN,
+  SITE_URL,
+  buildBreadcrumbSchema,
+} from "../lib/seo";
+
+export const prerender = false;
+
+const portfolio = await fetchPortfolioResilient();
+
+// Experience: display_order ascending, nulls last — same contract as the API.
+const experiences = [...portfolio.experiences].sort(
+  (a, b) => (a.displayOrder ?? 9999) - (b.displayOrder ?? 9999),
+);
+
+// Projects: featured first, then most recent.
+const projects = [...portfolio.projects].sort((a, b) => {
+  const fa = a.featuredOrder ?? 9999;
+  const fb = b.featuredOrder ?? 9999;
+  if (fa !== fb) return fa - fb;
+  return (b.startedAt ?? "").localeCompare(a.startedAt ?? "");
+});
+
+function fmt(iso: string | null): string {
+  if (!iso) return "Present";
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "Present";
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
+}
+
+const jsonLd = [
+  buildBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Résumé", url: "/resume" },
+  ]),
+];
+---
+
+<RootLayout
+  title="Résumé — Juan Carlos Valencia"
+  description="Senior full-stack developer. 9+ years across SaaS, telecom, e-commerce and education. Go, TypeScript, React, Postgres."
+  canonical={`${SITE_URL}/resume`}
+  type="website"
+  ogEyebrow="Résumé"
+  keywords={["résumé", "CV", "Juan Carlos Valencia", "full-stack developer"]}
+  jsonLd={jsonLd}
+>
+  <main class="resume mx-auto w-full max-w-[52rem] px-6 py-16 lg:px-8">
+    <header class="resume-head">
+      <h1
+        class="font-display text-4xl font-semibold tracking-tight text-[color:var(--color-text-primary)]"
+      >
+        Juan Carlos Valencia
+      </h1>
+      <p class="mt-1 font-mono text-sm text-[color:var(--color-accent)]">
+        Senior Full-Stack Developer
+      </p>
+      <ul
+        class="mt-4 flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs text-[color:var(--color-text-muted)]"
+      >
+        <li><a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a></li>
+        <li><a href={AUTHOR_GITHUB}>github.com/jcsoftdev</a></li>
+        <li><a href={AUTHOR_LINKEDIN}>linkedin.com/in/jcsoftdev</a></li>
+        <li><a href={SITE_URL}>jcsoftdev.com</a></li>
+      </ul>
+
+      <p
+        class="no-print mt-6 font-mono text-xs text-[color:var(--color-text-muted)]"
+      >
+        Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF.
+      </p>
+    </header>
+
+    <section class="mt-12">
+      <h2 class="resume-h2">Experience</h2>
+      <ol class="mt-4 flex flex-col gap-6">
+        {
+          experiences.map((exp) => (
+            <li class="break-inside-avoid">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+                <h3 class="font-display text-lg font-semibold text-[color:var(--color-text-primary)]">
+                  {exp.company}
+                  <span class="text-[color:var(--color-text-muted)]">
+                    {" "}
+                    · {exp.role}
+                  </span>
+                </h3>
+                <span class="font-mono text-xs text-[color:var(--color-text-muted)]">
+                  <time datetime={exp.startedAt}>{fmt(exp.startedAt)}</time>
+                  {" – "}
+                  {exp.endedAt ? (
+                    <time datetime={exp.endedAt}>{fmt(exp.endedAt)}</time>
+                  ) : (
+                    "Present"
+                  )}
+                </span>
+              </div>
+              {exp.location && (
+                <p class="font-mono text-[11px] text-[color:var(--color-text-muted)]">
+                  {exp.location}
+                </p>
+              )}
+              {exp.summaryHtml && (
+                <div
+                  class="resume-prose mt-2 text-[color:var(--color-text-secondary)]"
+                  set:html={exp.summaryHtml}
+                />
+              )}
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="resume-h2">Selected Projects</h2>
+      <ol class="mt-4 flex flex-col gap-5">
+        {
+          projects.map((p) => (
+            <li class="break-inside-avoid">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+                <h3 class="font-display text-base font-semibold text-[color:var(--color-text-primary)]">
+                  {p.name}
+                </h3>
+                {p.startedAt && (
+                  <span class="font-mono text-xs text-[color:var(--color-text-muted)]">
+                    <time datetime={p.startedAt}>{fmt(p.startedAt)}</time>
+                  </span>
+                )}
+              </div>
+              {p.summary && (
+                <p class="mt-1 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
+                  {p.summary}
+                </p>
+              )}
+              {(p.repoUrl || p.liveUrl) && (
+                <p class="mt-1 flex gap-4 font-mono text-[11px] text-[color:var(--color-text-muted)]">
+                  {p.repoUrl && <a href={p.repoUrl}>{p.repoUrl}</a>}
+                  {p.liveUrl && <a href={p.liveUrl}>{p.liveUrl}</a>}
+                </p>
+              )}
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+  </main>
+</RootLayout>
+
+<style is:global>
+  .resume-h2 {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border-soft);
+    padding-bottom: 0.5rem;
+  }
+
+  .resume-prose p {
+    margin: 0;
+  }
+  .resume-prose a {
+    color: inherit;
+    text-decoration: underline;
+  }
+
+  /* Print: single column, ink-friendly, no site chrome. Deliberately overrides
+     the dark theme — a dark-background PDF is unusable and burns toner. */
+  @media print {
+    @page {
+      margin: 14mm;
+    }
+
+    :root {
+      --color-text-primary: #111;
+      --color-text-secondary: #333;
+      --color-text-muted: #666;
+      --color-accent: #111;
+      --color-border-soft: #ccc;
+    }
+
+    html,
+    body {
+      background: #fff !important;
+      color: #111 !important;
+    }
+
+    /* Site chrome and anything decorative has no business on paper. */
+    header[data-site-header],
+    footer[data-site-footer],
+    canvas,
+    .no-print,
+    #scroll-progress,
+    [data-cursor-orb] {
+      display: none !important;
+    }
+
+    .resume {
+      max-width: none;
+      padding: 0;
+    }
+
+    .break-inside-avoid {
+      break-inside: avoid;
+    }
+
+    a {
+      color: #111 !important;
+      text-decoration: none;
+    }
+    /* Links are unclickable on paper — print the destination instead. */
+    .resume-head a::after {
+      content: " (" attr(href) ")";
+      font-size: 0.85em;
+      color: #555;
+    }
+    .resume-head a[href^="mailto:"]::after {
+      content: "";
+    }
+  }
+</style>

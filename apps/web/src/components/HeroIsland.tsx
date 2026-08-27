@@ -419,8 +419,8 @@ export default function HeroIsland() {
                 '0 0 6px oklch(0.04 0 0 / 0.95), 0 1px 14px oklch(0.04 0 0 / 0.95), 0 0 32px oklch(0.04 0 0 / 0.75)',
             }}
           >
-            You're in. I build software that doesn't fight you — from interface to insight. SaaS,
-            telecom, e-commerce, education, and more.
+            I build software that doesn't fight you — from interface to insight. SaaS, telecom,
+            e-commerce, education, and more.
           </p>
 
           {/* CTAs */}
