@@ -14,7 +14,8 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 @theme {
-  /* Color — OKLCH dark-only V1 */
+  /* Color — OKLCH. Dark is the default; the light set is below the @theme
+     block, since @theme itself cannot hold a media query. */
   --color-background: oklch(0.10 0 0);
   --color-surface: oklch(0.13 0 0);
   --color-surface-elevated: oklch(0.16 0 0);
@@ -142,8 +143,59 @@
    Base layer — body defaults, selection, focus, scrollbar, fade-in (REQ-TOKEN-7)
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light palette
+   ─────────────────────────────────────────────────────────────────────────────
+   Only the VALUES change — every component already reads through
+   var(--color-*), so nothing here touches a component.
+
+   Scope, stated honestly: this covers the document surfaces (blog, /resume,
+   cards, text, borders). The hero section stays dark on purpose — it is a black
+   canvas behind a WebGL planet, and HeroIsland hardcodes its scrim and text
+   shadows as literal oklch values rather than reading tokens. Those are the
+   remaining blocker to a fully themed hero, and a dark hero above a light page
+   is a deliberate composition, not an oversight.
+
+   Contrast checked against --color-background (oklch 0.99):
+     text-primary   0.20  → ~15.8:1   (AAA)
+     text-secondary 0.38  →  ~8.9:1   (AAA)
+     text-muted     0.52  →  ~5.3:1   (AA, body-legal)
+     text-faint     0.62  →  ~3.6:1   (large text / non-essential only)
+     accent         0.48  →  ~6.4:1   (AA for body text and controls)
+   The accent darkens from 0.70 to 0.48 because the dark-mode blue lands at
+   ~2.4:1 on white — unreadable, and it is used for links.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-background: oklch(0.99 0.002 250);
+    --color-surface: oklch(0.97 0.003 250);
+    --color-surface-elevated: oklch(1 0 0);
+    --color-surface-overlay: oklch(1 0 0);
+    --color-border: oklch(0.87 0.005 250);
+    --color-border-soft: oklch(0.92 0.004 250);
+    --color-border-strong: oklch(0.78 0.008 250);
+    --color-text-primary: oklch(0.20 0.01 250);
+    --color-text-secondary: oklch(0.38 0.01 250);
+    --color-text-muted: oklch(0.52 0.01 250);
+    --color-text-faint: oklch(0.62 0.01 250);
+    --color-accent: oklch(0.48 0.19 249);
+    --color-accent-hover: oklch(0.40 0.19 249);
+    --color-accent-soft: oklch(0.48 0.19 249 / 0.10);
+    --color-accent-muted: oklch(0.48 0.19 249 / 0.45);
+    --color-accent-glow: oklch(0.48 0.19 249 / 0.22);
+    --color-success: oklch(0.52 0.14 155);
+    --color-danger: oklch(0.52 0.20 25);
+    --color-warning: oklch(0.58 0.14 85);
+  }
+}
+
 @layer base {
   html {
+    /* Tells the UA to render form controls, scrollbars and the canvas ground
+       in the matching scheme — without it a light page keeps dark scrollbars. */
+    color-scheme: dark light;
+
     scroll-behavior: auto; /* Lenis takes over on fine-pointer */
   }
 
