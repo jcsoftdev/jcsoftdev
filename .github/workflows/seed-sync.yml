@@ -2,27 +2,44 @@ name: Seed sync
 
 # Pushes packages/db/src/seeds/data.ts into the production database.
 #
-# Why this is not part of `deploy`: the api's Pre Deploy Command runs the plain
-# `seed`, which uses ON CONFLICT DO NOTHING so an edit made in the admin UI
-# survives a deploy (ADR-17). Running the sync on every push would overwrite
-# those edits every time — which is the behaviour ADR-17 exists to prevent. So
-# it is deliberately a button, not a trigger.
+# ── Who owns projects and experiences ───────────────────────────────────────
+# Two writers reach the same rows: this repository's data.ts, and the admin UI,
+# which has full CRUD for both tables. They cannot both be the owner, and the
+# answer decides whether this workflow runs on every deploy or only on demand.
 #
-# Why it does not talk to Postgres directly: the `postgres` service in the
-# infrastructure stack declares no `ports:`. It is reachable only on
-# dokploy-network, so a GitHub runner cannot connect to it at all. Exposing the
-# database to the internet to let CI reach it would be a far worse trade than
-# asking Dokploy to run the command on the host.
+# For now, data.ts owns them, so it runs on every deploy to main. That is a
+# deliberate, temporary answer: today nothing in the admin is worth preserving,
+# so replacing everything costs nothing and keeps production honest to the repo.
+#
+# It is NOT the long-term answer. ADR-17 has the api's Pre Deploy Command run
+# the plain `seed` (ON CONFLICT DO NOTHING) precisely so an edit made in the
+# admin survives a deploy. The moment the admin becomes the real editing surface
+# for projects and experiences, remove the `seed-sync` job from ci.yml and this
+# goes back to being a button — the workflow_dispatch trigger stays wired for
+# exactly that.
+#
+# What "replaces everything" does and does not mean:
+#   - Rows in data.ts are overwritten. An admin edit to one is reverted.
+#   - A project created in the admin under a NEW slug survives — the sync only
+#     deletes the slugs listed in SUPERSEDED_PROJECT_SLUGS.
+#   - Experiences with a NULL display_order are treated as not-seed-managed and
+#     are left alone.
+#
+# ── Why it does not talk to Postgres directly ───────────────────────────────
+# The `postgres` service in the infrastructure stack declares no `ports:`. It is
+# reachable only on dokploy-network, so a GitHub runner cannot connect to it at
+# all. Exposing the database to the internet so CI could reach it would be a far
+# worse trade than asking Dokploy to run the command on its own host.
 #
 # So the job asks Dokploy to run a schedule that already exists on the server,
 # reusing the same two secrets the deploy job needs. No SSH key, no database
 # credentials, no new credential surface.
 #
 # ── One-time setup ──────────────────────────────────────────────────────────
-# 1. In Dokploy → Schedules, create a schedule of type "Dokploy Server":
+# 1. In Dokploy -> Schedules, create a schedule of type "Dokploy Server":
 #
 #      Name:  seed-sync
-#      Cron:  0 0 31 2 *      ← 31 February. A date that does not exist, so the
+#      Cron:  0 0 31 2 *      <- 31 February. A date that does not exist, so the
 #                               schedule can never fire on its own; the only way
 #                               it runs is runManually, from this workflow.
 #      Shell: bash
@@ -46,8 +63,16 @@ name: Seed sync
 #    still looks deployed.
 #
 # 2. Add the schedule's id as the repository secret DOKPLOY_SYNC_SCHEDULE_ID.
+#
+# Until step 1 and 2 are done this job fails, loudly and on every push to main.
+# That is on purpose: a deploy that quietly skips the data half is the exact
+# failure this repository keeps getting bitten by.
 
 on:
+  # Called by ci.yml after every successful deploy to main.
+  workflow_call:
+
+  # And runnable on its own, for a migration between deploys.
   workflow_dispatch:
     inputs:
       confirm:
@@ -70,9 +95,12 @@ jobs:
       SCHEDULE_ID: ${{ secrets.DOKPLOY_SYNC_SCHEDULE_ID }}
 
     steps:
-      # The input is the whole safety mechanism — this workflow deletes rows.
+      # Only for a hand-run: the confirmation is what stops someone firing this
+      # at production by reflex. A call from ci.yml is already gated by the
+      # deploy it follows, so requiring an input there would just block it.
       # Checked before the secrets so a mistyped run fails on the harmless step.
       - name: Verify confirmation
+        if: github.event_name == 'workflow_dispatch'
         run: |
           if [ "${{ inputs.confirm }}" != "sync" ]; then
             echo "::error::Confirmation input must be exactly 'sync'. Nothing was run."

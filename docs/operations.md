@@ -505,31 +505,50 @@ Quick reference for re-deploying after a code change:
 
 **Pushing a changed `data.ts` to production:**
 
-The Pre Deploy Command runs the plain `seed`, which uses `ON CONFLICT DO NOTHING`
-(ADR-17). That is the right default — an admin edit must survive a deploy — and it
-is also why a deploy can never push *changed* seed content to a database that has
-already been seeded. Rewriting `data.ts` and deploying does nothing.
+The `seed-sync` job runs after every successful deploy to main, so a change to
+`data.ts` reaches the database on the same push that ships the code. A green
+deploy over a stale database is what left jcsoftdev.com advertising client
+product names as employers long after the fix had merged.
 
-For that, trigger the **Seed sync** workflow (Actions → Seed sync → Run workflow, and type `sync` to confirm). It asks Dokploy to run the sync on the server and then checks jcsoftdev.com to confirm the superseded content is actually gone. Setup notes live at the top of `.github/workflows/seed-sync.yml`.
+**This is temporary and load-bearing on one assumption.** Two writers reach
+`projects` and `experiences`: `data.ts` and the admin UI, which has full CRUD
+for both. They cannot both own the rows. Right now `data.ts` owns them, because
+nothing in the admin is worth preserving yet. ADR-17 says the opposite — the api's
+Pre Deploy Command runs the plain `seed` (`ON CONFLICT DO NOTHING`) precisely so
+an admin edit survives a deploy. **When the admin becomes the real editing
+surface for projects and experiences, delete the `seed-sync` job from
+`ci.yml`**; the workflow stays dispatchable for one-off migrations.
 
-It cannot connect to Postgres from a runner: the `postgres` service in the infrastructure stack declares no `ports:` and is reachable only on `dokploy-network`.
+What the sync replaces, precisely:
 
-To run it by hand instead, do it **from a repo checkout on the server** — not from the Dokploy infrastructure stack:
+- Rows present in `data.ts` are overwritten — an admin edit to one is reverted.
+- A project created in the admin under a **new** slug survives; only the slugs in
+  `SUPERSEDED_PROJECT_SLUGS` are deleted.
+- Experiences with a `NULL` `display_order` are treated as not-seed-managed.
+
+To run it between deploys: Actions → Seed sync → Run workflow, typing `sync` to
+confirm.
+
+It cannot connect to Postgres from a runner: the `postgres` service in the
+infrastructure stack declares no `ports:` and is reachable only on
+`dokploy-network`. Instead it calls Dokploy's `schedule.runManually`, reusing
+the two secrets `deploy` already needs. Setup — the schedule itself and
+`DOKPLOY_SYNC_SCHEDULE_ID` — is documented at the top of
+`.github/workflows/seed-sync.yml`.
+
+To run it by hand on the server, do it **from a repo checkout** — not from the
+Dokploy infrastructure stack:
 
 ```bash
 cd /etc/dokploy/applications/<any-app>/code   # Dokploy clones the repo per application
 docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
 ```
 
-The directory matters. The infrastructure stack in Dokploy is a **raw compose file pasted into the UI**, not this repository's `docker-compose.prod.yml` — it has no `migrator` and no `syncer`, and `build: context: .` needs the repo anyway. Both one-shot services only exist in the per-application checkout, which is also how the Pre Deploy Command reaches the migrator.
-
-It upserts every row from `data.ts`, deletes the slugs in
-`SUPERSEDED_PROJECT_SLUGS`, prunes experiences past the current `display_order`
-range, and flushes `public:portfolio:v1` in Valkey. Admin-authored rows and
-anything with a `NULL` `display_order` are left alone; nothing is truncated.
-
-It stays behind its own profile deliberately: as a deploy step it would silently
-overwrite admin edits on every push, which is exactly what ADR-17 forbids.
+The directory matters. The infrastructure stack in Dokploy is a **raw compose
+file pasted into the UI**, not this repository's `docker-compose.prod.yml` — it
+has no `migrator` and no `syncer`, and `build: context: .` needs the repo anyway.
+Both one-shot services only exist in the per-application checkout, which is also
+how the Pre Deploy Command reaches the migrator.
 
 **Pre-deploy checklist for migration-bearing commits:**
 1. Take a Postgres snapshot (Dokploy backup or `pg_dump`).

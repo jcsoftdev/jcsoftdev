@@ -306,6 +306,22 @@ jobs:
       - name: Check MX for the advertised address
         run: node apps/web/scripts/check-contact-email.mjs
 
+  # ── Seed sync — after deploy, main only ─────────────────────────────────────
+  # The deploy above ships code; this ships the content that code renders. Both
+  # or neither: a green deploy over a stale database is what left jcsoftdev.com
+  # advertising client product names as employers long after the fix had merged.
+  #
+  # Temporary by design. It runs on every deploy only while data.ts owns
+  # projects and experiences. When the admin becomes the real editing surface
+  # for them, delete this job — the workflow stays dispatchable for migrations.
+  # The reasoning in full is at the top of seed-sync.yml.
+  seed-sync:
+    name: Seed sync
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: ./.github/workflows/seed-sync.yml
+    secrets: inherit
+
   # ── Deploy — blocking, main only ────────────────────────────────────────────
   # CI owns deployment. Dokploy's own `autoDeploy` must be OFF for these apps,
   # otherwise both fire and race.
