@@ -13,6 +13,7 @@
  * that keeps the contact action reachable at any scroll position.
  */
 import { isActive } from "../lib/active-link";
+import { AUTHOR_EMAIL } from "../lib/seo";
 
 const path = Astro.url.pathname;
 
@@ -38,7 +39,6 @@ const stack = [
   "Hexagonal",
 ] as const;
 
-const EMAIL = "hello@jcsoftdev.com";
 const GITHUB = "https://github.com/jcsoftdev";
 const LINKEDIN = "https://linkedin.com/in/jcsoftdev";
 
@@ -175,10 +175,10 @@ const dotClass =
   <div class="flex flex-col gap-2.5 pt-6">
     <div class="h-px bg-[color:var(--color-border)]"></div>
     <a
-      href={`mailto:${EMAIL}`}
+      href={`mailto:${AUTHOR_EMAIL}`}
       class="flex items-center justify-between gap-2 rounded-sm border border-[color:var(--color-accent-muted)] bg-[color:var(--color-accent-soft)] px-3 py-2.5 font-mono text-xs text-[color:var(--color-accent)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
     >
-      {EMAIL}
+      {AUTHOR_EMAIL}
       <svg
         aria-hidden="true"
         width="13"
@@ -350,7 +350,7 @@ const dotClass =
     >
   </div>
   <a
-    href={`mailto:${EMAIL}`}
+    href={`mailto:${AUTHOR_EMAIL}`}
     class="inline-flex h-12 shrink-0 items-center gap-2 rounded-md bg-[color:var(--color-accent)] px-5 font-mono text-sm font-medium text-[color:var(--color-background)] outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-background)]"
   >
     Say hi

@@ -276,6 +276,25 @@ jobs:
       - name: Run E2E tests
         run: pnpm exec playwright test
 
+  # ── Contact reachability ────────────────────────────────────────────────────
+  # The site advertised hello@jcsoftdev.com across five surfaces while the
+  # domain had no MX records, so every message bounced and nothing reported it.
+  # This job is not wired into `deploy`: a DNS hiccup should turn the run red,
+  # not hold production hostage.
+  contact:
+    name: Contact address is reachable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain via mise
+        uses: jdx/mise-action@v2
+
+      # No dependencies — the script is plain node with node:dns.
+      - name: Check MX for the advertised address
+        run: node apps/web/scripts/check-contact-email.mjs
+
   # ── Deploy — blocking, main only ────────────────────────────────────────────
   # CI owns deployment. Dokploy's own `autoDeploy` must be OFF for these apps,
   # otherwise both fire and race.
