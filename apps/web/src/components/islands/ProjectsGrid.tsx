@@ -88,8 +88,12 @@ function monogram(name: string): string {
     .join('');
 }
 
-function formatYear(iso: string): string {
-  return new Date(`${iso}T00:00:00`).getFullYear().toString();
+function formatYear(iso: string | null): string | null {
+  // `projects.started_at` / `ended_at` are nullable. Without this guard
+  // `new Date('nullT00:00:00')` yields NaN and renders as literal "NaN".
+  if (!iso) return null;
+  const year = new Date(`${iso}T00:00:00`).getFullYear();
+  return Number.isNaN(year) ? null : year.toString();
 }
 
 export function ProjectsGrid({ projects }: ProjectsGridProps) {
@@ -126,12 +130,15 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
     };
   }, []);
 
-  // Sort: featured first by featuredOrder, then non-featured by startedAt desc
+  // Sort: featured first by featuredOrder, then non-featured by startedAt desc.
+  // startedAt is nullable — calling .localeCompare on it threw a TypeError and
+  // took down the whole gallery whenever a project had no start date. Undated
+  // projects sort last.
   const sorted = [...projects].sort((a, b) => {
     const fa = a.featuredOrder ?? 999;
     const fb = b.featuredOrder ?? 999;
     if (fa !== fb) return fa - fb;
-    return b.startedAt.localeCompare(a.startedAt);
+    return (b.startedAt ?? '').localeCompare(a.startedAt ?? '');
   });
 
   return (
@@ -229,7 +236,7 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
                     {formatYear(project.startedAt)}
-                    {project.endedAt && ` – ${formatYear(project.endedAt)}`}
+                    {formatYear(project.endedAt) && ` – ${formatYear(project.endedAt)}`}
                   </span>
                 </div>
                 <h3 className="font-display text-xl font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)] transition-colors group-hover:text-[color:var(--color-accent)]">

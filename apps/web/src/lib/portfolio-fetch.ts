@@ -22,14 +22,15 @@ export interface PublicProject {
   id: string;
   slug: string;
   name: string;
-  summary: string;
+  /** Nullable in the DB and serialized as `?? null` by the API. */
+  summary: string | null;
   /** Sanitized HTML — sanitized server-side by isomorphic-dompurify (ADR-14). */
   descriptionHtml: string | null;
   repoUrl: string | null;
   liveUrl: string | null;
   featuredOrder: number | null;
-  /** ISO date string "YYYY-MM-DD" */
-  startedAt: string;
+  /** ISO date string "YYYY-MM-DD", or null — `projects.started_at` is nullable. */
+  startedAt: string | null;
   /** ISO date string "YYYY-MM-DD" or null */
   endedAt: string | null;
   /** Fully resolved public MinIO URL when hero_media_id is set; null otherwise. */
@@ -47,7 +48,8 @@ export interface PublicExperience {
   /** ISO date string "YYYY-MM-DD" or null */
   endedAt: string | null;
   location: string | null;
-  displayOrder: number;
+  /** Nullable in the DB and serialized as `?? null` by the API. */
+  displayOrder: number | null;
 }
 
 export interface PortfolioResult {

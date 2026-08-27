@@ -167,9 +167,9 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
                   />
                 )}
                 {/* Tech chips */}
-                {TECH_BY_COMPANY[exp.company] && (
+                {(TECH_BY_COMPANY[exp.company] ?? []).length > 0 && (
                   <ul className="mt-4 flex flex-wrap gap-1.5">
-                    {TECH_BY_COMPANY[exp.company].map((tech) => (
+                    {(TECH_BY_COMPANY[exp.company] ?? []).map((tech) => (
                       <li
                         key={tech}
                         className="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)]/60 px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-muted)] transition-colors group-hover:border-[color:var(--color-border)] group-hover:text-[color:var(--color-text-secondary)]"
