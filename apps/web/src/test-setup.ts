@@ -33,3 +33,16 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+// jsdom implements no SVG geometry: it does not define SVGPathElement at all,
+// so a <path> is constructed as a plain SVGElement and getTotalLength() is
+// missing. HeroIsland calls it to set up the signature underline draw-in, and
+// the resulting TypeError threw inside useEffect — taking down every test in
+// the file, including the ones that never touch the SVG. Real browsers all
+// implement this; the gap is jsdom's, not the component's.
+if (typeof SVGElement !== 'undefined') {
+  const proto = SVGElement.prototype as SVGElement & { getTotalLength?: () => number };
+  if (!proto.getTotalLength) {
+    proto.getTotalLength = () => 100;
+  }
+}

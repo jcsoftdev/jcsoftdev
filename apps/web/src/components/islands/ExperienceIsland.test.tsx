@@ -3,22 +3,27 @@
  *
  * Tests (Phase pre-5, carried forward):
  * 1. Renders cards from experiences prop
- * 2. Renders correct semantic elements (article[data-portfolio-experience-card])
+ * 2. Renders correct semantic elements (li[data-portfolio-experience-card])
  * 3. Mocks animation factory — factory called on mount with root element
  * 4. Cleanup: timeline.kill() called on unmount
  * 5. Empty experiences renders no cards
  * 6. summaryHtml rendered via dangerouslySetInnerHTML
  *
- * Tests (Phase 5 — DSI restyle):
- * 7. Renders company name in each card
- * 8. Renders role in each card
- * 9. Renders date range in each card
+ * Tests (current design):
+ * 7.  Renders company name in each entry
+ * 8.  Renders role in each entry
+ * 9.  Renders date range in each entry
  * 10. Renders summaryHtml content (sanitized server-side, ADR-14)
- * 11. Alternating layout: index 0 card has 'md:col-start-1' (left side)
- * 12. Alternating layout: index 1 card has 'md:col-start-2' (right side)
- * 13. Cards carry hover:border-accent class indicator
- * 14. Timeline line element present in DOM
- * 15. data-portfolio-experience-card preserved on all cards
+ * 11. Entries are <li> inside an <ol> — the layout is a single-column list
+ * 12. The in-progress role (endedAt === null) is flagged data-current + "Now"
+ * 13. Tech chips render for a company present in TECH_BY_COMPANY
+ * 14. data-portfolio-experience-card preserved on all entries
+ *
+ * NOTE: this file previously asserted a two-sided timeline — alternating
+ * md:col-start-1/2 cards, a [data-timeline-line] rail, and Card's
+ * data-hover="true". That design was replaced by the current single-column
+ * <ol>; the assertions were never updated, so five tests failed against
+ * markup that no longer exists.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -96,7 +101,7 @@ describe('ExperienceIsland', () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
 
-    const cards = container.querySelectorAll('article[data-portfolio-experience-card]');
+    const cards = container.querySelectorAll('li[data-portfolio-experience-card]');
     expect(cards).toHaveLength(2);
   });
 
@@ -128,7 +133,7 @@ describe('ExperienceIsland', () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { container } = render(<ExperienceIsland experiences={[]} />);
 
-    const cards = container.querySelectorAll('article[data-portfolio-experience-card]');
+    const cards = container.querySelectorAll('li[data-portfolio-experience-card]');
     expect(cards).toHaveLength(0);
   });
 
@@ -168,64 +173,54 @@ describe('ExperienceIsland', () => {
     expect(container.innerHTML).toContain('Built distributed systems at scale.');
   });
 
-  it('first card (index 0) is positioned on the left side of timeline on desktop (Phase 5)', async () => {
+  it('renders entries as <li> inside an <ol> (single-column list, not a two-sided timeline)', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
 
-    const cards = container.querySelectorAll('article[data-portfolio-experience-card]');
-    expect(cards.length).toBeGreaterThanOrEqual(2);
+    const list = container.querySelector('ol');
+    expect(list).toBeInTheDocument();
 
-    // Index 0 → left side: md:col-start-1 or data-side="left"
-    const firstCard = cards[0];
-    const firstWrapper = firstCard.closest('[data-timeline-side]') ?? firstCard;
-    const sideAttr = firstWrapper.getAttribute('data-timeline-side');
-    if (sideAttr !== null) {
-      expect(sideAttr).toBe('left');
-    } else {
-      // fallback: class-based check
-      const classStr = firstCard.className + (firstCard.closest('[class]')?.className ?? '');
-      expect(classStr).toMatch(/md:col-start-1|left/);
+    const cards = container.querySelectorAll('li[data-portfolio-experience-card]');
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card.parentElement?.tagName).toBe('OL');
     }
   });
 
-  it('second card (index 1) is positioned on the right side of timeline on desktop (Phase 5)', async () => {
+  it('flags the in-progress role with data-current and a "Now" badge', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
 
-    const cards = container.querySelectorAll('article[data-portfolio-experience-card]');
-    expect(cards.length).toBeGreaterThanOrEqual(2);
-
-    // Index 1 → right side: md:col-start-2 or data-side="right"
-    const secondCard = cards[1];
-    const secondWrapper = secondCard.closest('[data-timeline-side]') ?? secondCard;
-    const sideAttr = secondWrapper.getAttribute('data-timeline-side');
-    if (sideAttr !== null) {
-      expect(sideAttr).toBe('right');
-    } else {
-      const classStr = secondCard.className + (secondCard.closest('[class]')?.className ?? '');
-      expect(classStr).toMatch(/md:col-start-2|right/);
-    }
+    const cards = container.querySelectorAll('[data-portfolio-experience-card]');
+    // exp-1 ended; exp-2 has endedAt === null and is the current role.
+    expect(cards[0]?.getAttribute('data-current')).toBe('false');
+    expect(cards[1]?.getAttribute('data-current')).toBe('true');
+    expect(screen.getByText('Now')).toBeInTheDocument();
   });
 
-  it('cards include hover border-glow class indicator (Phase 5)', async () => {
+  it('renders tech chips for a company present in the tech map', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
-    const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
+    render(
+      <ExperienceIsland
+        experiences={[{ ...fakeExperiences[0], company: 'Pulzifi' } as PublicExperience]}
+      />
+    );
 
-    // Card component is rendered with hover=true which produces data-hover="true"
-    const hoverCards = container.querySelectorAll('[data-hover="true"]');
-    expect(hoverCards.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Go')).toBeInTheDocument();
+    expect(screen.getByText('Postgres')).toBeInTheDocument();
   });
 
-  it('renders the vertical timeline line element (Phase 5)', async () => {
+  it('renders no tech chips for a company absent from the tech map', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
-    const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
+    const { container } = render(
+      <ExperienceIsland experiences={[fakeExperiences[0] as PublicExperience]} />
+    );
 
-    // Timeline line is a decorative aria-hidden div with data-timeline-line
-    const line = container.querySelector('[data-timeline-line]');
-    expect(line).toBeInTheDocument();
+    // 'Acme Corp' is not in TECH_BY_COMPANY — the chip <ul> must not render.
+    expect(container.querySelector('li[data-portfolio-experience-card] ul')).toBeNull();
   });
 
-  it('preserves data-portfolio-experience-card on all entries after restyle (Phase 5)', async () => {
+  it('preserves data-portfolio-experience-card on all entries', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { container } = render(<ExperienceIsland experiences={fakeExperiences} />);
 
