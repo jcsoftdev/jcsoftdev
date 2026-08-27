@@ -112,21 +112,23 @@ describe('ExperienceIsland', () => {
     expect(container.innerHTML).toContain('Built distributed systems at scale.');
   });
 
-  it('calls animation factory on mount', async () => {
+  // The rail layout moved the reveal to the page's CSS IntersectionObserver, so
+  // this island no longer pulls GSAP in. These two tests used to assert the
+  // opposite; they now guard against the dependency creeping back, because a
+  // GSAP import here re-adds ~115KB to a list that animates fine without it.
+  it('does not depend on the GSAP animation factory', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     render(<ExperienceIsland experiences={fakeExperiences} />);
 
-    expect(mockTimelineFactory).toHaveBeenCalledTimes(1);
-    expect(mockTimelineFactory).toHaveBeenCalledWith(expect.any(HTMLElement));
+    expect(mockTimelineFactory).not.toHaveBeenCalled();
   });
 
-  it('calls timeline.kill() on unmount (cleanup)', async () => {
+  it('unmounts cleanly with no timeline to tear down', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     const { unmount } = render(<ExperienceIsland experiences={fakeExperiences} />);
 
-    unmount();
-
-    expect(mockKill).toHaveBeenCalledTimes(1);
+    expect(() => unmount()).not.toThrow();
+    expect(mockKill).not.toHaveBeenCalled();
   });
 
   it('renders empty section when no experiences', async () => {

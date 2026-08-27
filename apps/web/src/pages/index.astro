@@ -1,15 +1,17 @@
 ---
 /**
- * Home — single-page portfolio.
+ * Home — single-page portfolio, rail layout.
  *
- * All sections live here:
- *   Hero → Selected Work (Immersive Gallery) → Experience → About → Contact
+ * Hero → Selected Work → Experience → About → Contact.
  *
- * /portfolio is removed; nav anchors deep-link to section IDs.
+ * The chrome (nav, status, stack, contact) lives in SideRail and is on screen
+ * at every scroll position, so the sections here carry content only: no
+ * repeated stack list, no repeated email, and a contact section that no longer
+ * has to be the page's single conversion point.
  */
 import HeroIsland from "../components/HeroIsland.tsx";
-import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import CopyEmail from "../components/islands/CopyEmail.tsx";
+import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
 import RootLayout from "../layouts/RootLayout.astro";
 import { fetchPortfolioResilient } from "../lib/portfolio-fetch";
@@ -32,6 +34,15 @@ const homeJsonLd = [buildPersonSchema(), buildWebSiteSchema()];
 const portfolio = await fetchPortfolioResilient();
 const projects = portfolio.projects;
 const experiences = portfolio.experiences;
+
+/** Shared gutter. Fluid padding rather than stepped, because the column's width
+ *  varies continuously with the rail. `mx-auto` self-activates: it does nothing
+ *  until the column is wider than the max-width, so content stays left-aligned
+ *  against the rail on ordinary screens and stops looking abandoned on an
+ *  ultrawide one. */
+const GUTTER = "mx-auto w-full max-w-[75rem] px-[var(--gutter)]";
+const EYEBROW =
+  "font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]";
 ---
 
 <RootLayout
@@ -55,219 +66,203 @@ const experiences = portfolio.experiences;
   ]}
   jsonLd={homeJsonLd}
 >
-  <main>
-    {/* Scroll progress bar — fixed at top of viewport */}
+  <main class="measure-grid">
+    {
+      /* Scroll progress — inset past the rail so it measures the column it tracks */
+    }
     <div
       id="scroll-progress"
       aria-hidden="true"
-      class="fixed left-0 top-0 z-[var(--z-header)] h-[2px] origin-left"
-      style="background: var(--color-accent); transform: scaleX(0); width: 100%; transition: transform 80ms linear;"
+      class="fixed top-0 z-[var(--z-header)] h-[2px] origin-left"
+      style="left: var(--rail-w); width: calc(100% - var(--rail-w)); background: var(--color-accent); transform: scaleX(0); transition: transform 80ms linear;"
     >
     </div>
 
     {/* ── Hero ───────────────────────────────────────────────────── */}
     <HeroIsland client:idle />
 
-    {/* ── Selected Work (Immersive Gallery) ─────────────────────── */}
+    {/* ── Selected Work ──────────────────────────────────────────── */}
     <section
       id="work"
       data-reveal
-      class="relative border-t border-[color:var(--color-border-soft)]"
+      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
     >
-      <div
-        class="mx-auto w-full max-w-[1280px] px-6 pb-12 pt-24 lg:px-12 lg:pt-32"
-      >
-        <div class="mb-12 flex items-end justify-between gap-6">
-          <div class="space-y-3">
-            <span
-              data-reveal-item
-              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] block"
-            >
-              Selected Work
+      <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
+        <div class="flex items-end justify-between gap-6 pb-4">
+          <div class="space-y-2.5">
+            <span data-reveal-item class={`${EYEBROW} block`}>
+              Selected work
             </span>
             <h2
               data-reveal-item
-              class="font-display text-3xl md:text-4xl font-semibold tracking-tight text-[color:var(--color-text-primary)] max-w-[40ch]"
+              class="max-w-[24ch] font-display text-[clamp(1.5rem,1.25rem+1.1vw,2rem)] font-semibold leading-[1.1] tracking-tight text-[color:var(--color-text-primary)]"
             >
-              Things I've shipped<br />over the years.
+              Things I've shipped over the years.
             </h2>
           </div>
           <span
             data-reveal-item
-            class="hidden sm:inline-flex font-mono text-xs italic text-[color:var(--color-text-muted)]"
+            class="hidden shrink-0 font-mono text-xs italic text-[color:var(--color-text-muted)] @xl:inline-flex"
           >
-            {projects.length} projects
+            {projects.length}
+            {projects.length === 1 ? "project" : "projects"}
           </span>
         </div>
       </div>
-      <ProjectsGrid projects={projects} client:visible />
+      <div data-reveal-item class={`${GUTTER} pb-[var(--section-py)]`}>
+        <ProjectsGrid projects={projects} client:visible />
+      </div>
     </section>
 
     {/* ── Experience ─────────────────────────────────────────────── */}
     <section
       id="experience"
       data-reveal
-      class="relative border-t border-[color:var(--color-border-soft)] py-24 lg:py-32"
+      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
     >
-      <div class="mx-auto w-full max-w-[1280px] px-6 lg:px-12">
-        <div class="mb-12 flex items-baseline justify-between gap-6">
-          <span
-            data-reveal-item
-            class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
-          >
-            Experience
-          </span>
+      <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
+        <div class="flex items-baseline justify-between gap-6 pb-4">
+          <span data-reveal-item class={EYEBROW}>Experience</span>
           <span
             data-reveal-item
             class="font-mono text-xs italic text-[color:var(--color-text-muted)]"
           >
-            {experiences.length} roles · 9 years
+            {experiences.length}
+            {experiences.length === 1 ? "role" : "roles"} · 9 years
           </span>
         </div>
       </div>
-      <ExperienceIsland experiences={experiences} client:visible />
+      <div data-reveal-item class={`${GUTTER} pb-[var(--section-py)]`}>
+        <ExperienceIsland experiences={experiences} client:visible />
+      </div>
     </section>
 
-    {/* ── About / Now ────────────────────────────────────────────── */}
+    {/* ── About ──────────────────────────────────────────────────── */}
     <section
       id="about"
       data-reveal
-      class="relative border-t border-[color:var(--color-border-soft)] py-24 lg:py-32"
+      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
     >
-      <div class="mx-auto w-full max-w-[1280px] px-6 lg:px-12">
-        <div class="grid gap-12 lg:grid-cols-12">
-          <div class="lg:col-span-4 space-y-3">
-            <span
-              data-reveal-item
-              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] block"
+      <div
+        class={`${GUTTER} grid gap-8 py-[var(--section-py)] @5xl:grid-cols-[minmax(0,1fr)_22rem] @5xl:gap-10`}
+      >
+        <div class="flex flex-col gap-5">
+          <span data-reveal-item class={EYEBROW}>About</span>
+          <h2
+            data-reveal-item
+            class="font-display text-[clamp(1.5rem,1.25rem+1.1vw,2rem)] font-semibold leading-[1.1] tracking-tight text-[color:var(--color-text-primary)]"
+          >
+            The shape of my work.
+          </h2>
+          <p
+            data-reveal-item
+            class="max-w-[58ch] text-lg leading-relaxed text-[color:var(--color-text-primary)]"
+          >
+            I care about <em
+              class="font-medium not-italic text-[color:var(--color-text-primary)]"
+              >clean architecture</em
             >
-              About
-            </span>
-            <h2
-              data-reveal-item
-              class="font-display text-3xl md:text-4xl font-semibold leading-[1.05] tracking-tight text-[color:var(--color-text-primary)]"
+            (Hexagonal, DDD, Screaming),
+            <em
+              class="font-medium not-italic text-[color:var(--color-text-primary)]"
+              >performance</em
             >
-              The shape of<br />my work.
-            </h2>
-          </div>
-          <div class="lg:col-span-8 grid gap-10 lg:grid-cols-12">
-            {/* Narrative — values-first, no stats repetition */}
-            <div
-              class="lg:col-span-7 max-w-[60ch] space-y-5 text-[color:var(--color-text-secondary)]"
+            (SSR/SSG, caching, query tuning), and
+            <em
+              class="font-medium not-italic text-[color:var(--color-text-primary)]"
+              >teaching</em
             >
-              <p
-                data-reveal-item
-                class="text-xl leading-relaxed text-[color:var(--color-text-primary)]"
-              >
-                I care about <em
-                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
-                  >clean architecture</em
-                >
-                (Hexagonal, DDD, Screaming),
-                <em
-                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
-                  >performance</em
-                >
-                (SSR/SSG, caching, query tuning), and
-                <em
-                  class="not-italic text-[color:var(--color-text-primary)] font-medium"
-                  >teaching</em
-                >
-                — writing, code review, and pairing with anyone willing to push past
-                their comfort zone.
-              </p>
-              <p data-reveal-item class="leading-relaxed">
-                Comfortable across the stack — frontend, backend, data, infra.
-                Allergic to shortcuts.
-              </p>
-            </div>
+            — writing, code review, and pairing with anyone willing to push past their
+            comfort zone.
+          </p>
+          <p
+            data-reveal-item
+            class="max-w-[58ch] leading-relaxed text-[color:var(--color-text-secondary)]"
+          >
+            Comfortable across the stack — frontend, backend, data, infra.
+            Allergic to shortcuts.
+          </p>
 
-            {/* Stats grid — the source of truth for numbers */}
-            <aside data-reveal-item class="lg:col-span-5">
-              <dl
-                class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[color:var(--color-border-soft)] bg-[color:var(--color-border-soft)]"
+          {
+            /* Reading used to be a stat cell doing nothing. It belongs next to
+              the writing it feeds. */
+          }
+          <div
+            data-reveal-item
+            class="mt-2 flex flex-wrap items-center justify-between gap-4 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4"
+          >
+            <div class="flex flex-col gap-1">
+              <span class={EYEBROW}>Currently reading</span>
+              <span class="font-medium text-[color:var(--color-text-primary)]"
+                >Designing Data-Intensive Applications</span
               >
-                <div class="bg-[color:var(--color-background)] p-4">
-                  <dt
-                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
-                  >
-                    Years
-                  </dt>
-                  <dd
-                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
-                  >
-                    9<span class="text-[color:var(--color-accent)]">+</span>
-                  </dd>
-                </div>
-                <div class="bg-[color:var(--color-background)] p-4">
-                  <dt
-                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
-                  >
-                    Companies
-                  </dt>
-                  <dd
-                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
-                  >
-                    7
-                  </dd>
-                </div>
-                <div class="bg-[color:var(--color-background)] p-4">
-                  <dt
-                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
-                  >
-                    Projects
-                  </dt>
-                  <dd
-                    class="mt-2 font-display text-3xl font-semibold text-[color:var(--color-text-primary)]"
-                  >
-                    {projects.length}+
-                  </dd>
-                </div>
-                <div class="bg-[color:var(--color-background)] p-4">
-                  <dt
-                    class="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]"
-                  >
-                    Reading
-                  </dt>
-                  <dd
-                    class="mt-2 font-mono text-xs leading-tight text-[color:var(--color-text-secondary)]"
-                  >
-                    Designing<br />Data-Intensive Apps
-                  </dd>
-                </div>
-              </dl>
-            </aside>
-
-            {/* Stack pills — trimmed to the meaningful 10 */}
-            <div data-reveal-item class="lg:col-span-12">
-              <p
-                class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] mb-3"
-              >
-                / stack
-              </p>
-              <div class="flex flex-wrap gap-2">
-                {
-                  [
-                    "TypeScript",
-                    "Go",
-                    "React",
-                    "Next.js",
-                    "NestJS",
-                    "Hono",
-                    "Postgres",
-                    "AWS · Azure · GCP",
-                    "Docker",
-                    "Hexagonal · DDD",
-                  ].map((t) => (
-                    <span class="rounded-full border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-3 py-1 font-mono text-[11px] text-[color:var(--color-text-muted)] transition-colors hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]">
-                      {t}
-                    </span>
-                  ))
-                }
-              </div>
             </div>
+            <a
+              href="/blog"
+              class="inline-flex items-center gap-2 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+            >
+              Notes
+              <span aria-hidden="true">→</span>
+            </a>
           </div>
         </div>
+
+        {
+          /* Numbers readout — only figures that are actually true. "Companies: 7"
+            is gone: over nine years it reads as churn as easily as breadth, and
+            the number alone cannot say which. */
+        }
+        <aside data-reveal-item class="@5xl:pt-9">
+          <div
+            class="panel-frame rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5"
+          >
+            <p class={`${EYEBROW} mb-4`}>By the numbers</p>
+            <dl class="flex flex-col">
+              <div
+                class="flex items-baseline justify-between gap-3 border-b border-[color:var(--color-border)] pb-3"
+              >
+                <dt
+                  class="font-mono text-xs text-[color:var(--color-text-muted)]"
+                >
+                  Shipping since
+                </dt>
+                <dd
+                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                >
+                  2017
+                </dd>
+              </div>
+              <div
+                class="flex items-baseline justify-between gap-3 border-b border-[color:var(--color-border)] py-3"
+              >
+                <dt
+                  class="font-mono text-xs text-[color:var(--color-text-muted)]"
+                >
+                  Projects shipped
+                </dt>
+                <dd
+                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                >
+                  {projects.length}<span
+                    class="text-[color:var(--color-accent)]">+</span
+                  >
+                </dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-3 pt-3">
+                <dt
+                  class="font-mono text-xs text-[color:var(--color-text-muted)]"
+                >
+                  Roles
+                </dt>
+                <dd
+                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                >
+                  {experiences.length}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -275,35 +270,29 @@ const experiences = portfolio.experiences;
     <section
       id="contact"
       data-reveal
-      class="relative overflow-hidden border-t border-[color:var(--color-border-soft)] py-24 lg:py-28"
+      class="relative scroll-mt-[var(--header-height)] overflow-hidden border-t border-[color:var(--color-border)]"
     >
-      {/* Ambient orb in contact for visual closure */}
       <div
         aria-hidden="true"
-        class="pointer-events-none absolute right-[-25%] top-1/2 h-[55vmax] w-[55vmax] -translate-y-1/2 rounded-full"
-        style="background: radial-gradient(circle, oklch(0.70 0.20 249 / 0.16) 0%, transparent 65%); filter: blur(80px); z-index: var(--z-orbs);"
+        class="pointer-events-none absolute right-[-20%] top-1/2 h-[46vmax] w-[46vmax] -translate-y-1/2 rounded-full"
+        style="background: radial-gradient(circle, oklch(0.70 0.20 249 / 0.14) 0%, transparent 65%); filter: blur(80px); z-index: var(--z-orbs);"
       >
       </div>
 
       <div
-        class="relative mx-auto w-full max-w-[1280px] px-6 lg:px-12"
+        class={`${GUTTER} relative py-[var(--section-py)]`}
         style="z-index: var(--z-content);"
       >
-        {/* Heading block — bounded width so it doesn't fight email */}
-        <div class="max-w-[60ch] space-y-5">
+        <div class="max-w-[58ch] space-y-4">
           <div data-reveal-item class="flex items-center gap-3">
             <span
-              class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-accent)] [box-shadow:0_0_12px_var(--color-accent)] animate-pulse"
+              class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-success)] [box-shadow:0_0_12px_var(--color-success)]"
             ></span>
-            <span
-              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
-            >
-              Get in touch
-            </span>
+            <span class={EYEBROW}>Get in touch</span>
           </div>
           <h2
             data-reveal-item
-            class="font-display text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.0] tracking-[-0.03em] text-[color:var(--color-text-primary)]"
+            class="font-display text-[clamp(1.875rem,1.35rem+2.4vw,3rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-[color:var(--color-text-primary)]"
           >
             Have a problem worth <em
               class="not-italic text-[color:var(--color-accent)]">solving?</em
@@ -318,91 +307,72 @@ const experiences = portfolio.experiences;
           </p>
         </div>
 
-        {/* Action grid — 2 balanced cols */}
         <div
-          class="mt-12 grid gap-6 border-t border-[color:var(--color-border-soft)] pt-10 lg:grid-cols-2 lg:gap-12"
+          class="mt-8 grid gap-8 border-t border-[color:var(--color-border)] pt-8 @5xl:grid-cols-[minmax(0,1fr)_22rem]"
         >
-          {/* Email — click-to-copy, with mailto kept as the secondary path */}
-          <div
-            data-reveal-item
-            class="flex flex-col gap-3 rounded-xl border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] p-6"
-          >
-            <span
-              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
-              >Primary · Email</span
-            >
+          <div data-reveal-item class="flex flex-col gap-3">
+            <span class={EYEBROW}>Primary · Email</span>
             <CopyEmail
               client:visible
               email="hello@jcsoftdev.com"
-              note="avg. reply · 24h on weekdays"
+              note="Replies under 24h on weekdays"
             />
           </div>
 
-          {/* Socials column */}
-          <div data-reveal-item class="flex flex-col gap-3">
-            <span
-              class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
-              >Or find me on</span
-            >
-            <ul class="grid grid-cols-1 gap-2">
-              <li>
-                <a
-                  href="https://github.com/jcsoftdev"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="text-[color:var(--color-text-muted)]"
-                      >github</span
+          <div data-reveal-item class="flex flex-col gap-2.5">
+            <span class={EYEBROW}>Or find me on</span>
+            <ul class="flex flex-col gap-2">
+              {
+                [
+                  {
+                    label: "github",
+                    handle: "/jcsoftdev",
+                    href: "https://github.com/jcsoftdev",
+                    external: true,
+                  },
+                  {
+                    label: "linkedin",
+                    handle: "/in/jcsoftdev",
+                    href: "https://linkedin.com/in/jcsoftdev",
+                    external: true,
+                  },
+                  {
+                    label: "blog",
+                    handle: "/writing",
+                    href: "/blog",
+                    external: false,
+                  },
+                  {
+                    label: "rss",
+                    handle: "/rss.xml",
+                    href: "/rss.xml",
+                    external: false,
+                  },
+                ].map(({ label, handle, href, external }) => (
+                  <li>
+                    <a
+                      href={href}
+                      {...(external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                      class="group flex items-center justify-between rounded-sm border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                     >
-                    <span>/jcsoftdev</span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
-                    >→</span
-                  >
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://linkedin.com/in/jcsoftdev"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="text-[color:var(--color-text-muted)]"
-                      >linkedin</span
-                    >
-                    <span>/in/jcsoftdev</span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
-                    >→</span
-                  >
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/blog"
-                  class="group flex items-center justify-between rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)]"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="text-[color:var(--color-text-muted)]"
-                      >blog</span
-                    >
-                    <span>/writing</span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    class="text-[color:var(--color-text-muted)] transition-all group-hover:text-[color:var(--color-accent)] group-hover:translate-x-1"
-                    >→</span
-                  >
-                </a>
-              </li>
+                      <span class="flex items-center gap-3">
+                        <span class="text-[color:var(--color-text-muted)]">
+                          {label}
+                        </span>
+                        <span>{handle}</span>
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        class="text-[color:var(--color-text-muted)] transition-[color,transform] group-hover:translate-x-1 group-hover:text-[color:var(--color-accent)]"
+                      >
+                        →
+                      </span>
+                    </a>
+                  </li>
+                ))
+              }
             </ul>
           </div>
         </div>
@@ -419,28 +389,29 @@ const experiences = portfolio.experiences;
 
 <script>
   // Scroll progress bar — pure scroll math, no animation library needed.
-  const bar = document.getElementById("scroll-progress");
-  if (bar) {
+  const initProgress = () => {
+    const bar = document.getElementById("scroll-progress");
+    if (!bar) return;
+    // Runs on module execution and again on astro:page-load — bind once, or the
+    // window collects a scroll listener per navigation.
+    if (bar.dataset.bound === "true") return;
+    bar.dataset.bound = "true";
     const onScroll = () => {
-      const scrolled = window.scrollY;
       const max = document.documentElement.scrollHeight - window.innerHeight;
-      const ratio = max > 0 ? Math.min(scrolled / max, 1) : 0;
+      const ratio = max > 0 ? Math.min(window.scrollY / max, 1) : 0;
       bar.style.transform = `scaleX(${ratio})`;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
-  }
+  };
 
   // Reveal animations — IntersectionObserver + CSS transitions.
-  // Replaces GSAP + ScrollTrigger (~115KB) with a 30-line zero-dep impl
-  // that produces the same fade + lift + blur with stagger via CSS delay.
   let activeObserver: IntersectionObserver | null = null;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const initReveals = () => {
     activeObserver?.disconnect();
-    if (reduced) {
-      // CSS media query handles the no-animation state.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // The CSS media query below handles the no-animation state.
       return;
     }
 
@@ -450,54 +421,58 @@ const experiences = portfolio.experiences;
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
           const section = entry.target as HTMLElement;
-          // Reveal the section as one unit. Per-item staggering meant the
-          // reader repeatedly waited on text that was already painted — worst
-          // in About, which has the longest chain.
-          section.classList.add("is-revealed");
-          for (const item of section.querySelectorAll<HTMLElement>(
-            "[data-reveal-item]",
-          )) {
-            item.classList.add("is-revealed");
+          const items =
+            section.querySelectorAll<HTMLElement>("[data-reveal-item]");
+          if (items.length === 0) {
+            section.classList.add("is-revealed");
+          } else {
+            items.forEach((item, i) => {
+              item.style.setProperty("--reveal-delay", `${i * 55}ms`);
+              item.classList.add("is-revealed");
+            });
           }
           activeObserver?.unobserve(section);
         }
       },
-      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" },
+      { threshold: 0.1, rootMargin: "0px 0px -8% 0px" },
     );
 
     for (const section of sections) activeObserver.observe(section);
   };
 
-  initReveals();
-  document.addEventListener("astro:page-load", initReveals);
+  const init = () => {
+    initProgress();
+    initReveals();
+  };
+
+  init();
+  document.addEventListener("astro:page-load", init);
 </script>
 
 <style is:global>
   /* Reveal items: hidden until intersection, then transition in.
-     Mirrors the previous GSAP timeline (expo.out ≈ cubic-bezier(0.16, 1, 0.3, 1),
-     duration 0.85s, stagger via inline --reveal-delay). */
+     The 8px blur the previous pass used is gone — in a dense rail layout it
+     kept text unreadable while it was already on screen, and it costs a paint
+     on every frame of the transition. Fade plus a short lift does the job. */
   html.js [data-reveal-item] {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
     transition:
-      opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: opacity, transform;
+      opacity 0.5s var(--ease-out-expo),
+      transform 0.5s var(--ease-out-expo);
+    transition-delay: var(--reveal-delay, 0ms);
   }
   html.js [data-reveal-item].is-revealed {
     opacity: 1;
     transform: translateY(0);
-    /* Release the compositor layer once the animation is over — this used to
-       stay promoted for the lifetime of the page, on every revealed element. */
-    will-change: auto;
   }
   /* Section-level fallback for [data-reveal] blocks with no marked items. */
   html.js [data-reveal]:not(:has([data-reveal-item])) {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
     transition:
-      opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity 0.5s var(--ease-out-expo),
+      transform 0.5s var(--ease-out-expo);
   }
   html.js [data-reveal]:not(:has([data-reveal-item])).is-revealed {
     opacity: 1;

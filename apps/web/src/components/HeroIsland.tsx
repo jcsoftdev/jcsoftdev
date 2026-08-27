@@ -1,12 +1,10 @@
-import { createCursorOrbTimeline, createHeroFadeTimeline, initLenis } from '@jcsoftdev/animations';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { initLenis } from '@jcsoftdev/animations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
 
-/** Inline icon components — match HUD aesthetic (cyan stroke, currentColor). */
+/** Inline icon components — mobile only; the rail carries these on lg+. */
 const GitHubIcon = () => (
   <svg
     width="20"
@@ -35,8 +33,6 @@ const LinkedInIcon = () => (
   </svg>
 );
 
-/** Bordered social icon link — uses the brand accent (now the circuit cyan
- *  from the planet). Hover boosts brightness + glow. */
 function SocialIconButton({
   href,
   label,
@@ -52,24 +48,7 @@ function SocialIconButton({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
-      className="group flex h-11 w-11 items-center justify-center bg-black/40 backdrop-blur-sm"
-      style={{
-        border: '1px solid var(--color-accent-muted)',
-        color: 'var(--color-accent)',
-        boxShadow: '0 0 0 0 transparent',
-        transition: 'box-shadow 200ms, border-color 200ms, color 200ms',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--color-accent)';
-        e.currentTarget.style.color = 'var(--color-accent-hover)';
-        e.currentTarget.style.boxShadow =
-          '0 0 20px var(--color-accent-glow), 0 0 4px var(--color-accent-muted)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--color-accent-muted)';
-        e.currentTarget.style.color = 'var(--color-accent)';
-        e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-      }}
+      className="flex h-11 w-11 items-center justify-center border border-[color:var(--color-accent-muted)] bg-black/40 text-[color:var(--color-accent)] outline-none backdrop-blur-sm transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
     >
       {children}
     </a>
@@ -82,27 +61,12 @@ function SocialIconButton({
 // SSR HTML so it paints at FCP regardless of when this chunk arrives.
 const HeroMesh = lazy(() => import('./islands/HeroMesh'));
 
-gsap.registerPlugin(ScrollTrigger);
-
-/** Static gradient that matches the steady-state HeroMesh look. Renders
- * during the idle window before the mesh chunk loads, preventing layout
- * shift and giving the eye something to land on while WebGL boots. */
+/** Steady-state ground behind the mesh, so the hero never flashes empty. */
 function HeroMeshPlaceholder() {
-  return (
-    <div
-      aria-hidden
-      className="absolute inset-0"
-      style={{
-        background: 'oklch(0 0 0)',
-      }}
-    />
-  );
+  return <div aria-hidden className="absolute inset-0" style={{ background: 'oklch(0 0 0)' }} />;
 }
 
-/** Fades the WebGL canvas in once the lazy chunk has loaded and React has
- * mounted HeroMesh. Suspending parents block this component's render until
- * the chunk resolves, so the rAF here fires AFTER the canvas exists in DOM
- * — no pop-in, the canvas crossfades over the placeholder gradient. */
+/** Crossfades the WebGL canvas over the placeholder once the chunk resolves. */
 function HeroMeshFadeIn() {
   const [visible, setVisible] = useState(false);
 
@@ -126,130 +90,47 @@ function HeroMeshFadeIn() {
 }
 
 /**
- * HeroIsland — full-viewport hero for the home page (/).
+ * HeroIsland — hero for the home page (/), rail layout.
  *
- * Data attributes:
- * - [data-hero-title] — main heading (accessible label on wrapper)
- * - [data-hero-sub]   — role line
- * - [data-hero-cta]   — CTA links
+ * The planet is the hero's backdrop and sits behind all of the copy: the
+ * signature's chromatic halo and the dark text shadows exist precisely to keep
+ * type legible over the bright hemisphere. Boxing the mesh into a side panel
+ * took that away, so it is full-bleed again — bounded by the section, which
+ * starts after the rail, so it never runs under the navigation.
+ *
+ * The hero is a dark canvas in BOTH palettes. Copy colors here are literal
+ * light values rather than var(--color-text-*) for that reason: under the light
+ * palette those tokens resolve to near-black, which is unreadable on this
+ * ground. This matches the scope note in global.css.
+ *
+ * Gone with the previous pass: the cursor-tracked orb (it overrode the pointer
+ * affordance) and the scroll parallax (it fought the rail's fixed column).
+ *
+ * The entrance is CSS. A JS-driven one starts by setting opacity: 0, which
+ * leaves the headline blank until this island hydrates — after a ~720KB chunk,
+ * and forever if that chunk fails.
  */
 export default function HeroIsland() {
   const rootRef = useRef<HTMLElement>(null);
-  const orbRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const meshLayerRef = useRef<HTMLDivElement>(null);
   const [meshReady, setMeshReady] = useState(false);
 
   useEffect(() => {
-    // Mount the WebGL chunk ASAP after hydration. The placeholder gradient
-    // stays visible behind, the lazy chunk fetches in parallel, and
-    // HeroMeshFadeIn crossfades the canvas in once it's actually rendered.
-    // No artificial delays, no pop-in.
+    // Mount the WebGL chunk ASAP after hydration. The placeholder stays visible
+    // behind, the lazy chunk fetches in parallel, and HeroMeshFadeIn crossfades
+    // the canvas in once it is actually rendered. No artificial delays.
     const meshFrame = requestAnimationFrame(() => setMeshReady(true));
-
-    const lenis = initLenis({ withScrollTriggerBridge: true });
-    const fade = rootRef.current ? createHeroFadeTimeline(rootRef.current) : null;
-    const orb = orbRef.current ? createCursorOrbTimeline(orbRef.current) : null;
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let parallax: gsap.core.Tween | null = null;
-    let meshParallax: gsap.core.Tween | null = null;
-    let entrance: gsap.core.Timeline | null = null;
-
-    if (!reduced && contentRef.current) {
-      const elements = contentRef.current.querySelectorAll<HTMLElement>('[data-hero-reveal]');
-      const svgPath = contentRef.current.querySelector<SVGPathElement>('[data-hero-sig-path]');
-
-      // SVG underline
-      let pathLen = 0;
-      if (svgPath) {
-        pathLen = svgPath.getTotalLength();
-        gsap.set(svgPath, { strokeDasharray: pathLen, strokeDashoffset: pathLen });
-      }
-
-      if (elements.length > 0) {
-        gsap.set(elements, { y: 24, opacity: 0, filter: 'blur(8px)' });
-        entrance = gsap.timeline({ delay: 0.1 });
-        entrance.to(elements, {
-          y: 0,
-          opacity: 1,
-          filter: 'blur(0px)',
-          duration: 0.9,
-          ease: 'expo.out',
-          stagger: 0.08,
-        });
-      }
-
-      // SVG underline draws in after the signature (~1.8s) + 0.1s gap
-      if (svgPath && pathLen > 0) {
-        entrance = entrance ?? gsap.timeline({ delay: 0.1 });
-        entrance.to(svgPath, { strokeDashoffset: 0, duration: 0.8, ease: 'expo.out' }, 1.9);
-      }
-
-      // Scroll parallax. Text (foreground) translates up ~25% of its own
-      // height. Planet layer (background) translates only ~8% in the same
-      // direction and scales up slightly — that delta is what creates the
-      // depth illusion. Using yPercent so the effect is consistent across
-      // viewport sizes. Both tweens share one ScrollTrigger to stay locked.
-      if (rootRef.current) {
-        parallax = gsap.to(contentRef.current, {
-          yPercent: -70,
-          opacity: 0,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: rootRef.current,
-            start: 'top top',
-            end: 'bottom top',
-            scrub: 0.2,
-          },
-        });
-
-        if (meshLayerRef.current) {
-          // Planet drifts DOWN slightly while zooming in — opposite direction
-          // to the text creates the strongest depth feel ("camera diving").
-          meshParallax = gsap.to(meshLayerRef.current, {
-            yPercent: 10,
-            scale: 1.2,
-            opacity: 0.4,
-            ease: 'none',
-            scrollTrigger: {
-              trigger: rootRef.current,
-              start: 'top top',
-              end: 'bottom top',
-              scrub: 0.2,
-            },
-          });
-        }
-      }
-    }
+    const lenis = initLenis();
 
     return () => {
       cancelAnimationFrame(meshFrame);
-      parallax?.scrollTrigger?.kill();
-      parallax?.kill();
-      meshParallax?.scrollTrigger?.kill();
-      meshParallax?.kill();
-      entrance?.kill();
       lenis?.destroy();
-      fade?.kill();
-      orb?.kill();
     };
   }, []);
 
   return (
-    <section
-      ref={rootRef}
-      className="relative flex min-h-[calc(100svh_-_var(--header-height))] items-center overflow-hidden"
-    >
-      {/* Mesh layer — wraps placeholder + lazy WebGL canvas. The wrapper
-          gets a slow scroll parallax (y / scale / opacity) so the planet
-          drifts behind the text as the user scrolls. Placeholder stays as
-          the LCP candidate; HeroMeshFadeIn crossfades the canvas over it. */}
-      <div
-        ref={meshLayerRef}
-        className="absolute inset-0 will-change-transform"
-        style={{ transformOrigin: 'center center' }}
-      >
+    <section ref={rootRef} className="relative isolate overflow-hidden">
+      {/* Mesh layer — spans the hero, behind everything. */}
+      <div className="absolute inset-0 z-0">
         <HeroMeshPlaceholder />
         {meshReady && (
           <Suspense fallback={null}>
@@ -258,102 +139,46 @@ export default function HeroIsland() {
         )}
       </div>
 
-      {/* Readability scrim — absolute pixel stops so the dark zone always
-          covers the text reading area regardless of viewport width.
-          No backdrop-filter: that would blur the planet on the transparent
-          side too (filter applies to the box, not modulated by alpha). */}
+      {/* Readability scrim. Absolute pixel stops so the dark zone always covers
+          the reading column regardless of viewport width. No backdrop-filter:
+          that blurs the planet on the transparent side too, because the filter
+          applies to the box rather than being modulated by alpha. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        data-hero-scrim
+        className="absolute inset-0 z-[1]"
         style={{
           background:
-            'linear-gradient(to right, oklch(0.04 0.005 270 / 0.96) 0px, oklch(0.04 0.005 270 / 0.92) min(460px, 38vw), oklch(0.04 0.005 270 / 0.65) min(720px, 58vw), oklch(0.04 0.005 270 / 0.30) min(980px, 76vw), oklch(0.04 0.005 270 / 0.10) min(1200px, 92vw), transparent min(1400px, 100vw))',
-          zIndex: 1,
+            'linear-gradient(to right, oklch(0.04 0.005 270 / 0.95) 0px, oklch(0.04 0.005 270 / 0.90) min(430px, 40vw), oklch(0.04 0.005 270 / 0.62) min(660px, 58vw), oklch(0.04 0.005 270 / 0.28) min(880px, 76vw), oklch(0.04 0.005 270 / 0.08) min(1080px, 92vw), transparent min(1260px, 100vw))',
         }}
       />
 
-      {/* Cursor-tracked highlight orb */}
+      {/* Bottom fade into the section boundary below. */}
       <div
-        ref={orbRef}
         aria-hidden
-        data-cursor-orb
-        className="pointer-events-none absolute left-0 top-0 h-[30vmax] w-[30vmax] rounded-full"
+        className="absolute inset-x-0 bottom-0 z-[1] h-24"
         style={{
-          background: 'radial-gradient(circle, oklch(1 0 0 / 0.05) 0%, transparent 55%)',
-          filter: 'blur(40px)',
-          zIndex: 'var(--z-orbs)' as string,
-          mixBlendMode: 'screen',
+          background: 'linear-gradient(to bottom, transparent, var(--color-background))',
         }}
       />
-
-      {/* Social icons — desktop right edge (vertical strip, HUD-coherent) */}
-      <nav
-        aria-label="Social links"
-        className="pointer-events-auto absolute right-6 top-1/2 hidden -translate-y-1/2 flex-col gap-3 md:flex"
-        style={{ zIndex: 'var(--z-content)' as string }}
-      >
-        <SocialIconButton href={AUTHOR_GITHUB} label="GitHub">
-          <GitHubIcon />
-        </SocialIconButton>
-        <SocialIconButton href={AUTHOR_LINKEDIN} label="LinkedIn">
-          <LinkedInIcon />
-        </SocialIconButton>
-      </nav>
-
-      {/* SVG noise overlay */}
-      <svg
-        aria-hidden
-        role="presentation"
-        className="pointer-events-none fixed inset-0 h-full w-full"
-        style={{ opacity: 0.035, mixBlendMode: 'overlay', zIndex: 'var(--z-orbs)' as string }}
-      >
-        <filter id="hero-noise">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.65"
-            numOctaves="3"
-            stitchTiles="stitch"
-          />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#hero-noise)" />
-      </svg>
 
       {/* Copy */}
-      <div
-        ref={contentRef}
-        className="relative mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 will-change-transform"
-        style={{ zIndex: 'var(--z-content)' as string }}
-      >
-        <div className="flex max-w-[68ch] flex-col items-start gap-4 md:gap-6">
-          {/* Eyebrow */}
+      <div className="relative z-10 mx-auto flex min-h-[max(32rem,calc(100svh-var(--header-height)))] w-full max-w-[75rem] flex-col justify-center px-[var(--gutter)] py-[var(--section-py)]">
+        <div className="flex w-full max-w-[min(62ch,100%)] flex-col items-start gap-4 @2xl:gap-5">
           <div
             data-hero-reveal
-            className="flex items-center gap-3"
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-xs)',
-              color: 'oklch(0.88 0.01 270)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              textShadow:
-                '0 0 4px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.9), 0 0 22px oklch(0.04 0 0 / 0.65)',
-            }}
+            style={{ '--hero-i': 0 } as React.CSSProperties}
+            className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.08em] text-[oklch(0.90_0.01_270)] [text-shadow:0_0_4px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.9)]"
           >
             <span
               aria-hidden
-              style={{
-                display: 'inline-block',
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: 'var(--color-accent)',
-                boxShadow: '0 0 8px var(--color-accent)',
-              }}
+              className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-success)]"
+              style={{ boxShadow: '0 0 8px var(--color-success)' }}
             />
             Bienvenido · Welcome · Available worldwide
           </div>
 
-          {/* Signature name — real handwriting, drawn with GSAP */}
+          {/* Signature name — animated per character in CSS */}
           <h1
             data-hero-title
             aria-label="Juan Carlos Valencia"
@@ -362,14 +187,13 @@ export default function HeroIsland() {
             <SignatureName delay={0.2} />
           </h1>
 
-          {/* SVG curved underline — draws in after signature */}
           <svg
             aria-hidden="true"
             viewBox="0 0 280 20"
             preserveAspectRatio="none"
             style={{
-              width: 'clamp(160px, 36vw, 280px)',
-              height: '20px',
+              width: 'clamp(160px, 32vw, 280px)',
+              height: '18px',
               overflow: 'visible',
               display: 'block',
               marginTop: '-0.5rem',
@@ -386,145 +210,75 @@ export default function HeroIsland() {
             />
           </svg>
 
-          {/* Role */}
-          <div data-hero-reveal className="flex flex-col gap-3">
-            <p
-              data-hero-sub
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-base)',
-                color: 'var(--color-accent-hover)',
-                letterSpacing: '0.05em',
-                margin: 0,
-                textShadow:
-                  '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 12px oklch(0.04 0 0 / 0.92), 0 0 28px oklch(0.04 0 0 / 0.7)',
-              }}
-            >
-              Senior Full-Stack Developer
-            </p>
-          </div>
-
-          {/* Statement */}
           <p
             data-hero-reveal
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 'clamp(1.125rem, 1.6vw, 1.5rem)',
-              fontStyle: 'italic',
-              color: 'oklch(0.96 0.005 270)',
-              maxWidth: '42ch',
-              lineHeight: '1.45',
-              margin: 0,
-              textShadow:
-                '0 0 6px oklch(0.04 0 0 / 0.95), 0 1px 14px oklch(0.04 0 0 / 0.95), 0 0 32px oklch(0.04 0 0 / 0.75)',
-            }}
+            data-hero-sub
+            style={{ '--hero-i': 1 } as React.CSSProperties}
+            className="m-0 font-mono text-base tracking-[0.05em] text-[color:var(--color-accent-hover)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_12px_oklch(0.04_0_0/0.92)]"
+          >
+            Senior Full-Stack Developer
+          </p>
+
+          <p
+            data-hero-reveal
+            style={{ '--hero-i': 2 } as React.CSSProperties}
+            className="m-0 max-w-[min(44ch,100%)] text-[clamp(1.0625rem,0.95rem+0.6vw,1.375rem)] italic leading-[1.45] text-[oklch(0.96_0.005_270)] [text-shadow:0_0_6px_oklch(0.04_0_0/0.95),0_1px_14px_oklch(0.04_0_0/0.95)]"
           >
             I build software that doesn't fight you — from interface to insight. SaaS, telecom,
             e-commerce, education, and more.
           </p>
 
-          {/* CTAs */}
-          <div data-hero-reveal className="mt-2 flex flex-wrap items-center gap-5">
-            <Magnetic strength={0.4}>
+          <div
+            data-hero-reveal
+            style={{ '--hero-i': 3 } as React.CSSProperties}
+            className="mt-2 flex w-full flex-col items-stretch gap-3 min-[26rem]:w-auto min-[26rem]:flex-row min-[26rem]:items-center min-[26rem]:gap-4"
+          >
+            <Magnetic strength={0.4} className="w-full min-[26rem]:w-auto">
               <a
                 href="#work"
                 data-hero-cta
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.625rem',
-                  borderRadius: 'var(--radius-md)',
-                  fontFamily: 'var(--font-sans)',
-                  fontWeight: 600,
-                  fontSize: 'var(--text-sm)',
-                  padding: '0.875rem 1.75rem',
-                  background: 'var(--color-accent)',
-                  color: 'oklch(0.10 0 0)',
-                  border: '1px solid transparent',
-                  textDecoration: 'none',
-                  transition: 'filter var(--duration-fast), box-shadow var(--duration-base)',
-                  boxShadow: '0 0 0 0 transparent',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.filter = 'brightness(1.08)';
-                  e.currentTarget.style.boxShadow = '0 8px 32px -8px var(--color-accent-muted)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.filter = 'brightness(1)';
-                  e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-                }}
+                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,box-shadow] duration-[var(--duration-fast)] hover:brightness-110 hover:shadow-[0_8px_32px_-8px_var(--color-accent-muted)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                View Selected Work
-                <span aria-hidden style={{ transition: 'transform var(--duration-fast)' }}>
-                  →
-                </span>
+                View selected work
+                <span aria-hidden>→</span>
               </a>
             </Magnetic>
             <a
-              href="/blog"
+              href="/resume"
               data-hero-cta
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 500,
-                fontSize: 'var(--text-xs)',
-                color: 'oklch(0.92 0.01 270)',
-                textDecoration: 'none',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-                textShadow:
-                  '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.92), 0 0 22px oklch(0.04 0 0 / 0.7)',
-                transition: 'color var(--duration-fast)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'oklch(0.98 0 0)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'oklch(0.88 0.01 270)';
-              }}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-black/40 px-6 py-3.5 min-[26rem]:w-auto font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] outline-none backdrop-blur-sm transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-white focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
-              Or read the writing
+              Read the résumé
               <span aria-hidden>↗</span>
             </a>
           </div>
 
-          {/* Now-line */}
           <div
             data-hero-reveal
-            className="mt-6 md:mt-8 border-t pt-5 md:pt-6"
-            style={{
-              borderColor: 'oklch(0.50 0.02 270 / 0.4)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-xs)',
-              color: 'oklch(0.92 0.01 270)',
-              letterSpacing: '0.04em',
-              lineHeight: '1.6',
-              textShadow:
-                '0 0 5px oklch(0.04 0 0 / 0.95), 0 1px 10px oklch(0.04 0 0 / 0.92), 0 0 22px oklch(0.04 0 0 / 0.7)',
-            }}
+            style={{ '--hero-i': 4 } as React.CSSProperties}
+            className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-white/15 pt-4 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
           >
-            <span style={{ color: 'oklch(0.96 0 0)' }}>Now</span> building{' '}
-            <a
-              href="https://pulzifi.com"
-              rel="noopener noreferrer"
-              target="_blank"
-              style={{
-                color: 'oklch(0.98 0 0)',
-                textDecoration: 'underline',
-                textDecorationColor: 'var(--color-accent-muted)',
-                textUnderlineOffset: '3px',
-                fontWeight: 600,
-              }}
-            >
-              Pulzifi
-            </a>{' '}
-            — web monitoring SaaS with AI insights.
+            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">Now</span>
+            <span>
+              <a
+                href="https://pulzifi.com"
+                rel="noopener noreferrer"
+                target="_blank"
+                className="font-semibold text-white underline decoration-[color:var(--color-accent-muted)] underline-offset-[3px]"
+              >
+                Pulzifi
+              </a>{' '}
+              — web monitoring SaaS with AI insights.
+            </span>
           </div>
 
-          {/* Social icons — mobile only, below now-line */}
-          <nav data-hero-reveal aria-label="Social links" className="mt-4 flex gap-3 md:hidden">
+          {/* Social icons — mobile only; the rail carries these on lg+ */}
+          <nav
+            data-hero-reveal
+            style={{ '--hero-i': 5 } as React.CSSProperties}
+            aria-label="Social links"
+            className="mt-2 flex gap-3 lg:hidden"
+          >
             <SocialIconButton href={AUTHOR_GITHUB} label="GitHub">
               <GitHubIcon />
             </SocialIconButton>

@@ -1,7 +1,7 @@
 ---
 import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
-import Header from "../components/Header.astro";
+import SideRail from "../components/SideRail.astro";
 import Footer from "../components/Footer.astro";
 import { resolvePlausibleHost } from "../lib/analytics";
 
@@ -244,9 +244,29 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
       )
     }
   </head>
-  <body>
-    <Header />
-    <slot />
-    <Footer />
+  <!-- Mobile first: no inset, and bottom padding to clear the fixed contact
+       bar. --rail-w is 0 until the viewport can hold a fixed column beside a
+       readable measure, at which point this inset appears and the bottom bar
+       goes away. Inset rather than a grid so the rail scrolls independently of
+       the page. -->
+  <body
+    class="pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+    style="padding-left: var(--rail-w);"
+  >
+    <a
+      href="#content"
+      class="sr-only rounded-md bg-[color:var(--color-accent)] px-4 py-2 font-mono text-sm text-[color:var(--color-background)] focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[var(--z-modal)]"
+    >
+      Skip to content
+    </a>
+    <SideRail />
+    <!-- @container: every section below sizes itself against THIS column, not
+         the viewport. With a rail whose width varies, viewport breakpoints lie
+         — at 1024px the column is ~740px wide, and a `lg:` two-column split
+         there produced a 307px reading measure. -->
+    <div id="content" class="@container relative min-w-0">
+      <slot />
+      <Footer />
+    </div>
   </body>
 </html>

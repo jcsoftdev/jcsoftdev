@@ -12,9 +12,16 @@ interface MagneticProps {
   children: ReactNode;
   /** Strength of the pull (0–1). Default 0.35. */
   strength?: number;
+  /**
+   * Classes for the wrapper. The wrapper is inline-block by default, which
+   * stops a wrapped button from stretching inside a stretch flex column — the
+   * shape a full-width CTA takes on a phone. Pass `w-full` (or a responsive
+   * variant) rather than fighting the wrapper from outside.
+   */
+  className?: string;
 }
 
-export default function Magnetic({ children, strength = 0.35 }: MagneticProps) {
+export default function Magnetic({ children, strength = 0.35, className }: MagneticProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,7 +68,11 @@ export default function Magnetic({ children, strength = 0.35 }: MagneticProps) {
   }, [strength]);
 
   return (
-    <div ref={wrapRef} style={{ display: 'inline-block', willChange: 'transform' }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ display: 'inline-block', willChange: 'transform' }}
+    >
       {children}
     </div>
   );

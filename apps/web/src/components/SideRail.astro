@@ -1,0 +1,448 @@
+---
+/**
+ * SideRail — the site's persistent navigation shell.
+ *
+ * Replaces the sticky top Header. On lg+ it is a fixed 280px column that also
+ * carries the things a top bar had nowhere to put: availability, location and
+ * reply time as a standing status readout, and the email as a permanent CTA
+ * rather than one the visitor has to scroll back up (or all the way down) to
+ * reach.
+ *
+ * Below lg the column cannot survive, so it degrades into the two pieces that
+ * matter on a phone: a compact top bar with a drawer, and a sticky bottom bar
+ * that keeps the contact action reachable at any scroll position.
+ */
+import { isActive } from "../lib/active-link";
+
+const path = Astro.url.pathname;
+
+/** In-page anchors. Prefixed with `/` so they work from /blog and /resume too. */
+const sections = [
+  { label: "Work", href: "/#work", id: "work" },
+  { label: "Experience", href: "/#experience", id: "experience" },
+  { label: "About", href: "/#about", id: "about" },
+] as const;
+
+/** Real routes — these get aria-current from the pathname, not from scroll. */
+const routes = [
+  { label: "Writing", href: "/blog" },
+  { label: "Résumé", href: "/resume" },
+] as const;
+
+const stack = [
+  "TypeScript",
+  "Go",
+  "React",
+  "Next.js",
+  "Postgres",
+  "Hexagonal",
+] as const;
+
+const EMAIL = "hello@jcsoftdev.com";
+const GITHUB = "https://github.com/jcsoftdev";
+const LINKEDIN = "https://linkedin.com/in/jcsoftdev";
+
+const navLinkClass =
+  "group flex items-center gap-2.5 rounded-sm text-sm text-[color:var(--color-text-secondary)] outline-none transition-colors duration-[var(--duration-fast)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)] aria-[current=page]:text-[color:var(--color-text-primary)] data-[active=true]:text-[color:var(--color-text-primary)]";
+
+const dotClass =
+  "inline-block h-[5px] w-[5px] shrink-0 rounded-full bg-[color:var(--color-border-strong)] transition-[background-color,box-shadow] duration-[var(--duration-fast)] group-aria-[current=page]:bg-[color:var(--color-accent)] group-aria-[current=page]:[box-shadow:0_0_6px_var(--color-accent)] group-data-[active=true]:bg-[color:var(--color-accent)] group-data-[active=true]:[box-shadow:0_0_6px_var(--color-accent)]";
+---
+
+{/* ══════════════ Desktop rail (lg+) ══════════════ */}
+<aside
+  aria-label="Site navigation"
+  class="fixed inset-y-0 left-0 z-[var(--z-header)] hidden flex-col justify-between overflow-y-auto overscroll-contain border-r border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-6 lg:flex"
+  style="width: var(--rail-w);"
+>
+  <div class="flex flex-col gap-7">
+    {/* Brand */}
+    <a
+      href="/"
+      aria-label="jcsoftdev — home"
+      class="group flex items-center gap-2 rounded-sm font-mono text-[13px] tracking-[var(--tracking-mono)] outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)]"
+    >
+      <span
+        aria-hidden="true"
+        class="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)] transition-[box-shadow] duration-[var(--duration-base)] group-hover:shadow-[0_0_8px_var(--color-accent)]"
+      ></span>
+      <span class="text-[color:var(--color-text-primary)]">jcsoftdev</span>
+      <span aria-hidden="true" class="text-[color:var(--color-text-faint)]"
+        >/</span
+      >
+      <span class="text-[color:var(--color-text-secondary)]">jc valencia</span>
+    </a>
+
+    {/* Status — the readout a top bar had no room for */}
+    <div class="flex flex-col gap-2.5">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+      >
+        Status
+      </p>
+      <dl class="flex flex-col gap-2.5 font-mono text-xs">
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-[color:var(--color-text-muted)]">Availability</dt>
+          <dd
+            class="flex items-center gap-1.5 text-[color:var(--color-success)]"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-success)]"
+            ></span>
+            Open
+          </dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-[color:var(--color-text-muted)]">Location</dt>
+          <dd class="text-[color:var(--color-text-primary)]">Lima · UTC-5</dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-[color:var(--color-text-muted)]">Reply time</dt>
+          <dd class="text-[color:var(--color-text-primary)]">Under 24h</dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-[color:var(--color-text-muted)]">Shipping since</dt>
+          <dd class="text-[color:var(--color-text-primary)]">2017</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="h-px bg-[color:var(--color-border)]"></div>
+
+    {/* Sections + routes */}
+    <nav class="flex flex-col gap-3" aria-label="Sections">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+      >
+        Sections
+      </p>
+      <ul class="flex flex-col gap-3">
+        {
+          sections.map(({ label, href, id }) => (
+            <li>
+              <a
+                href={href}
+                data-rail-section={id}
+                data-active="false"
+                class={navLinkClass}
+              >
+                <span aria-hidden="true" class={dotClass} />
+                {label}
+              </a>
+            </li>
+          ))
+        }
+        {
+          routes.map(({ label, href }) => (
+            <li>
+              <a
+                href={href}
+                aria-current={isActive(path, href) ? "page" : undefined}
+                class={navLinkClass}
+              >
+                <span aria-hidden="true" class={dotClass} />
+                {label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="h-px bg-[color:var(--color-border)]"></div>
+
+    {/* Stack */}
+    <div class="flex flex-col gap-2.5">
+      <p
+        class="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+      >
+        Stack
+      </p>
+      <ul class="flex flex-wrap gap-1.5">
+        {
+          stack.map((t) => (
+            <li class="rounded-xs border border-[color:var(--color-border)] px-[7px] py-[3px] font-mono text-[11px] text-[color:var(--color-text-muted)]">
+              {t}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  {/* Contact — pinned, so it is reachable from any scroll position */}
+  <div class="flex flex-col gap-2.5 pt-6">
+    <div class="h-px bg-[color:var(--color-border)]"></div>
+    <a
+      href={`mailto:${EMAIL}`}
+      class="flex items-center justify-between gap-2 rounded-sm border border-[color:var(--color-accent-muted)] bg-[color:var(--color-accent-soft)] px-3 py-2.5 font-mono text-xs text-[color:var(--color-accent)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+    >
+      {EMAIL}
+      <svg
+        aria-hidden="true"
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M7 17 17 7"></path>
+        <path d="M9 7h8v8"></path>
+      </svg>
+    </a>
+    <div class="flex gap-2">
+      <a
+        href={GITHUB}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="GitHub"
+        class="flex h-10 w-11 items-center justify-center rounded-sm border border-[color:var(--color-accent-muted)] text-[color:var(--color-accent)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
+          ><path
+            d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1-.02-1.96-3.2.7-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.18a10.97 10.97 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.13 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.79.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"
+          ></path></svg
+        >
+      </a>
+      <a
+        href={LINKEDIN}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="LinkedIn"
+        class="flex h-10 w-11 items-center justify-center rounded-sm border border-[color:var(--color-accent-muted)] text-[color:var(--color-accent)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
+          ><path
+            d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z"
+          ></path></svg
+        >
+      </a>
+    </div>
+  </div>
+</aside>
+
+{/* ══════════════ Mobile top bar + drawer (< lg) ══════════════ */}
+<div class="sticky top-0 z-[var(--z-header)] lg:hidden">
+  <header
+    class="flex items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-[color:var(--backdrop-bg)] px-[var(--gutter)] py-2.5 backdrop-blur-xl"
+  >
+    <a
+      href="/"
+      aria-label="jcsoftdev — home"
+      class="group flex items-center gap-2 rounded-sm font-mono text-sm text-[color:var(--color-text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+    >
+      <span
+        aria-hidden="true"
+        class="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)] [box-shadow:0_0_8px_var(--color-accent)]"
+      ></span>
+      jcsoftdev
+    </a>
+
+    <div class="flex items-center gap-2">
+      <span
+        class="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]"
+      >
+        <span
+          aria-hidden="true"
+          class="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-success)]"
+        ></span>
+        Open
+      </span>
+      <button
+        type="button"
+        aria-label="Open menu"
+        aria-controls="rail-drawer"
+        aria-expanded="false"
+        data-rail-toggle
+        class="inline-flex h-11 w-11 items-center justify-center rounded-md border border-[color:var(--color-border)] text-[color:var(--color-text-secondary)] transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          aria-hidden="true"
+        >
+          <path
+            data-rail-open
+            d="M4 7h16M4 12h16M4 17h16"
+            stroke-linecap="round"></path>
+          <path
+            data-rail-close
+            d="M6 6l12 12M6 18L18 6"
+            class="hidden"
+            stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  {
+    /* Drawer — a sibling inside the sticky wrapper, so it always sits flush under
+    the bar without a magic offset. max-h keeps it scrollable on short screens
+    (a phone in landscape). */
+  }
+  <div
+    id="rail-drawer"
+    data-rail-drawer
+    aria-hidden="true"
+    class="hidden max-h-[calc(100svh-var(--header-height))] flex-col gap-1 overflow-y-auto overscroll-contain border-b border-[color:var(--color-border)] bg-[color:var(--color-background)]/95 px-[var(--gutter)] pb-6 pt-3 backdrop-blur-xl data-[open=true]:flex"
+  >
+    <p
+      class="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
+    >
+      Sections
+    </p>
+    {
+      [...sections, ...routes].map(({ label, href }) => (
+        <a
+          href={href}
+          aria-current={isActive(path, href) ? "page" : undefined}
+          data-rail-link
+          class="block rounded-md px-3 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] transition-transform active:scale-[0.98] active:bg-[color:var(--color-surface)] aria-[current=page]:text-[color:var(--color-accent)]"
+        >
+          → {label}
+        </a>
+      ))
+    }
+    <dl
+      class="mt-3 flex flex-col gap-2 border-t border-[color:var(--color-border-soft)] pt-4 font-mono text-xs"
+    >
+      <div class="flex items-center justify-between">
+        <dt class="text-[color:var(--color-text-muted)]">Location</dt>
+        <dd class="text-[color:var(--color-text-primary)]">Lima · UTC-5</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="text-[color:var(--color-text-muted)]">Reply time</dt>
+        <dd class="text-[color:var(--color-text-primary)]">Under 24h</dd>
+      </div>
+    </dl>
+  </div>
+</div>
+
+{
+  /* Bottom contact bar — the rail's pinned CTA, kept on small screens. Fixed
+    rather than sticky so it survives any scroll container, and padded for the
+    home indicator on iOS. */
+}
+<div
+  class="fixed inset-x-0 bottom-0 z-[calc(var(--z-header)-2)] flex items-center justify-between gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--backdrop-bg)] px-[var(--gutter)] pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-xl lg:hidden"
+>
+  <div class="flex min-w-0 flex-col">
+    <span
+      class="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]"
+    >
+      <span
+        aria-hidden="true"
+        class="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--color-success)]"
+      ></span>
+      Available
+    </span>
+    <span
+      class="truncate font-mono text-xs text-[color:var(--color-text-secondary)] max-[22rem]:hidden"
+      >Replies under 24h</span
+    >
+  </div>
+  <a
+    href={`mailto:${EMAIL}`}
+    class="inline-flex h-12 shrink-0 items-center gap-2 rounded-md bg-[color:var(--color-accent)] px-5 font-mono text-sm font-medium text-[color:var(--color-background)] outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-background)]"
+  >
+    Say hi
+    <span aria-hidden="true">→</span>
+  </a>
+</div>
+
+<script>
+  // ── Mobile drawer ────────────────────────────────────────────────────────
+  const initDrawer = () => {
+    const toggle =
+      document.querySelector<HTMLButtonElement>("[data-rail-toggle]");
+    const drawer = document.querySelector<HTMLElement>("[data-rail-drawer]");
+    if (!toggle || !drawer) return;
+
+    // This runs on module execution AND on astro:page-load. Without a guard the
+    // toggle collects a listener per call, and one click fires them all — the
+    // drawer opens and closes again in the same tick.
+    if (toggle.dataset.bound === "true") return;
+    toggle.dataset.bound = "true";
+
+    const setOpen = (open: boolean) => {
+      drawer.dataset.open = String(open);
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      drawer.setAttribute("aria-hidden", String(!open));
+      toggle
+        .querySelector("[data-rail-open]")
+        ?.classList.toggle("hidden", open);
+      toggle
+        .querySelector("[data-rail-close]")
+        ?.classList.toggle("hidden", !open);
+      document.body.style.overflow = open ? "hidden" : "";
+    };
+
+    toggle.addEventListener("click", () =>
+      setOpen(drawer.dataset.open !== "true"),
+    );
+    for (const link of document.querySelectorAll("[data-rail-link]")) {
+      link.addEventListener("click", () => setOpen(false));
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && drawer.dataset.open === "true") setOpen(false);
+    });
+  };
+
+  // ── Scroll spy ───────────────────────────────────────────────────────────
+  // The rail is a position indicator, not just a menu: it should say where you
+  // are. A top bar could never do this, which is half the reason for the rail.
+  let spy: IntersectionObserver | null = null;
+
+  const initSpy = () => {
+    spy?.disconnect();
+    const links = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("[data-rail-section]"),
+    );
+    if (links.length === 0) return;
+
+    const byId = new Map(
+      links.map((a) => [a.dataset.railSection ?? "", a] as const),
+    );
+    const targets = [...byId.keys()]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (targets.length === 0) return;
+
+    // Track every visible section, then light the topmost one. Without the
+    // set, a fast scroll can leave two sections lit or none at all.
+    const visible = new Set<string>();
+
+    spy = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        const active = targets.find((t) => visible.has(t.id))?.id ?? "";
+        for (const [id, link] of byId) {
+          link.dataset.active = String(id === active);
+        }
+      },
+      { rootMargin: "-20% 0px -70% 0px", threshold: 0 },
+    );
+
+    for (const t of targets) spy.observe(t);
+  };
+
+  const init = () => {
+    initDrawer();
+    initSpy();
+  };
+
+  init();
+  document.addEventListener("astro:page-load", init);
+</script>

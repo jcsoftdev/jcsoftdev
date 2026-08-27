@@ -1,23 +1,18 @@
 /**
- * ExperienceIsland — clean CV-style list.
+ * ExperienceIsland — roles as ruled rows.
  *
- * Two-column layout: dates+company on left, role+summary on right.
- * Horizontal rule between entries. No centered timeline gimmick — the
- * left column IS the timeline (mono dates anchor each row).
+ * Three columns: period, company + role, then scope. The rows are separated by
+ * hairlines rather than wrapped in cards, because the rail layout already
+ * supplies the page's chrome and a second frame around every role just adds
+ * noise.
  *
  * Page section header lives in index.astro; this component renders ONLY the list.
  *
- * Animation: createExperienceFadeUpTimeline factory (reduced-motion safe via
- * createReducedMotionSafe wrapper in @jcsoftdev/animations).
+ * Reveal is handled by the page's CSS IntersectionObserver, so this island no
+ * longer pulls in GSAP or ScrollTrigger.
  */
 
-import { createExperienceFadeUpTimeline } from '@jcsoftdev/animations';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useEffect, useRef } from 'react';
 import type { PublicExperience } from '../../lib/portfolio-fetch.js';
-
-gsap.registerPlugin(ScrollTrigger);
 
 interface ExperienceIslandProps {
   experiences: PublicExperience[];
@@ -33,6 +28,16 @@ const TECH_BY_COMPANY: Record<string, string[]> = {
   IDW: ['React', 'TypeScript', 'Vite', 'Redux', 'AWS S3 / CloudFront'],
   'Peru Software S.A.C': ['React', 'Node.js', 'MongoDB', 'WebSockets', 'GCP Cloud Run'],
 };
+
+/**
+ * One measurable outcome per role — the line that separates a senior CV from a
+ * job list. Deliberately EMPTY: these are your numbers, and a plausible-looking
+ * invented figure is worse than a missing one. Add an entry and the row renders
+ * a Result line; leave it out and the row is unchanged.
+ *
+ * Shape: 'Company': 'Cut p95 checkout latency from 900ms to 220ms.'
+ */
+const RESULT_BY_COMPANY: Record<string, string> = {};
 
 /** Brand color hint per company (subtle accent on monogram). */
 const COMPANY_HUE: Record<string, string> = {
@@ -55,154 +60,149 @@ function monogram(company: string): string {
     .join('');
 }
 
-export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+function year(iso: string | null): string | null {
+  if (!iso) return null;
+  const y = new Date(`${iso}T00:00:00`).getFullYear();
+  return Number.isNaN(y) ? null : y.toString();
+}
 
-  useEffect(() => {
-    if (!rootRef.current) return;
-    const timeline = createExperienceFadeUpTimeline(rootRef.current);
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const rows = Array.from(
-      rootRef.current.querySelectorAll<HTMLElement>('[data-portfolio-experience-card]')
-    );
-
-    let tween: gsap.core.Tween | null = null;
-    if (!reduced && rows.length > 0) {
-      gsap.set(rows, { y: 30, opacity: 0, filter: 'blur(6px)' });
-      tween = gsap.to(rows, {
-        y: 0,
-        opacity: 1,
-        filter: 'blur(0px)',
-        duration: 0.8,
-        ease: 'expo.out',
-        stagger: 0.06,
-        scrollTrigger: {
-          trigger: rootRef.current,
-          start: 'top 80%',
-          once: true,
-        },
-      });
-    }
-
-    return () => {
-      tween?.scrollTrigger?.kill();
-      tween?.kill();
-      timeline.kill();
-    };
-  }, []);
+/**
+ * "2025 —" for a current role, "2023 — 25" for a closed one.
+ *
+ * Rendered as real <time> elements rather than a formatted string so the dates
+ * stay machine-readable — the résumé page and any future JSON-LD read the same
+ * markup.
+ */
+function Period({ startedAt, endedAt }: { startedAt: string; endedAt: string | null }) {
+  const from = year(startedAt);
+  const to = year(endedAt);
 
   return (
-    <div ref={rootRef} className="mx-auto w-full max-w-[1280px] px-6 lg:px-12">
-      <ol className="flex flex-col">
-        {experiences.map((exp, index) => {
-          const isCurrent = exp.endedAt === null;
-          return (
-            <li
-              key={exp.id}
-              data-current={isCurrent}
-              // biome-ignore lint/suspicious/noExplicitAny: data-* attribute
-              {...({ 'data-portfolio-experience-card': true } as any)}
-              className={[
-                'group relative grid grid-cols-1 gap-y-3 gap-x-12 py-10 lg:grid-cols-12 lg:py-12',
-                'transition-[padding] duration-[var(--duration-base)] [transition-timing-function:var(--ease-out-expo)]',
-                'hover:lg:pl-6',
-                index < experiences.length - 1
-                  ? 'border-b border-[color:var(--color-border-soft)]'
-                  : '',
-              ].join(' ')}
-            >
-              {/* Left edge accent — appears on hover, equal treatment for all rows */}
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-6 left-0 w-[2px] origin-top scale-y-0 bg-[color:var(--color-accent)] opacity-0 transition-transform duration-[var(--duration-base)] [transition-timing-function:var(--ease-out-expo)] group-hover:scale-y-100 group-hover:opacity-100"
-              />
-
-              {/* Left column — monogram + dates + company */}
-              <div className="lg:col-span-4">
-                <div className="flex items-start gap-4">
-                  {/* Monogram badge */}
-                  <div
-                    aria-hidden="true"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)] font-mono text-sm font-semibold transition-colors duration-[var(--duration-base)] group-hover:border-[color:var(--color-accent-muted)]"
-                    style={{
-                      color: COMPANY_HUE[exp.company] ?? 'var(--color-text-secondary)',
-                    }}
-                  >
-                    {monogram(exp.company)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
-                      <time dateTime={exp.startedAt}>{formatDate(exp.startedAt)}</time>
-                      <span aria-hidden="true">→</span>
-                      {exp.endedAt ? (
-                        <time dateTime={exp.endedAt}>{formatDate(exp.endedAt)}</time>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 text-[color:var(--color-accent)] [box-shadow:0_0_12px_oklch(0.74_0.16_280_/_0.25)]">
-                          <span
-                            aria-hidden="true"
-                            className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)] animate-pulse"
-                          />
-                          Now
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="mt-2 font-display text-[26px] font-semibold leading-[1.05] tracking-tight text-[color:var(--color-text-primary)] transition-colors duration-[var(--duration-fast)] group-hover:text-[color:var(--color-accent)]">
-                      {exp.company}
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right column — role + summary + tech chips + hover arrow */}
-              <div className="lg:col-span-8 relative">
-                <p className="font-mono text-sm text-[color:var(--color-text-secondary)] transition-colors duration-[var(--duration-fast)] group-hover:text-[color:var(--color-accent)]">
-                  {exp.role}
-                </p>
-                {exp.summaryHtml && (
-                  <div
-                    // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized server-side per ADR-14
-                    dangerouslySetInnerHTML={{ __html: exp.summaryHtml }}
-                    className="mt-3 max-w-[62ch] text-[15px] leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)]"
-                  />
-                )}
-                {/* Tech chips */}
-                {(TECH_BY_COMPANY[exp.company] ?? []).length > 0 && (
-                  <ul className="mt-4 flex flex-wrap gap-1.5">
-                    {(TECH_BY_COMPANY[exp.company] ?? []).map((tech) => (
-                      <li
-                        key={tech}
-                        className="rounded border border-[color:var(--color-border-soft)] bg-[color:var(--color-surface)]/60 px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-muted)] transition-colors group-hover:border-[color:var(--color-border)] group-hover:text-[color:var(--color-text-secondary)]"
-                      >
-                        {tech}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <span
-                  aria-hidden="true"
-                  className="absolute right-0 top-0 font-mono text-xs text-[color:var(--color-text-muted)] opacity-0 transition-all duration-[var(--duration-base)] group-hover:opacity-100 group-hover:translate-x-1"
-                >
-                  ↗
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+    <span className="font-mono text-xs text-[color:var(--color-text-muted)]">
+      <time dateTime={startedAt}>{from ?? '—'}</time>
+      {endedAt === null ? (
+        ' —'
+      ) : from === to ? null : (
+        <>
+          {' — '}
+          <time dateTime={endedAt}>{to?.slice(2) ?? '—'}</time>
+        </>
+      )}
+    </span>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDate(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
+export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
+  const sorted = [...experiences].sort((a, b) => {
+    const da = a.displayOrder ?? Number.POSITIVE_INFINITY;
+    const db = b.displayOrder ?? Number.POSITIVE_INFINITY;
+    if (da !== db) return da - db;
+    return b.startedAt.localeCompare(a.startedAt);
   });
-}
 
-export default ExperienceIsland;
+  if (sorted.length === 0) {
+    return (
+      <p className="font-mono text-sm text-[color:var(--color-text-muted)]">
+        No roles to show yet.
+      </p>
+    );
+  }
+
+  return (
+    <ol className="flex flex-col">
+      {sorted.map((exp) => {
+        const isCurrent = exp.endedAt === null;
+        const tech = TECH_BY_COMPANY[exp.company] ?? [];
+        const result = RESULT_BY_COMPANY[exp.company];
+        const hue = COMPANY_HUE[exp.company] ?? 'var(--color-border-strong)';
+
+        return (
+          <li
+            key={exp.id}
+            data-portfolio-experience-card
+            data-current={String(isCurrent)}
+            className={[
+              'grid grid-cols-1 gap-x-6 gap-y-3 border-t border-[color:var(--color-border-soft)] px-3 py-6 @4xl:grid-cols-[112px_200px_minmax(0,1fr)] @4xl:px-0',
+              isCurrent
+                ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
+                : '',
+            ].join(' ')}
+          >
+            {/* Period */}
+            <div className="flex flex-col gap-2 @4xl:pl-3">
+              <Period startedAt={exp.startedAt} endedAt={exp.endedAt} />
+              {isCurrent && (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--color-accent)]">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)]"
+                  />
+                  Now
+                </span>
+              )}
+            </div>
+
+            {/* Company + role */}
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border font-mono text-[11px] font-semibold"
+                style={{ borderColor: hue, color: hue }}
+              >
+                {monogram(exp.company)}
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="font-display text-lg font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)]">
+                  {exp.company}
+                </span>
+                <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
+                  {exp.role}
+                </span>
+                {exp.location && (
+                  <span className="font-mono text-[11px] text-[color:var(--color-text-faint)]">
+                    {exp.location}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* Scope */}
+            <div className="flex flex-col gap-3">
+              {exp.summaryHtml && (
+                // Sanitized server-side by isomorphic-dompurify (ADR-14).
+                <div
+                  className="max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)]"
+                  dangerouslySetInnerHTML={{ __html: exp.summaryHtml }}
+                />
+              )}
+
+              {result && (
+                <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]">
+                    Result
+                  </span>
+                  <span className="text-[color:var(--color-text-primary)]">{result}</span>
+                </p>
+              )}
+
+              {tech.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {tech.map((t) => (
+                    <li
+                      key={t}
+                      className="rounded-xs border border-[color:var(--color-border)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-muted)]"
+                    >
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </li>
+        );
+      })}
+
+      <li aria-hidden="true" className="border-t border-[color:var(--color-border)]" />
+    </ol>
+  );
+}

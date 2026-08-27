@@ -71,14 +71,17 @@ describe('HeroIsland — CTAs', () => {
     expect(link).toHaveAttribute('href', '#work');
   });
 
-  it('renders secondary CTA as an <a> element linking to /blog', async () => {
+  // The rail carries a permanent Writing link, so the hero's second CTA is no
+  // longer the only way to reach the blog. It points at the résumé instead —
+  // the second click a recruiter actually looks for.
+  it('renders secondary CTA as an <a> element linking to /resume', async () => {
     const { default: HeroIsland } = await import('./HeroIsland.js');
     render(<HeroIsland />);
 
-    const link = screen.getByRole('link', { name: /read the writing/i });
+    const link = screen.getByRole('link', { name: /read the r\u00e9sum\u00e9/i });
     expect(link).toBeInTheDocument();
     expect(link.tagName).toBe('A');
-    expect(link).toHaveAttribute('href', '/blog');
+    expect(link).toHaveAttribute('href', '/resume');
   });
 
   it('both CTAs have data-hero-cta attribute', async () => {
@@ -89,21 +92,23 @@ describe('HeroIsland — CTAs', () => {
     expect(ctaLinks).toHaveLength(2);
   });
 
-  it('calls createHeroFadeTimeline on mount', async () => {
+  // The hero owns a single entrance timeline now. createHeroFadeTimeline drove
+  // the same title/sub/cta nodes off a ScrollTrigger that reversed on scroll-up
+  // — correct for a full-viewport hero, but with two timelines writing the same
+  // opacity the copy rendered invisible. This guards against it coming back.
+  it('does not use the scroll-triggered hero fade timeline', async () => {
     const { default: HeroIsland } = await import('./HeroIsland.js');
     render(<HeroIsland />);
 
-    expect(mockTimelineFactory).toHaveBeenCalledTimes(1);
-    expect(mockTimelineFactory).toHaveBeenCalledWith(expect.any(HTMLElement));
+    expect(mockTimelineFactory).not.toHaveBeenCalled();
   });
 
-  it('calls timeline.kill() on unmount', async () => {
+  it('unmounts cleanly with no scroll-triggered timeline to tear down', async () => {
     const { default: HeroIsland } = await import('./HeroIsland.js');
     const { unmount } = render(<HeroIsland />);
 
-    unmount();
-
-    expect(mockKill).toHaveBeenCalledTimes(1);
+    expect(() => unmount()).not.toThrow();
+    expect(mockKill).not.toHaveBeenCalled();
   });
 });
 
@@ -159,27 +164,42 @@ describe('HeroIsland — Phase 4 copy and composition', () => {
     expect(screen.getByText(/i build software that doesn't fight you/i)).toBeInTheDocument();
   });
 
-  it('OrbCursor is mounted (data-cursor-orb element present)', async () => {
+  // The cursor orb was a device for a full-bleed backdrop: it lit the area of
+  // planet the pointer was over. In the rail layout the planet lives in its own
+  // bordered panel, so the orb had nothing to light and it also overrode the
+  // pointer affordance. These tests now guard its removal.
+  it('does not mount a cursor orb', async () => {
     const { default: HeroIsland } = await import('./HeroIsland.js');
     const { container } = render(<HeroIsland />);
 
-    expect(container.querySelector('[data-cursor-orb]')).toBeInTheDocument();
+    expect(container.querySelector('[data-cursor-orb]')).toBeNull();
+    expect(mockCursorOrbFactory).not.toHaveBeenCalled();
   });
 
-  it('calls createCursorOrbTimeline on mount', async () => {
-    const { default: HeroIsland } = await import('./HeroIsland.js');
-    render(<HeroIsland />);
-
-    expect(mockCursorOrbFactory).toHaveBeenCalledTimes(1);
-    expect(mockCursorOrbFactory).toHaveBeenCalledWith(expect.any(HTMLElement));
-  });
-
-  it('calls cursorOrb.kill() on unmount', async () => {
+  it('unmounts cleanly with no cursor-orb timeline to tear down', async () => {
     const { default: HeroIsland } = await import('./HeroIsland.js');
     const { unmount } = render(<HeroIsland />);
 
-    unmount();
+    expect(() => unmount()).not.toThrow();
+    expect(mockOrbKill).not.toHaveBeenCalled();
+  });
 
-    expect(mockOrbKill).toHaveBeenCalledTimes(1);
+  // The planet is the hero's backdrop, behind the copy — the signature's
+  // chromatic halo and the dark text shadows only make sense over it. A short
+  // detour boxed the mesh into a side panel; this guards against that.
+  it('renders the planet as a full-bleed backdrop behind the copy', async () => {
+    const { default: HeroIsland } = await import('./HeroIsland.js');
+    const { container } = render(<HeroIsland />);
+
+    // No side panel — the mesh is not boxed next to the copy.
+    expect(container.querySelector('aside.panel-frame')).toBeNull();
+
+    // Type over a bright planet needs the scrim to stay legible.
+    const scrim = container.querySelector('[data-hero-scrim]');
+    expect(scrim).toBeInTheDocument();
+
+    // The copy must paint above both the mesh layer and the scrim.
+    const title = container.querySelector('[data-hero-title]');
+    expect(title?.closest('.z-10')).toBeInTheDocument();
   });
 });

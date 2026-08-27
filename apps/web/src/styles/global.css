@@ -140,6 +140,43 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Layout tokens — mobile first
+   ─────────────────────────────────────────────────────────────────────────────
+   These live outside @theme because they need media queries, which @theme
+   cannot hold (same reason as the light palette below).
+
+   --rail-w is 0 by default. The side rail only exists once there is room for a
+   fixed column AND a usable reading measure beside it; below that width the
+   navigation is a top bar and a bottom action bar, so the document has no
+   inset. Every consumer reads this variable — the rail's own width, the body
+   inset and the scroll-progress bar — so the number exists in exactly one
+   place.
+
+   --gutter and --section-py are fluid rather than stepped: the main column's
+   width varies continuously with the viewport once the rail appears, so
+   breakpoint jumps in the padding read as stutters.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --rail-w: 0rem;
+  --gutter: clamp(1.25rem, 0.95rem + 1.5vw, 2.75rem);
+  --section-py: clamp(3rem, 2.2rem + 3vw, 5rem);
+  /* Height of the mobile top bar. Also the scroll-margin for anchored
+     sections, so a deep link never lands under it. */
+  --header-height: 4rem;
+}
+
+@media (min-width: 64rem) {
+  :root {
+    /* Fluid so a 1024px laptop does not give the rail the same 280px it gives
+       a 2560px display — at that width the fixed rail left a 300px reading
+       column, narrower than the measure the type is set for. */
+    --rail-w: clamp(15rem, 19vw, 17.5rem);
+    --header-height: 0rem;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Base layer — body defaults, selection, focus, scrollbar, fade-in (REQ-TOKEN-7)
    ───────────────────────────────────────────────────────────────────────────── */
 
@@ -271,4 +308,141 @@
       }
     }
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Rail-layout primitives
+   ─────────────────────────────────────────────────────────────────────────────
+   Two shapes the rail layout leans on everywhere. Both are plain classes rather
+   than Tailwind arbitrary values because the arbitrary-value spelling of an
+   eight-stop background is unreadable at the call site, and because both need
+   to react to the light palette through the same tokens every component reads.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Faint measurement grid — the backdrop that makes the layout read as an
+     instrument rather than a document. 64px matches the section rhythm. */
+  .measure-grid {
+    background-image:
+      linear-gradient(var(--color-border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-border-soft) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* Corner ticks on a bordered panel. Drawn as one pseudo-element with eight
+     background stops so no panel needs four extra spans in the markup. */
+  .panel-frame {
+    position: relative;
+  }
+
+  .panel-frame::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--color-accent), var(--color-accent)) 0 0 / 9px 1px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 0 0 / 1px 9px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 100% 0 / 9px 1px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 100% 0 / 1px 9px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 0 100% / 9px 1px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 0 100% / 1px 9px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 100% 100% / 9px 1px no-repeat,
+      linear-gradient(var(--color-accent), var(--color-accent)) 100% 100% / 1px 9px no-repeat;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Hero entrance
+   ─────────────────────────────────────────────────────────────────────────────
+   Deliberately CSS, not GSAP. The hero island is client:idle behind a ~720KB
+   Three.js chunk; a JS-driven entrance that starts by setting opacity: 0 leaves
+   the headline blank for as long as hydration takes, and forever if the island
+   fails to load. `both` fill means the from-state only applies once the
+   animation is actually running — with animations disabled the copy is simply
+   visible.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  [data-hero-reveal] {
+    animation: dsi-hero-in 0.6s var(--ease-out-expo) both;
+    animation-delay: calc(var(--hero-i, 0) * 70ms + 100ms);
+  }
+
+  @keyframes dsi-hero-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Per-character signature entrance. --glitch-x needs @property to be
+     interpolable at all; without registration it would jump straight to 0 and
+     the chromatic convergence would never be seen. */
+  [data-sig-char] {
+    animation:
+      dsi-sig-in 0.65s var(--ease-out-expo) both,
+      dsi-sig-converge 1.13s var(--ease-out-quart) both;
+    animation-delay: calc(var(--sig-i, 0) * 45ms + var(--sig-delay, 0.1s));
+  }
+
+  @keyframes dsi-sig-in {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes dsi-sig-converge {
+    from {
+      --glitch-x: 16px;
+    }
+    to {
+      --glitch-x: 0px;
+    }
+  }
+
+  /* The underline draws itself after the signature finishes (~1.9s).
+     280 is the path's viewBox length with headroom — exact length is not
+     needed, only a value at least as long as the stroke. */
+  [data-hero-sig-path] {
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    animation: dsi-hero-underline 0.8s var(--ease-out-expo) 1.9s forwards;
+  }
+
+  @keyframes dsi-hero-underline {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-hero-reveal],
+    [data-sig-char] {
+      animation: none;
+    }
+
+    [data-hero-sig-path] {
+      stroke-dashoffset: 0;
+      animation: none;
+    }
+  }
+}
+
+/* Registered so the chromatic-aberration offset can be interpolated by the
+   signature's convergence keyframes. An unregistered custom property is not
+   animatable — it would snap to the end value on the first frame. */
+@property --glitch-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
