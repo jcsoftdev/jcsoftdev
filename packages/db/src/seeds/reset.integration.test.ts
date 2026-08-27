@@ -2,7 +2,7 @@
  * Reset integration test — Testcontainers Postgres 17.
  *
  * Verifies:
- * 1. Seed → reset → re-seed produces expected row counts (8 experiences, 7 projects)
+ * 1. Seed → reset → re-seed produces expected row counts (5 experiences, 8 projects)
  * 2. CASCADE — TRUNCATE removes FK-referencing child rows cleanly
  *
  * Timeout: 120 s to account for container startup.
@@ -43,8 +43,8 @@ describe.sequential('reset.integration', { timeout: 120_000 }, () => {
     const expResult = await sql`SELECT COUNT(*) FROM experiences`;
     const projResult = await sql`SELECT COUNT(*) FROM projects`;
 
-    expect(parseInt(expResult[0]?.count as string, 10)).toBe(8);
-    expect(parseInt(projResult[0]?.count as string, 10)).toBe(7);
+    expect(parseInt(expResult[0]?.count as string, 10)).toBe(5);
+    expect(parseInt(projResult[0]?.count as string, 10)).toBe(8);
   });
 
   it('truncateAndReseed wipes and re-seeds to exact counts', async () => {
@@ -54,8 +54,8 @@ describe.sequential('reset.integration', { timeout: 120_000 }, () => {
     const expResult = await sql`SELECT COUNT(*) FROM experiences`;
     const projResult = await sql`SELECT COUNT(*) FROM projects`;
 
-    expect(parseInt(expResult[0]?.count as string, 10)).toBe(8);
-    expect(parseInt(projResult[0]?.count as string, 10)).toBe(7);
+    expect(parseInt(expResult[0]?.count as string, 10)).toBe(5);
+    expect(parseInt(projResult[0]?.count as string, 10)).toBe(8);
   });
 
   it('truncateAndReseed handles CASCADE FK children cleanly', async () => {
@@ -70,7 +70,7 @@ describe.sequential('reset.integration', { timeout: 120_000 }, () => {
     const expResult = await sql`SELECT COUNT(*) FROM experiences`;
     const projResult = await sql`SELECT COUNT(*) FROM projects`;
 
-    expect(parseInt(expResult[0]?.count as string, 10)).toBe(8);
-    expect(parseInt(projResult[0]?.count as string, 10)).toBe(7);
+    expect(parseInt(expResult[0]?.count as string, 10)).toBe(5);
+    expect(parseInt(projResult[0]?.count as string, 10)).toBe(8);
   });
 });

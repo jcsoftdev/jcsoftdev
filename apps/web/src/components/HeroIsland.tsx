@@ -224,8 +224,8 @@ export default function HeroIsland() {
             style={{ '--hero-i': 2 } as React.CSSProperties}
             className="m-0 max-w-[min(44ch,100%)] text-[clamp(1.0625rem,0.95rem+0.6vw,1.375rem)] italic leading-[1.45] text-[oklch(0.96_0.005_270)] [text-shadow:0_0_6px_oklch(0.04_0_0/0.95),0_1px_14px_oklch(0.04_0_0/0.95)]"
           >
-            I build software that doesn't fight you — from interface to insight. SaaS, telecom,
-            e-commerce, education, and more.
+            I build software that doesn't fight you — from interface to infrastructure. Multi-tenant
+            SaaS, enterprise microservices, telecom, e-commerce.
           </p>
 
           <div
@@ -258,17 +258,10 @@ export default function HeroIsland() {
             style={{ '--hero-i': 4 } as React.CSSProperties}
             className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-white/15 pt-4 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
           >
-            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">Now</span>
+            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">Latest</span>
             <span>
-              <a
-                href="https://pulzifi.com"
-                rel="noopener noreferrer"
-                target="_blank"
-                className="font-semibold text-white underline decoration-[color:var(--color-accent-muted)] underline-offset-[3px]"
-              >
-                Pulzifi
-              </a>{' '}
-              — web monitoring SaaS with AI insights.
+              Multi-tenant web-monitoring SaaS — Go, Next.js 16, schema-per-tenant Postgres, AI
+              insights on Bedrock.
             </span>
           </div>
 
