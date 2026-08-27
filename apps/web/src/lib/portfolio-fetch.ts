@@ -84,8 +84,28 @@ export interface PortfolioResultWithSource extends PortfolioResult {
 }
 
 /** Last good response, kept per process. Not shared across instances — this is
- *  a blip absorber, not a cache tier. */
+ *  a per-instance cache, not a cache tier. */
 let lastGood: PortfolioResult | null = null;
+let lastGoodAt = 0;
+
+/**
+ * How long a cached payload is served without contacting the API.
+ *
+ * The homepage is prerender=false, so before this every single visitor paid a
+ * round trip for content that changes a few times a year. 60s keeps the page
+ * effectively live for editing while collapsing burst traffic onto one upstream
+ * call — and it is the difference between an API blip being invisible and being
+ * the first thing a visitor sees.
+ */
+const CACHE_TTL_MS = 60_000;
+
+/** Injectable clock so the TTL is testable without wall-clock sleeps. */
+let now = () => Date.now();
+
+/** Test seam — override the clock. */
+export function __setPortfolioClock(fn: () => number): void {
+  now = fn;
+}
 
 /** Committed snapshot generated from the seed data (the same content the DB is
  *  seeded with), so the worst case is out-of-date rather than an empty page. */
@@ -104,6 +124,11 @@ const FALLBACK: PortfolioResult = {
  * committed snapshot. The page always has something to show.
  */
 export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSource> {
+  // Fresh enough — skip the round trip entirely.
+  if (lastGood && now() - lastGoodAt < CACHE_TTL_MS) {
+    return { ...lastGood, source: 'cached' };
+  }
+
   try {
     // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
     const res = await (api as any).api.v1.public.portfolio.$get();
@@ -122,6 +147,7 @@ export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSour
     // must not overwrite a good cache or mask an upstream problem.
     if (result.projects.length > 0 || result.experiences.length > 0) {
       lastGood = result;
+      lastGoodAt = now();
     }
 
     return { ...result, source: 'live' };
@@ -159,4 +185,6 @@ export async function fetchPortfolio(): Promise<PortfolioResult> {
 /** Test seam — reset the per-process cache between cases. */
 export function __resetPortfolioCache(): void {
   lastGood = null;
+  lastGoodAt = 0;
+  now = () => Date.now();
 }

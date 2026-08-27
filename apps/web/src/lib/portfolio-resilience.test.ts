@@ -108,6 +108,38 @@ describe('fetchPortfolioResilient', () => {
     expect(result.projects[0]?.name).toBe('Live Project');
   });
 
+  it('serves from cache within the TTL without contacting the API', async () => {
+    mockGet.mockResolvedValue({ ok: true, status: 200, json: async () => live });
+
+    const mod = await load();
+    let clock = 1_000_000;
+    mod.__setPortfolioClock(() => clock);
+
+    await mod.fetchPortfolioResilient();
+    expect(mockGet).toHaveBeenCalledTimes(1);
+
+    clock += 30_000; // inside the 60s window
+    const cached = await mod.fetchPortfolioResilient();
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(cached.source).toBe('cached');
+    expect(cached.projects[0]?.name).toBe('Live Project');
+  });
+
+  it('revalidates once the TTL expires', async () => {
+    mockGet.mockResolvedValue({ ok: true, status: 200, json: async () => live });
+
+    const mod = await load();
+    let clock = 1_000_000;
+    mod.__setPortfolioClock(() => clock);
+
+    await mod.fetchPortfolioResilient();
+    clock += 61_000; // past the window
+    const fresh = await mod.fetchPortfolioResilient();
+
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(fresh.source).toBe('live');
+  });
+
   it('the committed snapshot matches the shape consumers destructure', async () => {
     const { default: fallback } = await import('./portfolio.fallback.json');
 
