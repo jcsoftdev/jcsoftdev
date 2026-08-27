@@ -11,7 +11,8 @@
     "typecheck": "astro check && tsc --noEmit",
     "test": "vitest run --config vitest.config.ts && vitest run --config vitest.astro.config.ts",
     "lint": "biome check .",
-    "icons": "node scripts/build-icons.mjs"
+    "icons": "node scripts/build-icons.mjs",
+    "check:contact": "node scripts/check-contact-email.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^9.1.3",
