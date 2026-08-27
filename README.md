@@ -159,6 +159,10 @@ Services started by `pnpm dev`:
 # Idempotent seed — inserts rows, skips existing (safe to re-run any time)
 pnpm --filter @jcsoftdev/db seed
 
+# Sync seed — upserts every row from data.ts and prunes superseded ones.
+# Use when the seed CONTENT changed; `seed` alone can only add rows, never update.
+pnpm --filter @jcsoftdev/db seed:sync
+
 # Reset seed — TRUNCATES projects + experiences, then re-seeds from scratch
 # Requires --confirm flag; refuses to run when NODE_ENV=production
 pnpm --filter @jcsoftdev/db seed:reset --confirm

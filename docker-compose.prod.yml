@@ -197,6 +197,49 @@ services:
     networks:
       - dokploy-network
 
+  # ── One-shot seed sync ───────────────────────────────────────────────────────
+  # Run when the seed CONTENT changed — a CV rewrite, a renamed project, a role
+  # whose dates moved:
+  #   docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
+  #
+  # The `migrator` above runs the plain `seed`, which uses ON CONFLICT DO NOTHING
+  # (ADR-17) so admin edits survive a deploy. That is the right default, and it is
+  # also why it can never push a changed data.ts to an already-seeded database.
+  #
+  # `sync` is the deliberate opposite: data.ts wins over whatever is in the row,
+  # and slugs listed in SUPERSEDED_PROJECT_SLUGS are deleted. It stays behind its
+  # own profile precisely so a routine deploy cannot silently overwrite an edit
+  # someone made in the admin UI.
+  #
+  # --confirm is passed because invoking this profile IS the confirmation; the
+  # guard exists to stop an accidental run, not a typed-out one.
+  syncer:
+    profiles: ["sync"]
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    command:
+      ["sh", "-c", "node_modules/.bin/tsx src/seeds/sync.ts --confirm"]
+    environment:
+      NODE_ENV: production
+      DATABASE_DIRECT_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      # Flushes public:portfolio:v1 so the API serves the new data immediately
+      # instead of waiting out the cache TTL.
+      VALKEY_URL: "redis://valkey:6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    networks:
+      - dokploy-network
+
   plausible:
     image: ghcr.io/plausible/community-edition:v3.2.1
     restart: unless-stopped

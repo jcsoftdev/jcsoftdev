@@ -32,6 +32,7 @@
     "db:migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "seed": "tsx --env-file-if-exists=../../.env src/seeds/index.ts",
-    "seed:reset": "tsx --env-file-if-exists=../../.env src/seeds/reset.ts"
+    "seed:reset": "tsx --env-file-if-exists=../../.env src/seeds/reset.ts",
+    "seed:sync": "tsx --env-file-if-exists=../../.env src/seeds/sync.ts"
   }
 }
