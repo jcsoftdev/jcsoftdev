@@ -72,6 +72,30 @@ pnpm --filter @jcsoftdev/db seed
 pnpm --filter @jcsoftdev/db db:studio
 ```
 
+### `seed:sync` — overwrite seed-managed rows (non-destructive)
+
+Because `seed` uses `ON CONFLICT DO NOTHING`, it can only ever ADD rows: once a database has been seeded, editing `data.ts` changes nothing in it. `seed:sync` is the counterpart for when the seed data itself is the thing that changed — a CV rewrite, a renamed project, a role whose dates moved.
+
+It runs in one transaction and:
+
+1. **Upserts** every row in `data.ts` (`ON CONFLICT DO UPDATE`) — the file wins over whatever drifted in the database.
+2. **Deletes** the project slugs listed in `SUPERSEDED_PROJECT_SLUGS` — rows a previous version of `data.ts` wrote under slugs it no longer exports.
+3. **Deletes** experience rows whose `display_order` is past the current range.
+
+Rows it never seeded are left alone: an admin-authored project keeps its place, and a `NULL` `display_order` is treated as not-seed-managed. `posts` and `media` are out of scope entirely — nothing is truncated.
+
+```bash
+# Local dev / staging
+pnpm --filter @jcsoftdev/db seed:sync
+
+# Production (explicit override, same guard as seed:reset)
+pnpm --filter @jcsoftdev/db seed:sync --confirm
+```
+
+It flushes the Valkey key `public:portfolio:v1` afterwards, so `/api/v1/public/portfolio` serves the new data immediately instead of waiting out its TTL.
+
+> **When a slug changes**, add the old one to `SUPERSEDED_PROJECT_SLUGS` in `packages/db/src/seeds/sync.ts`. The list is explicit rather than derived from "delete anything not in the seed", because that rule would also delete admin-authored rows.
+
 ### `seed:reset` — TRUNCATE then re-seed (destructive)
 
 `seed:reset` **truncates** `post_tags`, `projects`, `experiences`, and `media` (with `CASCADE`), then runs the normal seed. Use this to restore the database to a known-clean state after manual data experiments.
@@ -88,7 +112,7 @@ pnpm --filter @jcsoftdev/db seed:reset --confirm
 
 Both guards are required simultaneously — `--confirm` alone does not override a production NODE_ENV. This is intentional: an accidental `--confirm` in a prod deploy script cannot wipe the database.
 
-> **Production warning**: `seed:reset` is designed for local dev and CI fixture resets only. Never run it against a production database. If you must re-seed production, use the idempotent `seed` script instead.
+> **Production warning**: `seed:reset` is designed for local dev and CI fixture resets only. Never run it against a production database. To add new seed rows to production use the idempotent `seed` script; to push *changed* seed content use `seed:sync --confirm`.
 
 ### CASCADE behavior
 
@@ -478,6 +502,27 @@ Quick reference for re-deploying after a code change:
    - Exit ≠ 0 → the deploy **aborts**; the previous api container keeps running untouched.
    The api container itself no longer runs migrations on startup — see
    `docs/dokploy.md` §4.6/§8 for the full runbook and manual fallback options.
+
+**Pushing a changed `data.ts` to production:**
+
+The Pre Deploy Command runs the plain `seed`, which uses `ON CONFLICT DO NOTHING`
+(ADR-17). That is the right default — an admin edit must survive a deploy — and it
+is also why a deploy can never push *changed* seed content to a database that has
+already been seeded. Rewriting `data.ts` and deploying does nothing.
+
+For that, run the `sync` profile once, by hand, on the server:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
+```
+
+It upserts every row from `data.ts`, deletes the slugs in
+`SUPERSEDED_PROJECT_SLUGS`, prunes experiences past the current `display_order`
+range, and flushes `public:portfolio:v1` in Valkey. Admin-authored rows and
+anything with a `NULL` `display_order` are left alone; nothing is truncated.
+
+It stays behind its own profile deliberately: as a deploy step it would silently
+overwrite admin edits on every push, which is exactly what ADR-17 forbids.
 
 **Pre-deploy checklist for migration-bearing commits:**
 1. Take a Postgres snapshot (Dokploy backup or `pg_dump`).
