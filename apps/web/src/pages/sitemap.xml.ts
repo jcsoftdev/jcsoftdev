@@ -13,6 +13,7 @@
 
 import type { APIRoute } from 'astro';
 import { fetchBlogPosts } from '../lib/blog-fetch';
+import { log } from '../lib/log';
 import { SITE_URL } from '../lib/seo';
 
 export const prerender = false;
@@ -70,14 +71,27 @@ export const GET: APIRoute = async () => {
   const staticEntries: SitemapEntry[] = [
     { loc: `${SITE_URL}/`, lastmod: now, changefreq: 'weekly', priority: 1.0 },
     { loc: `${SITE_URL}/blog`, lastmod: now, changefreq: 'daily', priority: 0.8 },
+    { loc: `${SITE_URL}/resume`, lastmod: now, changefreq: 'monthly', priority: 0.9 },
   ];
 
   let postEntries: SitemapEntry[] = [];
+  let degraded = false;
   try {
     postEntries = await collectPostEntries();
-  } catch {
-    // If the API is unreachable, still emit a valid sitemap with static entries.
+  } catch (err) {
+    // Still emit a valid sitemap with the static entries — but NOT silently.
+    // This catch previously swallowed the error and returned 200, so the
+    // sitemap under-reported to 2 URLs for as long as the API was down and
+    // nothing anywhere recorded it. A soft failure still needs a signal.
+    degraded = true;
+    log.error('sitemap.posts_fetch_failed', { err, staticCount: staticEntries.length });
     postEntries = [];
+  }
+
+  if (!degraded && postEntries.length === 0) {
+    // Upstream answered and genuinely has no posts. Worth knowing the
+    // difference between "API down" and "no content".
+    log.warn('sitemap.no_posts', {});
   }
 
   const allEntries = [...staticEntries, ...postEntries];
@@ -92,7 +106,12 @@ export const GET: APIRoute = async () => {
     status: 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=300, s-maxage=600',
+      // A degraded sitemap must not be cached for ten minutes at the CDN —
+      // that turns a brief API blip into a long window where crawlers see
+      // only two URLs.
+      'Cache-Control': degraded
+        ? 'public, max-age=30, s-maxage=30'
+        : 'public, max-age=300, s-maxage=600',
     },
   });
 };

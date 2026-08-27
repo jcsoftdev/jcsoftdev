@@ -7,6 +7,7 @@
 
 import type { APIRoute } from 'astro';
 import { fetchBlogPosts } from '../lib/blog-fetch';
+import { log } from '../lib/log';
 import { AUTHOR_EMAIL, AUTHOR_NAME, SITE_NAME, SITE_URL } from '../lib/seo';
 
 export const prerender = false;
@@ -23,7 +24,20 @@ function escapeXml(value: string): string {
 }
 
 export const GET: APIRoute = async () => {
-  const { items } = await fetchBlogPosts({ cursor: null, limit: MAX_ITEMS });
+  // An unhandled throw here returned 500 with a zero-byte body, so every
+  // subscriber's reader saw a dead feed rather than an empty one. A feed that
+  // momentarily has no items is still a valid feed; a 500 is what makes clients
+  // give up and unsubscribe. Degrade, log it, and cache briefly so it recovers
+  // as soon as the upstream does.
+  let items: Awaited<ReturnType<typeof fetchBlogPosts>>['items'] = [];
+  let degraded = false;
+
+  try {
+    items = (await fetchBlogPosts({ cursor: null, limit: MAX_ITEMS })).items;
+  } catch (err) {
+    degraded = true;
+    log.error('rss.fetch_failed', { err });
+  }
 
   const lastBuild = items[0]?.updatedAt ?? new Date().toISOString();
 
@@ -65,7 +79,10 @@ export const GET: APIRoute = async () => {
     status: 200,
     headers: {
       'Content-Type': 'application/rss+xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=300, s-maxage=600',
+      // Don't let a degraded (empty) feed sit in the CDN for ten minutes.
+      'Cache-Control': degraded
+        ? 'public, max-age=30, s-maxage=30'
+        : 'public, max-age=300, s-maxage=600',
     },
   });
 };

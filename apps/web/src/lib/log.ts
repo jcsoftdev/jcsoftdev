@@ -1,16 +1,13 @@
 /**
- * Structured logger — tiny zero-dependency JSON console wrapper.
+ * Structured server-side logger for the Astro SSR process.
  *
- * Emits one JSON object per line to stdout/stderr so log aggregators
- * (Loki, CloudWatch, Dokploy) can parse them without a transport.
+ * apps/web had no logging at all, which is why /rss.xml returning 500 and the
+ * sitemap silently dropping every post URL both went unnoticed — the sitemap
+ * even catches its own failure and returns 200, so nothing anywhere recorded
+ * that it had degraded.
  *
- * A dedicated logging library (pino) would be preferable, but this keeps the
- * API free of an extra runtime dependency while still giving structured,
- * greppable, request-scoped logs.
- *
- * Usage:
- *   log.info('request.start', { requestId, method, path });
- *   log.error('unhandled', { requestId, err });
+ * Same one-JSON-object-per-line shape as apps/api's logger so both services
+ * aggregate identically. Deliberately tiny and dependency-free.
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -25,11 +22,9 @@ function serializeError(value: unknown): unknown {
       name: value.name,
       message: value.message,
       stack: value.stack,
-      // `cause` is where the actual reason lives: postgres-js wraps driver
-      // errors, so Drizzle surfaces "Failed query: select ..." while the real
-      // message sits underneath. Omitting it meant a full production outage
-      // logged 33 times without once naming its cause — the pooler rejecting
-      // `statement_timeout` was only findable in pgbouncer's own logs.
+      // postgres-js and undici put the real reason on `cause`. The API's logger
+      // omitted it, which hid "unsupported startup parameter: statement_timeout"
+      // behind a generic "Failed query" for the whole outage.
       cause: value.cause instanceof Error ? serializeError(value.cause) : value.cause,
     };
   }
@@ -40,6 +35,7 @@ function emit(level: LogLevel, msg: string, fields?: LogFields): void {
   const record: Record<string, unknown> = {
     level,
     time: new Date().toISOString(),
+    service: 'web',
     msg,
   };
 
@@ -70,15 +66,3 @@ export const log: Logger = {
   warn: (msg, fields) => emit('warn', msg, fields),
   error: (msg, fields) => emit('error', msg, fields),
 };
-
-/**
- * Generate a short request-scoped id. Uses crypto.randomUUID when available
- * (Node 18+/Bun), falling back to a timestamp+random string.
- */
-export function generateRequestId(): string {
-  const c = globalThis.crypto as { randomUUID?: () => string } | undefined;
-  if (c?.randomUUID) {
-    return c.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
