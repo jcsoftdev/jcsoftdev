@@ -275,3 +275,128 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm exec playwright test
+
+  # ── Deploy — blocking, main only ────────────────────────────────────────────
+  # CI owns deployment. Dokploy's own `autoDeploy` must be OFF for these apps,
+  # otherwise both fire and race.
+  #
+  # Why this job exists: Dokploy deployed straight off the push webhook, which
+  # meant two things. Red commits reached production, because nothing waited for
+  # this workflow. And a push arriving while that app was already building was
+  # dropped — silently, with no deployment record and no error anywhere. That is
+  # how 90e966a stayed off jcsoftdev.com while `api` deployed it fine.
+  #
+  # So this job does not just trigger: it waits for the deployment to reach a
+  # terminal state and fails if it never appears. A dropped deploy is now a red
+  # check instead of nothing at all.
+  deploy:
+    name: Deploy (${{ matrix.app.name }})
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    # Dokploy runs a single global deployment queue, so triggering three apps at
+    # once just makes two of them sit in `waiting` while we poll. One at a time
+    # keeps each job's wait honest about what it is waiting for.
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        app:
+          # These ids are not credentials — they are inert without DOKPLOY_URL
+          # and DOKPLOY_API_KEY, both of which are secrets.
+          - name: web
+            id: PzVqOVZzPFdYPrjDBRvOF
+          - name: api
+            id: SIq1GvJ-ZcQ8Os0Hc-aAC
+          - name: admin
+            id: A3s93PkJuctUXtCpxBlkf
+
+    # Never let two runs deploy at once; queue instead of cancelling, so an
+    # older commit's deploy finishes rather than leaving prod half-updated.
+    concurrency:
+      group: deploy-${{ matrix.app.name }}
+      cancel-in-progress: false
+
+    env:
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      APP_ID: ${{ matrix.app.id }}
+      APP_NAME: ${{ matrix.app.name }}
+      TIMEOUT_SECONDS: "900"
+
+    steps:
+      - name: Verify secrets are configured
+        run: |
+          if [ -z "$DOKPLOY_URL" ] || [ -z "$DOKPLOY_API_KEY" ]; then
+            echo "::error::DOKPLOY_URL and DOKPLOY_API_KEY must be set as repository secrets."
+            exit 1
+          fi
+
+      - name: Trigger deployment
+        id: trigger
+        run: |
+          set -euo pipefail
+          # Recorded before the request so the poll below can tell our
+          # deployment apart from one that was already in flight.
+          echo "started_at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+
+          curl -fsS --retry 3 --retry-delay 5 --retry-all-errors \
+            -X POST "$DOKPLOY_URL/api/application.deploy" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -H 'Content-Type: application/json' \
+            -d "{\"applicationId\":\"$APP_ID\"}" \
+            -o /dev/null
+          echo "Triggered $APP_NAME for ${GITHUB_SHA}"
+
+      - name: Wait for the deployment to finish
+        run: |
+          set -uo pipefail
+          started_at="${{ steps.trigger.outputs.started_at }}"
+          deadline=$(( started_at + TIMEOUT_SECONDS ))
+
+          while [ "$(date -u +%s)" -lt "$deadline" ]; do
+            sleep 15
+
+            body=$(curl -fsS \
+              "$DOKPLOY_URL/api/deployment.all?applicationId=$APP_ID" \
+              -H "x-api-key: $DOKPLOY_API_KEY") || continue
+
+            # Dokploy returns the array directly; some proxies wrap it in
+            # { data: [...] }. Accept either rather than depending on which.
+            latest=$(jq -c 'if type == "array" then .[0] else .data[0] end' <<<"$body") || continue
+            [ "$latest" = "null" ] && continue
+
+            created=$(jq -r '.createdAt' <<<"$latest")
+            created_epoch=$(date -u -d "$created" +%s 2>/dev/null || echo 0)
+
+            # Ignore whatever was already there when we triggered.
+            [ "$created_epoch" -lt "$started_at" ] && continue
+
+            status=$(jq -r '.status' <<<"$latest")
+            built=$(jq -r '.description' <<<"$latest")
+
+            case "$status" in
+              done)
+                echo "$APP_NAME deployed — $built"
+                # main may have advanced between the push and the build, which
+                # is fine: newer is still correct. Worth saying out loud though.
+                if [[ "$built" != *"$GITHUB_SHA"* ]]; then
+                  echo "::warning::Built $built, not ${GITHUB_SHA}. main moved ahead during the build."
+                fi
+                exit 0
+                ;;
+              error)
+                echo "::error::$APP_NAME deployment failed — $built"
+                jq -r '.errorMessage // "no error message recorded"' <<<"$latest"
+                exit 1
+                ;;
+              *)
+                echo "waiting… status=$status"
+                ;;
+            esac
+          done
+
+          echo "::error::No deployment for $APP_NAME reached a terminal state within ${TIMEOUT_SECONDS}s."
+          echo "This is the failure mode that used to be silent — check the Dokploy queue."
+          exit 1
