@@ -105,7 +105,7 @@ export function createPostsRouter(db: DbClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/posts — list posts (admin, offset pagination)
     // -------------------------------------------------------------------------
-    .get('/', requireAuth(), zv422('query', PostListQuerySchema), async (c) => {
+    .get('/', requireAuth(), requireAdmin(), zv422('query', PostListQuerySchema), async (c) => {
       // Cast necessary because the 422-hook breaks Hono's type inference for valid()
       const { page, pageSize, status } = c.req.valid('query') as PostListQuery;
       const offset = (page - 1) * pageSize;
@@ -146,7 +146,7 @@ export function createPostsRouter(db: DbClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/posts/:id — single post for editor
     // -------------------------------------------------------------------------
-    .get('/:id', requireAuth(), async (c) => {
+    .get('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       const [post] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
@@ -185,7 +185,10 @@ export function createPostsRouter(db: DbClient) {
         }
       }
 
-      // Build update payload — only include fields that were provided
+      // Build update payload — only include fields that were provided. An
+      // explicit `null` must stay `null` so Drizzle emits `SET col = NULL`;
+      // coercing it to `undefined` drops the column from the statement and
+      // silently preserves the old value. See the matching note in projects.ts.
       const updatePayload: Partial<typeof posts.$inferInsert> = {
         updatedAt: new Date(),
       };
@@ -193,8 +196,8 @@ export function createPostsRouter(db: DbClient) {
       if (body.title !== undefined) updatePayload.title = body.title;
       if (body.slug !== undefined) updatePayload.slug = body.slug;
       if (body.content !== undefined) updatePayload.content = body.content;
-      if (body.excerpt !== undefined) updatePayload.excerpt = body.excerpt ?? undefined;
-      if (body.heroMediaId !== undefined) updatePayload.heroMediaId = body.heroMediaId ?? undefined;
+      if (body.excerpt !== undefined) updatePayload.excerpt = body.excerpt;
+      if (body.heroMediaId !== undefined) updatePayload.heroMediaId = body.heroMediaId;
       if (body.status !== undefined) {
         updatePayload.status = body.status;
         // Set publishedAt when transitioning to published

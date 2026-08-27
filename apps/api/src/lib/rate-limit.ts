@@ -69,8 +69,10 @@ export async function checkRateLimit(
     // First request in the window — set with TTL to start the window
     await valkey.set(key, String(next), windowSeconds);
   } else {
-    // Subsequent requests — overwrite but DO NOT reset TTL
-    // (so the window stays anchored to the first request)
+    // Subsequent requests — overwrite while PRESERVING the existing TTL, so the
+    // window stays anchored to the first request. ValkeyClient.set issues
+    // KEEPTTL when no ttl is passed; a bare SET would drop the expiry and make
+    // the counter permanent (a filled bucket would never unblock).
     await valkey.set(key, String(next));
   }
 

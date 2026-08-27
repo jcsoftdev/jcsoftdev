@@ -407,6 +407,46 @@ describe('PATCH /api/v1/projects/:id', () => {
     expect(valkey.del).toHaveBeenCalledWith('public:portfolio:v1');
   });
 
+  it('passes an explicit null through to the SET clause so a field can be cleared', async () => {
+    // Regression: the handler used `body.x ?? undefined`, and Drizzle omits
+    // undefined keys from the UPDATE entirely. Clearing a field in the admin UI
+    // returned 200 while the old value silently survived. UpdateProjectSchema
+    // marks these fields .nullable() precisely so they CAN be cleared.
+    const db = createMockDb();
+    const valkey = createMockValkey();
+    const cleared = { ...sampleProject, repoUrl: null, liveUrl: null, heroMediaId: null };
+
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([sampleProject]),
+    };
+    const updateChain = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([cleared]),
+    };
+
+    vi.mocked(db.select).mockReturnValue(selectChain as any);
+    vi.mocked(db.update).mockReturnValue(updateChain as any);
+
+    const app = buildApp(db, valkey);
+    const res = await app.request(`/api/v1/projects/${PROJ_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repoUrl: null, liveUrl: null, heroMediaId: null }),
+    });
+
+    expect(res.status).toBe(200);
+
+    const setPayload = updateChain.set.mock.calls[0]?.[0] as Record<string, unknown>;
+    // undefined would be silently dropped by Drizzle — assert genuine nulls.
+    expect(setPayload).toHaveProperty('repoUrl', null);
+    expect(setPayload).toHaveProperty('liveUrl', null);
+    expect(setPayload).toHaveProperty('heroMediaId', null);
+    expect(setPayload.repoUrl).not.toBeUndefined();
+  });
+
   it('returns 404 when project not found', async () => {
     const db = createMockDb();
     const valkey = createMockValkey();

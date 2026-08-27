@@ -59,22 +59,28 @@ export function createExperiencesRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/experiences — list (offset pagination)
     // -------------------------------------------------------------------------
-    .get('/', requireAuth(), zv422('query', ExperienceListQuerySchema), async (c) => {
-      const { limit, offset } = c.req.valid('query') as ExperienceListQuery;
+    .get(
+      '/',
+      requireAuth(),
+      requireAdmin(),
+      zv422('query', ExperienceListQuerySchema),
+      async (c) => {
+        const { limit, offset } = c.req.valid('query') as ExperienceListQuery;
 
-      // Sequential queries (pgBouncer tx-mode safe)
-      const items = await db
-        .select()
-        .from(experiences)
-        .orderBy(sql`${experiences.displayOrder} ASC NULLS LAST`)
-        .limit(limit)
-        .offset(offset);
+        // Sequential queries (pgBouncer tx-mode safe)
+        const items = await db
+          .select()
+          .from(experiences)
+          .orderBy(sql`${experiences.displayOrder} ASC NULLS LAST`)
+          .limit(limit)
+          .offset(offset);
 
-      const countResult = await db.select({ count: count() }).from(experiences);
-      const total = Number(countResult[0]?.count ?? 0);
+        const countResult = await db.select({ count: count() }).from(experiences);
+        const total = Number(countResult[0]?.count ?? 0);
 
-      return c.json({ items: items.map(serializeExperience), total });
-    })
+        return c.json({ items: items.map(serializeExperience), total });
+      }
+    )
 
     // -------------------------------------------------------------------------
     // POST /api/v1/experiences — create
@@ -125,7 +131,7 @@ export function createExperiencesRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/experiences/:id — single experience
     // -------------------------------------------------------------------------
-    .get('/:id', requireAuth(), async (c) => {
+    .get('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       const [experience] = await db
@@ -164,15 +170,18 @@ export function createExperiencesRouter(db: DbClient, valkey: ValkeyClient) {
           return c.json({ error: 'Experience not found' }, 404);
         }
 
-        // Build update payload
+        // Build update payload. An explicit `null` must stay `null` so Drizzle
+        // emits `SET col = NULL`; coercing it to `undefined` drops the column
+        // from the statement and silently preserves the old value. See the
+        // matching note in projects.ts.
         const updatePayload: Partial<typeof experiences.$inferInsert> = {};
 
         if (body.company !== undefined) updatePayload.company = body.company;
         if (body.role !== undefined) updatePayload.role = body.role;
-        if (body.summary !== undefined) updatePayload.summary = body.summary ?? undefined;
+        if (body.summary !== undefined) updatePayload.summary = body.summary;
         if (body.startedAt !== undefined) updatePayload.startedAt = body.startedAt;
-        if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt ?? undefined;
-        if (body.location !== undefined) updatePayload.location = body.location ?? undefined;
+        if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt;
+        if (body.location !== undefined) updatePayload.location = body.location;
         if (body.displayOrder !== undefined) updatePayload.displayOrder = body.displayOrder;
 
         const updateResult = await db

@@ -67,7 +67,7 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/projects — list (offset pagination)
     // -------------------------------------------------------------------------
-    .get('/', requireAuth(), zv422('query', ProjectListQuerySchema), async (c) => {
+    .get('/', requireAuth(), requireAdmin(), zv422('query', ProjectListQuerySchema), async (c) => {
       const { limit, offset } = c.req.valid('query') as ProjectListQuery;
 
       // Sequential queries (pgBouncer tx-mode safe — no Promise.all)
@@ -134,7 +134,7 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
     // -------------------------------------------------------------------------
     // GET /api/v1/projects/:id — single project
     // -------------------------------------------------------------------------
-    .get('/:id', requireAuth(), async (c) => {
+    .get('/:id', requireAuth(), requireAdmin(), async (c) => {
       const id = c.req.param('id');
 
       const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
@@ -164,20 +164,26 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
         return c.json({ error: 'Project not found' }, 404);
       }
 
-      // Build update payload — only include provided fields
+      // Build update payload — only include provided fields.
+      //
+      // An explicit `null` MUST reach Drizzle as `null` so the column is set to
+      // NULL. Coercing it to `undefined` makes Drizzle omit the key from the SET
+      // clause entirely, so the field silently keeps its old value — the admin
+      // clears a field, gets a success response, and the old value reappears on
+      // reload. UpdateProjectSchema marks these fields `.nullable()` precisely
+      // so they can be cleared.
       const updatePayload: Partial<typeof projects.$inferInsert> = {};
 
       if (body.slug !== undefined) updatePayload.slug = body.slug;
       if (body.name !== undefined) updatePayload.name = body.name;
-      if (body.summary !== undefined) updatePayload.summary = body.summary ?? undefined;
-      if (body.description !== undefined) updatePayload.description = body.description ?? undefined;
-      if (body.repoUrl !== undefined) updatePayload.repoUrl = body.repoUrl ?? undefined;
-      if (body.liveUrl !== undefined) updatePayload.liveUrl = body.liveUrl ?? undefined;
-      if (body.featuredOrder !== undefined)
-        updatePayload.featuredOrder = body.featuredOrder ?? undefined;
-      if (body.startedAt !== undefined) updatePayload.startedAt = body.startedAt ?? undefined;
-      if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt ?? undefined;
-      if (body.heroMediaId !== undefined) updatePayload.heroMediaId = body.heroMediaId ?? undefined;
+      if (body.summary !== undefined) updatePayload.summary = body.summary;
+      if (body.description !== undefined) updatePayload.description = body.description;
+      if (body.repoUrl !== undefined) updatePayload.repoUrl = body.repoUrl;
+      if (body.liveUrl !== undefined) updatePayload.liveUrl = body.liveUrl;
+      if (body.featuredOrder !== undefined) updatePayload.featuredOrder = body.featuredOrder;
+      if (body.startedAt !== undefined) updatePayload.startedAt = body.startedAt;
+      if (body.endedAt !== undefined) updatePayload.endedAt = body.endedAt;
+      if (body.heroMediaId !== undefined) updatePayload.heroMediaId = body.heroMediaId;
 
       const updateResult = await db
         .update(projects)

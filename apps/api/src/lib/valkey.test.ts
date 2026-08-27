@@ -65,9 +65,13 @@ describe('createValkeyClient', () => {
       expect(mockSet).toHaveBeenCalledWith('my-key', 'my-value', 'EX', 300);
     });
 
-    it('calls redis.set without EX args when no TTL is provided', async () => {
+    it('calls redis.set with KEEPTTL when no TTL is provided', async () => {
+      // A bare `SET key value` DISCARDS an existing expiry. The rate limiter
+      // rewrites its counter without a TTL on every request after the first, so
+      // a bare SET turned each bucket into a permanent key — once full, the
+      // caller was locked out forever because the window could never expire.
       await client.set('my-key', 'my-value');
-      expect(mockSet).toHaveBeenCalledWith('my-key', 'my-value');
+      expect(mockSet).toHaveBeenCalledWith('my-key', 'my-value', 'KEEPTTL');
     });
 
     it('returns OK on success', async () => {

@@ -8,6 +8,12 @@ import { Redis } from 'iovalkey';
  *   set    — store a value, optionally with a TTL in seconds
  *   del    — delete a key, returns count of deleted keys
  *
+ * TTL semantics: a `set` WITHOUT `ttlSeconds` preserves any expiry already on
+ * the key (`KEEPTTL`). A bare `SET key value` discards the TTL, which silently
+ * converted the rate-limit counters into permanent keys — once a bucket filled,
+ * the caller was locked out forever because the window could never expire.
+ * Callers that genuinely want to clear an expiry should `del` then `set`.
+ *
  * Design decision: we don't expose the raw redis instance so callers
  * cannot accidentally bypass the interface or use session-unsafe commands
  * (SUBSCRIBE, LISTEN, etc.) that break under pgBouncer transaction mode.
@@ -37,7 +43,8 @@ export function createValkeyClient(url: string): ValkeyClient {
       if (ttlSeconds !== undefined) {
         return redis.set(key, value, 'EX', ttlSeconds);
       }
-      return redis.set(key, value);
+      // KEEPTTL, not a bare SET — see the TTL semantics note above.
+      return redis.set(key, value, 'KEEPTTL');
     },
 
     async del(key: string): Promise<number> {
