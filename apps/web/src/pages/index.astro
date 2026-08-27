@@ -15,7 +15,11 @@ import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
 import RootLayout from "../layouts/RootLayout.astro";
 import { fetchPortfolioResilient } from "../lib/portfolio-fetch";
-import { buildPersonSchema, buildWebSiteSchema } from "../lib/seo";
+import {
+  AUTHOR_EMAIL,
+  buildPersonSchema,
+  buildWebSiteSchema,
+} from "../lib/seo";
 
 export const prerender = false;
 
@@ -24,7 +28,7 @@ const canonicalUrl = `${siteOrigin}/`;
 
 const pageTitle = "Juan Carlos Valencia — Senior Full-Stack Developer";
 const pageDescription =
-  "9 years building scalable web apps end-to-end. Currently designing a multi-tenant SaaS in Go + Next.js 16. Available for new work.";
+  "8+ years building complete web products end-to-end — TypeScript, React/Next.js, Node.js/NestJS, Go and Python on AWS, Azure and GCP. Available for new work.";
 
 const homeJsonLd = [buildPersonSchema(), buildWebSiteSchema()];
 
@@ -128,7 +132,7 @@ const EYEBROW =
             class="font-mono text-xs italic text-[color:var(--color-text-muted)]"
           >
             {experiences.length}
-            {experiences.length === 1 ? "role" : "roles"} · 9 years
+            {experiences.length === 1 ? "role" : "roles"} · 8+ years
           </span>
         </div>
       </div>
@@ -209,7 +213,7 @@ const EYEBROW =
 
         {
           /* Numbers readout — only figures that are actually true. "Companies: 7"
-            is gone: over nine years it reads as churn as easily as breadth, and
+            is gone: over eight years it reads as churn as easily as breadth, and
             the number alone cannot say which. */
         }
         <aside data-reveal-item class="@5xl:pt-9">
@@ -314,7 +318,7 @@ const EYEBROW =
             <span class={EYEBROW}>Primary · Email</span>
             <CopyEmail
               client:visible
-              email="hello@jcsoftdev.com"
+              email={AUTHOR_EMAIL}
               note="Replies under 24h on weekdays"
             />
           </div>

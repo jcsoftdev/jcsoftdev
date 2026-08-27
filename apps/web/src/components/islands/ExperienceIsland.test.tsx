@@ -16,7 +16,7 @@
  * 10. Renders summaryHtml content (sanitized server-side, ADR-14)
  * 11. Entries are <li> inside an <ol> — the layout is a single-column list
  * 12. The in-progress role (endedAt === null) is flagged data-current + "Now"
- * 13. Tech chips render for a company present in TECH_BY_COMPANY
+ * 13. Tech chips render for a company+role present in TECH_BY_ROLE
  * 14. data-portfolio-experience-card preserved on all entries
  *
  * NOTE: this file previously asserted a two-sided timeline — alternating
@@ -200,16 +200,42 @@ describe('ExperienceIsland', () => {
     expect(screen.getByText('Now')).toBeInTheDocument();
   });
 
-  it('renders tech chips for a company present in the tech map', async () => {
+  it('renders tech chips for a company+role present in the tech map', async () => {
     const { ExperienceIsland } = await import('./ExperienceIsland.js');
     render(
       <ExperienceIsland
-        experiences={[{ ...fakeExperiences[0], company: 'Pulzifi' } as PublicExperience]}
+        experiences={[
+          {
+            ...fakeExperiences[0],
+            company: 'GlobalLogic',
+            role: 'Senior Software Engineer',
+          } as PublicExperience,
+        ]}
       />
     );
 
     expect(screen.getByText('Go')).toBeInTheDocument();
     expect(screen.getByText('Postgres')).toBeInTheDocument();
+  });
+
+  // Two Globant rows share a company but not a stack — the map is keyed by
+  // `company|role` precisely so the frontend row cannot inherit full-stack chips.
+  it('keys tech chips by role, not by company alone', async () => {
+    const { ExperienceIsland } = await import('./ExperienceIsland.js');
+    render(
+      <ExperienceIsland
+        experiences={[
+          {
+            ...fakeExperiences[0],
+            company: 'Globant',
+            role: 'Frontend Developer',
+          } as PublicExperience,
+        ]}
+      />
+    );
+
+    expect(screen.getByText('GTM')).toBeInTheDocument();
+    expect(screen.queryByText('DynamoDB')).toBeNull();
   });
 
   it('renders no tech chips for a company absent from the tech map', async () => {
@@ -218,7 +244,7 @@ describe('ExperienceIsland', () => {
       <ExperienceIsland experiences={[fakeExperiences[0] as PublicExperience]} />
     );
 
-    // 'Acme Corp' is not in TECH_BY_COMPANY — the chip <ul> must not render.
+    // 'Acme Corp|Software Engineer' is not in TECH_BY_ROLE — the chip <ul> must not render.
     expect(container.querySelector('li[data-portfolio-experience-card] ul')).toBeNull();
   });
 

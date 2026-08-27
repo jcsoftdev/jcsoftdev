@@ -53,7 +53,7 @@ const jsonLd = [
 
 <RootLayout
   title="Résumé — Juan Carlos Valencia"
-  description="Senior full-stack developer. 9+ years across SaaS, telecom, e-commerce and education. Go, TypeScript, React, Postgres."
+  description="Senior full-stack developer. 8+ years across SaaS, enterprise microservices, telecom and e-commerce. TypeScript, Go, React/Next.js, NestJS, Postgres, AWS."
   canonical={`${SITE_URL}/resume`}
   type="website"
   ogEyebrow="Résumé"
@@ -175,6 +175,22 @@ const jsonLd = [
 
   .resume-prose p {
     margin: 0;
+  }
+  /* Role summaries carry a project breakdown as a markdown list. */
+  .resume-prose ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    list-style: disc;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .resume-prose li::marker {
+    color: var(--color-text-muted);
+  }
+  .resume-prose strong {
+    font-weight: 600;
+    color: var(--color-text-primary);
   }
   .resume-prose a {
     color: inherit;

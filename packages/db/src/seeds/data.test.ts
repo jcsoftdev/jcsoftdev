@@ -11,7 +11,7 @@
  * - displayOrder values are unique across all experiences
  * - slug values are unique across all projects
  * - All date strings (startedAt / endedAt when non-null) parse as valid ISO YYYY-MM-DD
- * - Exactly 3 projects have a non-null featuredOrder
+ * - Exactly 5 projects have a non-null featuredOrder
  */
 
 import { describe, expect, it } from 'vitest';
@@ -26,8 +26,8 @@ function isValidDate(value: string): boolean {
 }
 
 describe('seedExperiences shape', () => {
-  it('exports exactly 8 experience rows', () => {
-    expect(seedExperiences).toHaveLength(8);
+  it('exports exactly 5 experience rows', () => {
+    expect(seedExperiences).toHaveLength(5);
   });
 
   it('every experience has company, role, startedAt, displayOrder', () => {
@@ -48,9 +48,9 @@ describe('seedExperiences shape', () => {
     expect(unique.size).toBe(seedExperiences.length);
   });
 
-  it('displayOrder values are 1..8 consecutive', () => {
+  it('displayOrder values are 1..5 consecutive', () => {
     const orders = seedExperiences.map((e) => e.displayOrder).sort((a, b) => (a ?? 0) - (b ?? 0));
-    expect(orders).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(orders).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('all startedAt dates are valid YYYY-MM-DD strings', () => {
@@ -73,16 +73,17 @@ describe('seedExperiences shape', () => {
     }
   });
 
-  it('exactly one experience has null endedAt (the current/open role)', () => {
+  // The CV closes every role: the most recent ended Jun 2026 and no new one has
+  // started. A row with a null endedAt would render a "Now" badge that is false.
+  it('every experience has a non-null endedAt (no open role)', () => {
     const openRoles = seedExperiences.filter((e) => e.endedAt == null);
-    expect(openRoles).toHaveLength(1);
-    expect(openRoles[0]?.displayOrder).toBe(1);
+    expect(openRoles).toHaveLength(0);
   });
 });
 
 describe('seedProjects shape', () => {
-  it('exports exactly 6 project rows', () => {
-    expect(seedProjects).toHaveLength(6);
+  it('exports exactly 8 project rows', () => {
+    expect(seedProjects).toHaveLength(8);
   });
 
   it('every project has slug, name, summary, startedAt', () => {
@@ -107,17 +108,17 @@ describe('seedProjects shape', () => {
     }
   });
 
-  it('exactly 3 projects have a non-null featuredOrder', () => {
+  it('exactly 5 projects have a non-null featuredOrder', () => {
     const featured = seedProjects.filter((p) => p.featuredOrder != null);
-    expect(featured).toHaveLength(3);
+    expect(featured).toHaveLength(5);
   });
 
-  it('featured projects have featuredOrder 1, 2, 3', () => {
+  it('featured projects have featuredOrder 1..5', () => {
     const orders = seedProjects
       .filter((p) => p.featuredOrder != null)
       .map((p) => p.featuredOrder)
       .sort((a, b) => (a ?? 0) - (b ?? 0));
-    expect(orders).toEqual([1, 2, 3]);
+    expect(orders).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('all startedAt dates are valid YYYY-MM-DD strings', () => {

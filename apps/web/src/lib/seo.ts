@@ -40,7 +40,7 @@ export function buildPersonSchema(): JsonLdSchema {
     email: `mailto:${AUTHOR_EMAIL}`,
     jobTitle: 'Senior Full-Stack Developer',
     description:
-      'Senior full-stack developer with 9+ years of experience building scalable web applications. Specializes in clean architecture, performance optimization, and end-to-end product engineering.',
+      'Full-stack developer with 8+ years of experience building complete web products, from the frontend to the infrastructure. Works primarily with TypeScript, React/Next.js, Node.js/NestJS, Go and Python/Django REST Framework, building microservices and REST/gRPC APIs on PostgreSQL with Docker, Terraform and CI/CD on AWS and Azure.',
     knowsAbout: [
       'TypeScript',
       'Go',
@@ -53,6 +53,13 @@ export function buildPersonSchema(): JsonLdSchema {
       'Azure',
       'GCP',
       'Docker',
+      'Python',
+      'Django REST Framework',
+      'gRPC',
+      'Microservices',
+      'Terraform',
+      'Kubernetes',
+      'LangGraph',
       'Hexagonal Architecture',
       'Domain-Driven Design',
       'Clean Architecture',

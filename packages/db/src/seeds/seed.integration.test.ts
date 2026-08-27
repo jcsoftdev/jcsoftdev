@@ -2,7 +2,7 @@
  * Seed integration test — Testcontainers Postgres 17.
  *
  * Verifies:
- * 1. Exact row counts after first seed (8 experiences, 7 projects, 3 featured)
+ * 1. Exact row counts after first seed (5 experiences, 8 projects, 5 featured)
  * 2. Idempotency — running twice does not change row counts (ON CONFLICT DO NOTHING)
  * 3. Admin-edit survival — ON CONFLICT DO NOTHING does NOT overwrite existing rows
  *
@@ -38,37 +38,38 @@ describe.sequential('seed.integration', { timeout: 120_000 }, () => {
     await sql?.end();
   });
 
-  it('seed populates exactly 8 experience rows', async () => {
+  it('seed populates exactly 5 experience rows', async () => {
     const { runSeed } = await import('./run.js');
     await runSeed(db);
 
     const result = await sql`SELECT COUNT(*) FROM experiences`;
     const count = parseInt(result[0]?.count as string, 10);
+    expect(count).toBe(5);
+  });
+
+  it('seed populates exactly 8 project rows', async () => {
+    const result = await sql`SELECT COUNT(*) FROM projects`;
+    const count = parseInt(result[0]?.count as string, 10);
     expect(count).toBe(8);
   });
 
-  it('seed populates exactly 7 project rows', async () => {
-    const result = await sql`SELECT COUNT(*) FROM projects`;
-    const count = parseInt(result[0]?.count as string, 10);
-    expect(count).toBe(7);
-  });
-
-  it('seed populates exactly 3 featured projects', async () => {
+  it('seed populates exactly 5 featured projects', async () => {
     const result = await sql`SELECT COUNT(*) FROM projects WHERE featured_order IS NOT NULL`;
     const count = parseInt(result[0]?.count as string, 10);
-    expect(count).toBe(3);
+    expect(count).toBe(5);
   });
 
-  it('featured projects have featuredOrder 1, 2, 3', async () => {
+  it('featured projects have featuredOrder 1..5 in CV order', async () => {
     const result =
       await sql`SELECT slug, featured_order FROM projects WHERE featured_order IS NOT NULL ORDER BY featured_order`;
-    expect(result).toHaveLength(3);
-    expect(result[0]?.slug).toBe('pulzifi');
-    expect(result[0]?.featured_order).toBe(1);
-    expect(result[1]?.slug).toBe('travitur-backend');
-    expect(result[1]?.featured_order).toBe(2);
-    expect(result[2]?.slug).toBe('travitur-mobile');
-    expect(result[2]?.featured_order).toBe(3);
+    expect(result.map((r) => r.slug)).toEqual([
+      'multi-tenant-monitoring-saas',
+      'cms-google-drive-backend',
+      'companion-mobile-app',
+      'enterprise-microservices-platform',
+      'microfrontend-web-platform',
+    ]);
+    expect(result.map((r) => r.featured_order)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('seed is idempotent — running twice does not change row count', async () => {
@@ -90,13 +91,13 @@ describe.sequential('seed.integration', { timeout: 120_000 }, () => {
   it('admin edits survive re-seed (ON CONFLICT DO NOTHING does not overwrite)', async () => {
     const { runSeed } = await import('./run.js');
 
-    // Simulate an admin editing the pulzifi project name
-    await sql`UPDATE projects SET name = 'Pulzifi v2' WHERE slug = 'pulzifi'`;
+    // Simulate an admin renaming a project
+    await sql`UPDATE projects SET name = 'Renamed by admin' WHERE slug = 'multi-tenant-monitoring-saas'`;
 
     // Re-run seed — should NOT overwrite the admin edit
     await runSeed(db);
 
-    const result = await sql`SELECT name FROM projects WHERE slug = 'pulzifi'`;
-    expect(result[0]?.name).toBe('Pulzifi v2');
+    const result = await sql`SELECT name FROM projects WHERE slug = 'multi-tenant-monitoring-saas'`;
+    expect(result[0]?.name).toBe('Renamed by admin');
   });
 });

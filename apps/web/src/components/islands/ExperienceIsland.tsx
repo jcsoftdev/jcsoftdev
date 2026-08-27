@@ -18,36 +18,54 @@ interface ExperienceIslandProps {
   experiences: PublicExperience[];
 }
 
-/** Tech stack hardcoded per company (no schema column for it yet). */
-const TECH_BY_COMPANY: Record<string, string[]> = {
-  Pulzifi: ['Go', 'Hono', 'Next.js 16', 'Postgres', 'Redis', 'Docker'],
-  Travitur: ['NestJS 11', 'Prisma', 'Postgres', 'Expo', 'React Native', 'TypeScript'],
-  GlobalLogic: ['Go', 'Node.js', 'NestJS', 'gRPC', 'Azure', 'AWS Lambda', 'Kafka'],
-  DD3: ['React', 'Next.js', 'NestJS', 'Redis', 'Postgres', 'AWS'],
-  Globant: ['React', 'Next.js', 'Node.js', 'DynamoDB', 'AWS Lambda'],
-  IDW: ['React', 'TypeScript', 'Vite', 'Redux', 'AWS S3 / CloudFront'],
-  'Peru Software S.A.C': ['React', 'Node.js', 'MongoDB', 'WebSockets', 'GCP Cloud Run'],
+/**
+ * Tech stack hardcoded per role (no schema column for it yet).
+ *
+ * Keyed by `company|role`, not by company alone: two Globant rows would
+ * otherwise collide and the frontend role would inherit the full-stack chips.
+ */
+const roleKey = (company: string, role: string) => `${company}|${role}`;
+
+const TECH_BY_ROLE: Record<string, string[]> = {
+  'GlobalLogic|Senior Software Engineer': [
+    'Go',
+    'TypeScript',
+    'Next.js',
+    'NestJS',
+    'gRPC',
+    'Postgres',
+    'AWS',
+    'Azure',
+  ],
+  'Globant|Full-Stack Developer': ['React', 'Next.js', 'Node.js', 'DynamoDB', 'AWS Lambda'],
+  'Globant|Frontend Developer': ['React', 'GTM', 'AWS Lambda', 'WCAG'],
+  'IDW|Frontend Developer': ['React', 'TypeScript', 'Vite', 'Redux', 'AWS S3 / CloudFront'],
+  'Peru Software S.A.C|Full-Stack Developer': [
+    'React',
+    'Node.js',
+    'MongoDB',
+    'WebSockets',
+    'GCP Cloud Run',
+  ],
 };
 
 /**
  * One measurable outcome per role — the line that separates a senior CV from a
- * job list. Deliberately EMPTY: these are your numbers, and a plausible-looking
- * invented figure is worse than a missing one. Add an entry and the row renders
- * a Result line; leave it out and the row is unchanged.
+ * job list. Deliberately EMPTY: the figures the CV does claim (76% response-time
+ * cut, 80%+ coverage) already sit in the role summaries, and repeating one here
+ * reads as padding. Add an entry and the row renders a Result line.
  *
- * Shape: 'Company': 'Cut p95 checkout latency from 900ms to 220ms.'
+ * Shape: 'Company|Role': 'Cut p95 checkout latency from 900ms to 220ms.'
  */
-const RESULT_BY_COMPANY: Record<string, string> = {};
+const RESULT_BY_ROLE: Record<string, string> = {};
 
-/** Brand color hint per company (subtle accent on monogram). */
-const COMPANY_HUE: Record<string, string> = {
-  Pulzifi: 'oklch(0.70 0.20 249)', // circuit blue (site brand)
-  Travitur: 'oklch(0.70 0.15 200)', // teal
-  GlobalLogic: 'oklch(0.70 0.15 30)', // orange
-  DD3: 'oklch(0.70 0.18 350)', // pink
-  Globant: 'oklch(0.70 0.15 145)', // green
-  IDW: 'oklch(0.70 0.15 250)', // blue
-  'Peru Software S.A.C': 'oklch(0.70 0.15 70)', // amber
+/** Brand color hint per role (subtle accent on monogram). */
+const ROLE_HUE: Record<string, string> = {
+  'GlobalLogic|Senior Software Engineer': 'oklch(0.70 0.15 30)', // orange
+  'Globant|Full-Stack Developer': 'oklch(0.70 0.15 145)', // green
+  'Globant|Frontend Developer': 'oklch(0.70 0.15 175)', // teal
+  'IDW|Frontend Developer': 'oklch(0.70 0.15 250)', // blue
+  'Peru Software S.A.C|Full-Stack Developer': 'oklch(0.70 0.15 70)', // amber
 };
 
 function monogram(company: string): string {
@@ -112,9 +130,10 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
     <ol className="flex flex-col">
       {sorted.map((exp) => {
         const isCurrent = exp.endedAt === null;
-        const tech = TECH_BY_COMPANY[exp.company] ?? [];
-        const result = RESULT_BY_COMPANY[exp.company];
-        const hue = COMPANY_HUE[exp.company] ?? 'var(--color-border-strong)';
+        const key = roleKey(exp.company, exp.role);
+        const tech = TECH_BY_ROLE[key] ?? [];
+        const result = RESULT_BY_ROLE[key];
+        const hue = ROLE_HUE[key] ?? 'var(--color-border-strong)';
 
         return (
           <li
@@ -171,7 +190,7 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
               {exp.summaryHtml && (
                 // Sanitized server-side by isomorphic-dompurify (ADR-14).
                 <div
-                  className="max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)]"
+                  className="max-w-[62ch] space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)] [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
                   dangerouslySetInnerHTML={{ __html: exp.summaryHtml }}
                 />
               )}
