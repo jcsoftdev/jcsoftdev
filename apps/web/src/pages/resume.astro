@@ -72,12 +72,20 @@ const jsonLd = [
         <li><a href={SITE_URL}>jcsoftdev.com</a></li>
       </ul>
 
-      <p
-        class="no-print mt-6 font-mono text-xs text-[color:var(--color-text-muted)]"
-      >
-        Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF — the printed
-        copy adds a phone number and direct email that are kept off this page.
-      </p>
+      <div class="no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button
+          type="button"
+          data-download-cv
+          class="inline-flex items-center gap-2 rounded-md bg-[color:var(--color-accent)] px-5 py-2.5 font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,box-shadow] duration-[var(--duration-fast)] hover:brightness-110 hover:shadow-[0_8px_32px_-8px_var(--color-accent-muted)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-bg)]"
+        >
+          Download PDF
+          <span aria-hidden="true">↓</span>
+        </button>
+        <p class="font-mono text-xs text-[color:var(--color-text-muted)]">
+          Or press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd>. The PDF adds a
+          phone number and direct email kept off this page.
+        </p>
+      </div>
     </header>
 
     <section class="mt-10 break-inside-avoid">
@@ -260,17 +268,19 @@ const jsonLd = [
   // by anyone willing to run the same atob. It defeats the naive harvester,
   // which is nearly all of them, and nothing more.
   //
-  // If JavaScript is off the print simply lacks them — the same result as not
+  // With JavaScript off the print simply lacks them — the same result as not
   // having built this. Nothing else on the page depends on it.
   (() => {
-    const list = document.querySelector("[data-contact-list]");
-    if (!list || list.dataset.printBound === "true") return;
-    list.dataset.printBound = "true";
+    // ClientRouter swaps the document on navigation and re-runs this script, so
+    // the element is looked up at print time rather than captured now: a
+    // reference taken here would be detached the moment you leave and come back.
+    const contactList = () => document.querySelector("[data-contact-list]");
 
     let injected = [];
 
     const add = () => {
-      if (injected.length > 0) return;
+      const list = contactList();
+      if (!list || injected.length > 0) return;
       injected = printOnly.map(({ value, href }) => {
         const li = document.createElement("li");
         const a = document.createElement("a");
@@ -287,18 +297,45 @@ const jsonLd = [
       injected = [];
     };
 
-    // beforeprint/afterprint covers Chrome, Firefox and Safari 13+. The print
-    // media query is wired too because some paths into printing flip the query
-    // without firing the event; `add` and `remove` are idempotent, so a browser
-    // that does both is harmless.
-    window.addEventListener("beforeprint", add);
-    window.addEventListener("afterprint", remove);
+    // The download button calls window.print() rather than linking to a file.
+    // There is no .pdf on disk to link to, and producing one would mean
+    // rendering this page with a headless browser — a ~400MB dependency in the
+    // production image for a document that changes twice a year.
+    //
+    // The browser's own print path yields the same artifact for free, since
+    // every major browser offers "Save as PDF" as a destination, and it is the
+    // only route that picks up both the print stylesheet and the contact
+    // details injected above. A prerendered file would have to reproduce both.
+    //
+    // Bound per navigation, guarded on the element: the button is a new node
+    // after every DOM swap.
+    const bindButton = () => {
+      const button = document.querySelector("[data-download-cv]");
+      if (!button || button.dataset.bound === "true") return;
+      button.dataset.bound = "true";
+      button.addEventListener("click", () => window.print());
+    };
 
-    window
-      .matchMedia("print")
-      .addEventListener("change", (event) =>
-        event.matches ? add() : remove(),
-      );
+    bindButton();
+    document.addEventListener("astro:page-load", bindButton);
+
+    // Window outlives the document, so these bind exactly once. Without the
+    // flag every visit to /resume would leave another listener behind.
+    if (!window.__resumePrintBound) {
+      window.__resumePrintBound = true;
+
+      // beforeprint/afterprint covers Chrome, Firefox and Safari 13+. The print
+      // media query is wired too because some paths into printing flip the
+      // query without firing the event; add and remove are idempotent, so a
+      // browser that does both is harmless.
+      window.addEventListener("beforeprint", add);
+      window.addEventListener("afterprint", remove);
+      window
+        .matchMedia("print")
+        .addEventListener("change", (event) =>
+          event.matches ? add() : remove(),
+        );
+    }
   })();
 </script>
 
