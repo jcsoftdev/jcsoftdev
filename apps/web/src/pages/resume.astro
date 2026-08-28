@@ -21,6 +21,7 @@ import {
   CORE_COMPETENCIES,
   EDUCATION,
   EXPERIENCE,
+  PRINT_ONLY_CONTACT,
   PROFILE,
   TECHNICAL_SKILLS,
 } from "../lib/resume.data";
@@ -62,6 +63,7 @@ const jsonLd = [
         Senior Full-Stack Developer
       </p>
       <ul
+        data-contact-list
         class="mt-4 flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs text-[color:var(--color-text-muted)]"
       >
         <li><a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a></li>
@@ -73,7 +75,8 @@ const jsonLd = [
       <p
         class="no-print mt-6 font-mono text-xs text-[color:var(--color-text-muted)]"
       >
-        Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF.
+        Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF — the printed
+        copy adds a phone number and direct email that are kept off this page.
       </p>
     </header>
 
@@ -244,6 +247,60 @@ const jsonLd = [
     </section>
   </main>
 </RootLayout>
+
+<script is:inline define:vars={{ printOnly: PRINT_ONLY_CONTACT }}>
+  // The phone number and direct email reach the printed CV without appearing on
+  // the page. Two things make that work, and neither is `display: none` — that
+  // still ships the text in the markup, which is exactly what an address
+  // harvester reads.
+  //
+  // The values arrive base64-encoded and are decoded only here, so the served
+  // HTML contains no email pattern and no phone number to match on. This is
+  // obfuscation, not protection: anything the browser renders can be extracted
+  // by anyone willing to run the same atob. It defeats the naive harvester,
+  // which is nearly all of them, and nothing more.
+  //
+  // If JavaScript is off the print simply lacks them — the same result as not
+  // having built this. Nothing else on the page depends on it.
+  (() => {
+    const list = document.querySelector("[data-contact-list]");
+    if (!list || list.dataset.printBound === "true") return;
+    list.dataset.printBound = "true";
+
+    let injected = [];
+
+    const add = () => {
+      if (injected.length > 0) return;
+      injected = printOnly.map(({ value, href }) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = atob(href);
+        a.textContent = atob(value);
+        li.appendChild(a);
+        list.appendChild(li);
+        return li;
+      });
+    };
+
+    const remove = () => {
+      for (const li of injected) li.remove();
+      injected = [];
+    };
+
+    // beforeprint/afterprint covers Chrome, Firefox and Safari 13+. The print
+    // media query is wired too because some paths into printing flip the query
+    // without firing the event; `add` and `remove` are idempotent, so a browser
+    // that does both is harmless.
+    window.addEventListener("beforeprint", add);
+    window.addEventListener("afterprint", remove);
+
+    window
+      .matchMedia("print")
+      .addEventListener("change", (event) =>
+        event.matches ? add() : remove(),
+      );
+  })();
+</script>
 
 <style is:global>
   .resume-h2 {

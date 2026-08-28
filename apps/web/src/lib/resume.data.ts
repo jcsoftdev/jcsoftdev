@@ -46,6 +46,34 @@ export interface ResumeRole {
   projects?: ResumeProject[];
 }
 
+/**
+ * Contact details that belong on the printed CV but not on the public page.
+ *
+ * Base64 rather than plain text, and decoded only when the browser enters print
+ * mode. Two separate reasons:
+ *
+ *   - `display: none` would not help at all. The text still ships in the markup,
+ *     which is exactly what an address harvester reads.
+ *   - Encoding keeps the literal strings out of the served HTML, so a crawler
+ *     grepping for an email pattern or a phone number finds nothing.
+ *
+ * Be clear about what this is: obfuscation, not protection. Anything the browser
+ * can render, a determined scraper can extract — it only has to run the same
+ * `atob` this page does. The point is to defeat the naive harvester that makes
+ * up nearly all of the traffic, not to make the data unreachable.
+ *
+ * Decode with `atob` to read or change these.
+ */
+export const PRINT_ONLY_CONTACT: { value: string; href: string }[] = [
+  // +51 900 209 147
+  { value: 'KzUxIDkwMCAyMDkgMTQ3', href: 'dGVsOis1MTkwMDIwOTE0Nw==' },
+  // juancarlos.valencia.dev@gmail.com
+  {
+    value: 'anVhbmNhcmxvcy52YWxlbmNpYS5kZXZAZ21haWwuY29t',
+    href: 'bWFpbHRvOmp1YW5jYXJsb3MudmFsZW5jaWEuZGV2QGdtYWlsLmNvbQ==',
+  },
+];
+
 export const PROFILE =
   'Full-Stack Developer with 8+ years of experience building complete web products, from the frontend to the infrastructure. Primarily working with TypeScript, React/Next.js, Node.js/NestJS, Go, and Python/Django REST Framework, building microservices and REST/gRPC APIs on PostgreSQL, with Docker, Terraform, and CI/CD pipelines on AWS and Azure. Experienced in building LLM-orchestrated (LangGraph) agentic features. Focused on maintainable code and production stability.';
 
