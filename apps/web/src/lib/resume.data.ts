@@ -62,17 +62,21 @@ export interface ResumeRole {
  * `atob` this page does. The point is to defeat the naive harvester that makes
  * up nearly all of the traffic, not to make the data unreachable.
  *
+ * Order matters. These are prepended to the contact list, and the screen-only
+ * rows drop out in print, so the printed grid reads exactly as the PDF does:
+ * email beside phone, then linkedin beside github.
+ *
  * Decode with `atob` to read or change these.
  */
 export const PRINT_ONLY_CONTACT: { value: string; href: string; icon: string }[] = [
-  // +51 900 209 147
-  { value: 'KzUxIDkwMCAyMDkgMTQ3', href: 'dGVsOis1MTkwMDIwOTE0Nw==', icon: '#i-phone' },
   // juancarlos.valencia.dev@gmail.com
   {
     value: 'anVhbmNhcmxvcy52YWxlbmNpYS5kZXZAZ21haWwuY29t',
     href: 'bWFpbHRvOmp1YW5jYXJsb3MudmFsZW5jaWEuZGV2QGdtYWlsLmNvbQ==',
     icon: '#i-mail',
   },
+  // +51 900 209 147
+  { value: 'KzUxIDkwMCAyMDkgMTQ3', href: 'dGVsOis1MTkwMDIwOTE0Nw==', icon: '#i-phone' },
 ];
 
 export const PROFILE =

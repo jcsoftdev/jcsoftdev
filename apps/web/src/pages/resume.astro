@@ -102,7 +102,7 @@ const jsonLd = [
           direct email into the same grid. */
       }
       <ul data-contact-list class="cv-contact">
-        <li>
+        <li class="cv-screen-only">
           <svg class="cv-icon" aria-hidden="true"
             ><use href="#i-mail"></use></svg
           >
@@ -120,7 +120,7 @@ const jsonLd = [
           >
           <a href={AUTHOR_GITHUB}>github.com/jcsoftdev</a>
         </li>
-        <li>
+        <li class="cv-screen-only">
           <svg class="cv-icon" aria-hidden="true"
             ><use href="#i-mail"></use></svg
           >
@@ -283,6 +283,7 @@ const jsonLd = [
     const add = () => {
       const list = contactList();
       if (!list || injected.length > 0) return;
+      const fragment = document.createDocumentFragment();
       injected = printOnly.map(({ value, href, icon }) => {
         const li = document.createElement("li");
 
@@ -306,9 +307,12 @@ const jsonLd = [
         a.textContent = atob(value);
 
         li.append(svg, a);
-        list.appendChild(li);
+        fragment.appendChild(li);
         return li;
       });
+      // Prepended: the printed grid must read email | phone, then linkedin |
+      // github, and the two screen-only rows drop out under @media print.
+      list.prepend(fragment);
     };
 
     const remove = () => {
@@ -641,8 +645,11 @@ const jsonLd = [
   /* Print: single column, ink-friendly, no site chrome. Deliberately overrides
      the dark theme — a dark-background PDF is unusable and burns toner. */
   @media print {
+    /* 19mm ≈ 54pt, measured off the source PDF: its name baseline starts at
+       x=54 and y=54 on Letter. Matching the margin is what makes every other
+       measurement comparable. */
     @page {
-      margin: 16mm 14mm;
+      margin: 19mm;
     }
 
     :root {
@@ -672,11 +679,17 @@ const jsonLd = [
        reading column; on Letter they ran the document to nine pages against the
        original's six, which is a different artifact, not a rendering of it. */
     .cv-name {
-      font-size: 21pt;
+      font-size: 21.6pt;
     }
     .cv-title {
       font-size: 10pt;
     }
+    /* The domain address and the site link are not on the printed CV; the two
+       injected rows take their place, in the order the PDF prints them. */
+    .cv-screen-only {
+      display: none !important;
+    }
+
     .cv-contact {
       margin-top: 0.7rem;
       gap: 0.25rem 1.5rem;
@@ -690,16 +703,20 @@ const jsonLd = [
       margin-top: 1.5rem;
     }
     .cv-h2 {
-      font-size: 8.6pt;
+      font-size: 8.8pt;
     }
     .cv-h2--sub {
       font-size: 7.6pt;
     }
+    /* Sizes tuned by measuring rendered text WIDTH against the source PDF —
+       same string, same nominal size — rather than line-box height, which
+       varies with the font's ascent and descent and misreads badly across two
+       different families. */
     .cv-body,
     .cv-skill-row dd,
     .cv-competencies,
     .cv-bullets {
-      font-size: 9pt;
+      font-size: 9.4pt;
       line-height: 1.42;
     }
     .cv-body {
@@ -713,7 +730,7 @@ const jsonLd = [
       grid-template-columns: 130px minmax(0, 1fr);
     }
     .cv-skill-row dt {
-      font-size: 8.6pt;
+      font-size: 9.2pt;
     }
     .cv-competencies {
       margin-top: 0.55rem;
