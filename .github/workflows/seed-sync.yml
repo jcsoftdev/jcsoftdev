@@ -36,37 +36,50 @@ name: Seed sync
 # credentials, no new credential surface.
 #
 # ── One-time setup ──────────────────────────────────────────────────────────
-# 1. In Dokploy -> Schedules, create a schedule of type "Dokploy Server":
+# Already done on the current server; recorded here so it can be rebuilt.
 #
-#      Name:  seed-sync
-#      Cron:  0 0 31 2 *      <- 31 February. A date that does not exist, so the
-#                               schedule can never fire on its own; the only way
-#                               it runs is runManually, from this workflow.
-#      Shell: bash
-#      Command:
-#        set -e
-#        d=""
-#        for p in /etc/dokploy/applications/*/code; do
-#          if [ -f "$p/docker-compose.prod.yml" ]; then d="$p"; break; fi
-#        done
-#        if [ -z "$d" ]; then
-#          echo "FAIL: no repo checkout containing docker-compose.prod.yml"
-#          exit 1
-#        fi
-#        echo "using $d"
-#        cd "$d"
-#        docker compose -f docker-compose.prod.yml --profile sync run --rm syncer
+# 1. Dokploy -> Schedules -> new schedule, type "Dokploy Server", shell bash.
 #
-#    It locates the checkout rather than hardcoding a path, and exits non-zero
-#    when it finds nothing — a sync that silently does nothing is the failure
-#    mode worth designing against, since the symptom is a stale portfolio that
-#    still looks deployed.
+#      Cron: 0 0 31 2 *   <- 31 February. A date that does not exist, so the
+#                            schedule can never fire on its own; runManually,
+#                            from this workflow, is the only thing that runs it.
+#
+#    Put the body in the SCRIPT field, not the command field. A dokploy-server
+#    schedule executes `script`; anything in `command` alone is ignored, the run
+#    still reports status "done", and nothing happens — which is exactly how the
+#    first attempt at this passed while leaving the database untouched.
+#
+#      set -euo pipefail
+#
+#      d=/etc/dokploy/applications/jcsoftdev-api-ctef5b/code
+#      [ -f "$d/docker-compose.prod.yml" ] || { echo "FAIL: no compose in $d"; exit 1; }
+#      cd "$d"
+#
+#      api=$(docker ps --filter "name=jcsoftdev-api" --format '{{.ID}}' | head -1)
+#      [ -n "$api" ] || { echo "FAIL: no running jcsoftdev-api container"; exit 1; }
+#      DB=$(docker exec "$api" printenv DATABASE_DIRECT_URL 2>/dev/null || true)
+#      VK=$(docker exec "$api" printenv VALKEY_URL 2>/dev/null || true)
+#      [ -n "$DB" ] || { echo "FAIL: DATABASE_DIRECT_URL not in the api container"; exit 1; }
+#
+#      docker compose -p jcsoftdev-seed-sync -f docker-compose.prod.yml \
+#        --profile sync run --rm --no-deps \
+#        -e DATABASE_DIRECT_URL="$DB" -e VALKEY_URL="$VK" syncer
+#
+#    Three details in there are load-bearing, each learned the hard way:
+#
+#    - The path is pinned to one application. /etc/dokploy/applications/*/code
+#      lists every project on the server, and more than one may carry a
+#      docker-compose.prod.yml — a glob can pick the wrong repository entirely.
+#    - --no-deps. That compose file also defines postgres, valkey, minio and
+#      plausible. Without it, `compose run` starts a second copy of the whole
+#      stack next to the one Dokploy manages. -p keeps compose from adopting or
+#      tearing down containers it does not own.
+#    - The credentials are read from the running api container. The checkout has
+#      no .env, so ${POSTGRES_USER} and friends would interpolate to empty and
+#      the sync would fail authenticating. Reading them at run time avoids
+#      keeping a second copy of the production password inside the schedule.
 #
 # 2. Add the schedule's id as the repository secret DOKPLOY_SYNC_SCHEDULE_ID.
-#
-# Until step 1 and 2 are done this job fails, loudly and on every push to main.
-# That is on purpose: a deploy that quietly skips the data half is the exact
-# failure this repository keeps getting bitten by.
 
 on:
   # Called by ci.yml after every successful deploy to main.
