@@ -2,7 +2,7 @@
  * ProjectsGrid — projects as a readout table.
  *
  * The card grid was three tiles of chrome around one sentence each. A table
- * puts every project's year, name and summary on one scan line, which is how
+ * puts every project's name and summary on one scan line, which is how
  * someone actually reads a portfolio: down the names first, then across the one
  * that catches them.
  *
@@ -31,28 +31,10 @@ function monogram(name: string): string {
     .join('');
 }
 
-function formatYear(iso: string | null): string | null {
-  // `projects.started_at` / `ended_at` are nullable. Without this guard
-  // `new Date('nullT00:00:00')` yields NaN and renders as literal "NaN".
-  if (!iso) return null;
-  const year = new Date(`${iso}T00:00:00`).getFullYear();
-  return Number.isNaN(year) ? null : year.toString();
-}
-
-/** "2024 — 25", "2025 —", or "2023" — compact enough for a table cell. */
-function formatPeriod(startedAt: string | null, endedAt: string | null): string {
-  const from = formatYear(startedAt);
-  const to = formatYear(endedAt);
-  if (!from) return to ?? '—';
-  if (!to) return `${from} —`;
-  if (from === to) return from;
-  return `${from} — ${to.slice(2)}`;
-}
-
 /** Column layout is driven by the container, so the table only appears when
  *  the column can actually hold five columns. */
 const GRID =
-  'grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 @3xl:grid-cols-[92px_minmax(0,1.4fr)_minmax(0,2fr)_28px] @3xl:items-start @3xl:gap-x-5 @3xl:gap-y-0';
+  'grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 @3xl:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_28px] @3xl:items-start @3xl:gap-x-5 @3xl:gap-y-0';
 
 export function ProjectsGrid({ projects }: ProjectsGridProps) {
   const sorted = [...projects].sort((a, b) => {
@@ -77,7 +59,6 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
         aria-hidden="true"
         className={`${GRID} hidden border-t border-[color:var(--color-border)] py-2.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-faint)] @3xl:grid`}
       >
-        <span>Year</span>
         <span>Project</span>
         <span>What it does</span>
         <span />
@@ -104,13 +85,8 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
                     : '',
                 ].join(' ')}
               >
-                {/* Year */}
-                <span className="order-2 font-mono text-xs text-[color:var(--color-text-muted)] @3xl:order-none @3xl:pl-3">
-                  {formatPeriod(project.startedAt, project.endedAt)}
-                </span>
-
                 {/* Project — monogram chip keeps the slug gradient alive */}
-                <span className="order-1 flex min-w-0 items-center gap-3 @3xl:order-none">
+                <span className="flex min-w-0 items-center gap-3 @3xl:pl-3">
                   <span
                     aria-hidden="true"
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm font-display text-[11px] font-bold text-white/85"

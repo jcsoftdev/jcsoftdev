@@ -23,10 +23,10 @@ export const seedExperiences: NewExperience[] = [
     role: 'Senior Software Engineer',
     summary:
       'Delivered end-to-end web products across multiple client engagements and internal initiatives — full-stack architecture (TypeScript, React/Next.js, Node.js/NestJS, Go), microservices, REST/gRPC APIs, event-driven systems, and cloud platforms (AWS, Azure, GCP).\n\n' +
-      '- **Multi-tenant SaaS web-monitoring platform with AI insights** (2026) — schema-per-tenant Postgres, 17 hexagonal/DDD modules, Go + Chi + gRPC services, Next.js 16 frontend, LangGraph on Amazon Bedrock, ECS Fargate Spot.\n' +
-      '- **Content management system with Google Drive integration** (2025–26) — modular NestJS 11 REST API with RBAC, hierarchical content, dynamic forms, hybrid Postgres + Drive storage, plus a companion Expo app for iOS, Android and Web.\n' +
-      '- **Enterprise microservices platform** (2024–25) — hexagonal services on Azure AKS with Service Bus and Kafka, a Go service on AWS Lambda, React/Vue frontends, and 80%+ coverage gates in CI.\n' +
-      '- **Microfrontend web platform** (2023–24) — Nx microfrontends with SSR/SSG for SEO, Redis caching that cut response times 76% (30s to 7s), and production deploys on AWS.',
+      '- **Multi-tenant SaaS web-monitoring platform with AI insights** — schema-per-tenant Postgres, 17 hexagonal/DDD modules, Go + Chi + gRPC services, Next.js 16 frontend, LangGraph on Amazon Bedrock, ECS Fargate Spot.\n' +
+      '- **Content management system with Google Drive integration** — modular NestJS 11 REST API with RBAC, hierarchical content, dynamic forms, hybrid Postgres + Drive storage, plus a companion Expo app for iOS, Android and Web.\n' +
+      '- **Enterprise microservices platform** — hexagonal services on Azure AKS with Service Bus and Kafka, a Go service on AWS Lambda, React/Vue frontends, and 80%+ coverage gates in CI.\n' +
+      '- **Microfrontend web platform** — Nx microfrontends with SSR/SSG for SEO, Redis caching that cut response times 76% (30s to 7s), and production deploys on AWS.',
     startedAt: '2023-10-01',
     endedAt: '2026-06-01',
     location: 'Lima, Peru',

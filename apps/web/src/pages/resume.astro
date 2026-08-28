@@ -133,16 +133,9 @@ const jsonLd = [
         {
           projects.map((p) => (
             <li class="break-inside-avoid">
-              <div class="flex flex-wrap items-baseline justify-between gap-x-4">
-                <h3 class="font-display text-base font-semibold text-[color:var(--color-text-primary)]">
-                  {p.name}
-                </h3>
-                {p.startedAt && (
-                  <span class="font-mono text-xs text-[color:var(--color-text-muted)]">
-                    <time datetime={p.startedAt}>{fmt(p.startedAt)}</time>
-                  </span>
-                )}
-              </div>
+              <h3 class="font-display text-base font-semibold text-[color:var(--color-text-primary)]">
+                {p.name}
+              </h3>
               {p.summary && (
                 <p class="mt-1 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
                   {p.summary}
