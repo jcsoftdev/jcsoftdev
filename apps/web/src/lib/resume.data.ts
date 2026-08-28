@@ -64,13 +64,14 @@ export interface ResumeRole {
  *
  * Decode with `atob` to read or change these.
  */
-export const PRINT_ONLY_CONTACT: { value: string; href: string }[] = [
+export const PRINT_ONLY_CONTACT: { value: string; href: string; icon: string }[] = [
   // +51 900 209 147
-  { value: 'KzUxIDkwMCAyMDkgMTQ3', href: 'dGVsOis1MTkwMDIwOTE0Nw==' },
+  { value: 'KzUxIDkwMCAyMDkgMTQ3', href: 'dGVsOis1MTkwMDIwOTE0Nw==', icon: '#i-phone' },
   // juancarlos.valencia.dev@gmail.com
   {
     value: 'anVhbmNhcmxvcy52YWxlbmNpYS5kZXZAZ21haWwuY29t',
     href: 'bWFpbHRvOmp1YW5jYXJsb3MudmFsZW5jaWEuZGV2QGdtYWlsLmNvbQ==',
+    icon: '#i-mail',
   },
 ];
 

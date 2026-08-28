@@ -53,26 +53,82 @@ const jsonLd = [
   jsonLd={jsonLd}
 >
   <main class="resume mx-auto w-full max-w-[54rem] px-6 py-16 lg:px-8">
-    <header class="resume-head">
-      <h1
-        class="font-display text-4xl font-semibold tracking-tight text-[color:var(--color-text-primary)]"
-      >
-        Juan Carlos Valencia López
-      </h1>
-      <p class="mt-1 font-mono text-sm text-[color:var(--color-accent)]">
-        Senior Full-Stack Developer
-      </p>
-      <ul
-        data-contact-list
-        class="mt-4 flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs text-[color:var(--color-text-muted)]"
-      >
-        <li><a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a></li>
-        <li><a href={AUTHOR_LINKEDIN}>linkedin.com/in/jcsoftdev</a></li>
-        <li><a href={AUTHOR_GITHUB}>github.com/jcsoftdev</a></li>
-        <li><a href={SITE_URL}>jcsoftdev.com</a></li>
+    {
+      /* Icon sprites — referenced by the static contact rows and by the ones the
+        print script injects, so both look the same. */
+    }
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+      <symbol id="i-mail" viewBox="0 0 24 24">
+        <rect
+          x="2"
+          y="4"
+          width="20"
+          height="16"
+          rx="2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"></rect>
+        <path
+          d="m2 7 10 6 10-6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"></path>
+      </symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24">
+        <path
+          d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"></path>
+      </symbol>
+      <symbol id="i-linkedin" viewBox="0 0 24 24">
+        <path
+          d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3zM10 9h3.8v1.7h.1a4.2 4.2 0 0 1 3.8-2c4 0 4.8 2.6 4.8 6.1V21h-4v-5.5c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21h-4z"
+        ></path>
+      </symbol>
+      <symbol id="i-github" viewBox="0 0 24 24">
+        <path
+          d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7 0-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"
+        ></path>
+      </symbol>
+    </svg>
+
+    <header class="cv-head">
+      <h1 class="cv-name">Juan Carlos Valencia López</h1>
+      <p class="cv-title">Senior Full-Stack Developer</p>
+
+      {
+        /* Two columns, as printed. The print script appends the phone and the
+          direct email into the same grid. */
+      }
+      <ul data-contact-list class="cv-contact">
+        <li>
+          <svg class="cv-icon" aria-hidden="true"
+            ><use href="#i-mail"></use></svg
+          >
+          <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a>
+        </li>
+        <li>
+          <svg class="cv-icon" aria-hidden="true"
+            ><use href="#i-linkedin"></use></svg
+          >
+          <a href={AUTHOR_LINKEDIN}>linkedin.com/in/jcsoftdev</a>
+        </li>
+        <li>
+          <svg class="cv-icon" aria-hidden="true"
+            ><use href="#i-github"></use></svg
+          >
+          <a href={AUTHOR_GITHUB}>github.com/jcsoftdev</a>
+        </li>
+        <li>
+          <svg class="cv-icon" aria-hidden="true"
+            ><use href="#i-mail"></use></svg
+          >
+          <a href={SITE_URL}>jcsoftdev.com</a>
+        </li>
       </ul>
 
-      <div class="no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="no-print mt-7 flex flex-wrap items-center gap-x-4 gap-y-2">
         <button
           type="button"
           data-download-cv
@@ -88,76 +144,51 @@ const jsonLd = [
       </div>
     </header>
 
-    <section class="mt-10 break-inside-avoid">
-      <h2 class="resume-h2">Profile</h2>
-      <p
-        class="mt-3 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]"
-      >
-        {PROFILE}
-      </p>
+    <section class="cv-section break-inside-avoid">
+      <h2 class="cv-h2">Profile</h2>
+      <p class="cv-body">{PROFILE}</p>
     </section>
 
-    <section class="mt-10">
-      <h2 class="resume-h2">Technical Skills</h2>
-      <dl class="mt-3 flex flex-col gap-2.5">
+    <section class="cv-section">
+      <h2 class="cv-h2 cv-h2--caps">Technical Skills</h2>
+      <dl class="cv-skills">
         {
           TECHNICAL_SKILLS.map(({ label, value }) => (
-            <div class="grid break-inside-avoid gap-x-5 gap-y-0.5 sm:grid-cols-[150px_minmax(0,1fr)]">
-              <dt class="font-mono text-xs text-[color:var(--color-text-primary)]">
-                {label}
-              </dt>
-              <dd class="text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
-                {value}
-              </dd>
+            <div class="cv-skill-row break-inside-avoid">
+              <dt>{label}</dt>
+              <dd>{value}</dd>
             </div>
           ))
         }
       </dl>
     </section>
 
-    <section class="mt-10 break-inside-avoid">
-      <h2 class="resume-h2">Core Competencies</h2>
-      {/* Two columns, as printed — collapses to one on a narrow screen. */}
-      <ul
-        class="mt-3 grid gap-x-8 gap-y-1.5 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)] sm:grid-cols-2"
-      >
-        {
-          CORE_COMPETENCIES.map((item) => (
-            <li class="resume-dash break-inside-avoid">{item}</li>
-          ))
-        }
+    <section class="cv-section break-inside-avoid">
+      <h2 class="cv-h2 cv-h2--caps">Core Competencies</h2>
+      <ul class="cv-competencies">
+        {CORE_COMPETENCIES.map((item) => <li>{item}</li>)}
       </ul>
     </section>
 
-    <section class="mt-10">
-      <h2 class="resume-h2">Experience</h2>
-      <ol class="mt-4 flex flex-col gap-8">
+    <section class="cv-section">
+      <h2 class="cv-h2 cv-h2--caps">Experience</h2>
+      <ol class="cv-roles">
         {
           EXPERIENCE.map((role) => (
-            <li>
-              <div class="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-[color:var(--color-border-soft)] pb-1.5">
-                <h3 class="font-display text-lg font-semibold text-[color:var(--color-text-primary)]">
-                  {role.role}
-                  <span class="text-[color:var(--color-text-muted)]">
-                    {" · "}
-                    {role.company}
-                  </span>
-                </h3>
-                <span class="font-mono text-xs text-[color:var(--color-text-muted)]">
-                  {role.period}
-                </span>
+            <li class="cv-role">
+              <div class="cv-role-head">
+                <div>
+                  <p class="cv-role-title">{role.role},</p>
+                  <p class="cv-company">{role.company}</p>
+                </div>
+                <span class="cv-date">{role.period}</span>
               </div>
 
-              {role.stack && <p class="resume-stack">{role.stack}</p>}
-
-              {role.summary && (
-                <p class="mt-2 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
-                  {role.summary}
-                </p>
-              )}
+              {role.stack && <p class="cv-stack">{role.stack}</p>}
+              {role.summary && <p class="cv-body">{role.summary}</p>}
 
               {role.bullets && role.bullets.length > 0 && (
-                <ul class="resume-bullets">
+                <ul class="cv-bullets">
                   {role.bullets.map((b) => (
                     <li class="break-inside-avoid">{b}</li>
                   ))}
@@ -165,46 +196,31 @@ const jsonLd = [
               )}
 
               {role.projects && role.projects.length > 0 && (
-                <ol class="mt-5 flex flex-col gap-5">
+                <ol class="cv-projects">
                   {role.projects.map((project) => (
                     <li>
-                      {project.label && (
-                        <p class="resume-label">{project.label}</p>
-                      )}
-                      <div class="flex flex-wrap items-baseline justify-between gap-x-4">
-                        <h4 class="font-display text-[15px] font-semibold text-[color:var(--color-text-primary)]">
-                          {project.name}
-                        </h4>
+                      {project.label && <p class="cv-label">{project.label}</p>}
+                      <div class="cv-project-head">
+                        <h3 class="cv-project-title">{project.name}</h3>
                         {project.period && (
-                          <span class="font-mono text-[11px] text-[color:var(--color-text-muted)]">
-                            {project.period}
-                          </span>
+                          <span class="cv-date">{project.period}</span>
                         )}
                       </div>
-
-                      <p class="resume-stack">{project.stack}</p>
-
-                      <p class="mt-1.5 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
-                        {project.summary}
-                      </p>
-
-                      <ul class="resume-bullets">
+                      <p class="cv-stack">{project.stack}</p>
+                      <p class="cv-body cv-body--italic">{project.summary}</p>
+                      <ul class="cv-bullets">
                         {project.bullets.map((b) => (
                           <li class="break-inside-avoid">{b}</li>
                         ))}
                       </ul>
 
                       {project.subsections?.map((sub) => (
-                        <div class="mt-4 border-l border-[color:var(--color-border-soft)] pl-4">
-                          {sub.label && <p class="resume-label">{sub.label}</p>}
-                          <h5 class="font-display text-[15px] font-semibold text-[color:var(--color-text-primary)]">
-                            {sub.name}
-                          </h5>
-                          <p class="resume-stack">{sub.stack}</p>
-                          <p class="mt-1.5 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]">
-                            {sub.summary}
-                          </p>
-                          <ul class="resume-bullets">
+                        <div class="cv-subsection">
+                          {sub.label && <p class="cv-label">{sub.label}</p>}
+                          <h4 class="cv-project-title">{sub.name}</h4>
+                          <p class="cv-stack">{sub.stack}</p>
+                          <p class="cv-body cv-body--italic">{sub.summary}</p>
+                          <ul class="cv-bullets">
                             {sub.bullets.map((b) => (
                               <li class="break-inside-avoid">{b}</li>
                             ))}
@@ -221,34 +237,20 @@ const jsonLd = [
       </ol>
     </section>
 
-    <section class="mt-10 break-inside-avoid">
-      <h2 class="resume-h2">Education &amp; Certifications</h2>
-      <div class="mt-3 grid gap-8 sm:grid-cols-2">
+    <section class="cv-section break-inside-avoid">
+      <h2 class="cv-h2 cv-h2--caps">Education &amp; Certifications</h2>
+      <div class="cv-education">
         <div>
-          <h3
-            class="font-display text-base font-semibold text-[color:var(--color-text-primary)]"
-          >
-            {EDUCATION.degree}
-          </h3>
-          <p class="font-mono text-xs text-[color:var(--color-text-muted)]">
-            {EDUCATION.school}
-          </p>
-          <p
-            class="mt-1.5 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]"
-          >
-            {EDUCATION.detail}
-          </p>
+          <h3 class="cv-edu-degree">{EDUCATION.degree}</h3>
+          <p class="cv-edu-school">{EDUCATION.school}</p>
+          <p class="cv-body">{EDUCATION.detail}</p>
         </div>
         <div>
-          <p
-            class="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--color-text-muted)]"
-          >
+          <p class="cv-h2 cv-h2--caps cv-h2--sub">
             Courses &amp; Certifications
           </p>
-          <ul
-            class="mt-2 flex flex-col gap-1.5 text-[15px] leading-relaxed text-[color:var(--color-text-secondary)]"
-          >
-            {CERTIFICATIONS.map((c) => <li class="resume-dash">{c}</li>)}
+          <ul class="cv-competencies cv-competencies--single">
+            {CERTIFICATIONS.map((c) => <li>{c}</li>)}
           </ul>
         </div>
       </div>
@@ -281,12 +283,29 @@ const jsonLd = [
     const add = () => {
       const list = contactList();
       if (!list || injected.length > 0) return;
-      injected = printOnly.map(({ value, href }) => {
+      injected = printOnly.map(({ value, href, icon }) => {
         const li = document.createElement("li");
+
+        // Same sprite the server-rendered rows use, so an injected row is
+        // indistinguishable from the others in the printed document.
+        const svg = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "svg",
+        );
+        svg.setAttribute("class", "cv-icon");
+        svg.setAttribute("aria-hidden", "true");
+        const use = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "use",
+        );
+        use.setAttribute("href", icon);
+        svg.appendChild(use);
+
         const a = document.createElement("a");
         a.href = atob(href);
         a.textContent = atob(value);
-        li.appendChild(a);
+
+        li.append(svg, a);
         list.appendChild(li);
         return li;
       });
@@ -340,73 +359,299 @@ const jsonLd = [
 </script>
 
 <style is:global>
-  .resume-h2 {
+  /* The layout mirrors the CV PDF this page is the web copy of: no rules under
+     the section headings, a serif for names and titles, monospace for dates and
+     stack lines, em-dash bullets against a hairline, and italic project
+     summaries. Print then reproduces the document rather than reinterpreting it.
+
+     The site ships no serif — Geist is the only family loaded — so the CV serif
+     comes from system faces. Nothing is downloaded for it, and it degrades to
+     Georgia, which every target platform has. */
+  .resume {
+    --cv-serif:
+      "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+      serif;
+  }
+
+  .cv-name {
+    font-family: var(--cv-serif);
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+  }
+
+  .cv-title {
+    margin-top: 0.15rem;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .cv-contact {
+    margin-top: 1.15rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 2rem;
     font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-    border-bottom: 1px solid var(--color-border-soft);
-    padding-bottom: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--color-accent);
   }
-
-  /* The em dash the PDF uses as a bullet, rather than a disc. */
-  .resume-dash {
-    padding-left: 1.1rem;
-    text-indent: -1.1rem;
-  }
-  .resume-dash::before {
-    content: "— ";
-    color: var(--color-text-muted);
-  }
-
-  .resume-label {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
-    margin-bottom: 0.25rem;
-  }
-
-  /* The tech line under a role or project title. */
-  .resume-stack {
-    margin-top: 0.35rem;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    line-height: 1.6;
-    color: var(--color-text-muted);
-  }
-
-  .resume-bullets {
-    margin-top: 0.6rem;
-    padding-left: 1.15rem;
+  .cv-contact li {
     display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    list-style: disc;
-    font-size: 15px;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .cv-contact a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .cv-contact a:hover {
+    text-decoration: underline;
+  }
+  .cv-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+    fill: currentColor;
+    color: var(--color-text-muted);
+  }
+
+  .cv-section {
+    margin-top: 2.25rem;
+  }
+
+  /* No border. The PDF separates sections with space, and a rule under every
+     heading reads as a form rather than a document. */
+  .cv-h2 {
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .cv-h2--caps {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .cv-h2--sub {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+  }
+
+  .cv-body {
+    margin-top: 0.55rem;
+    font-size: 0.9rem;
     line-height: 1.6;
     color: var(--color-text-secondary);
   }
-  .resume-bullets li::marker {
+  .cv-body--italic {
+    font-style: italic;
+  }
+
+  .cv-skills {
+    margin-top: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .cv-skill-row {
+    display: grid;
+    gap: 0.15rem 1.5rem;
+  }
+  @media (min-width: 640px) {
+    .cv-skill-row {
+      grid-template-columns: 150px minmax(0, 1fr);
+    }
+  }
+  .cv-skill-row dt {
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .cv-skill-row dd {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+  }
+
+  /* Multi-column rather than grid: the PDF fills the left column top to bottom
+     before starting the right one, and a two-column grid interleaves instead —
+     item 2 lands beside item 1, not under it. */
+  .cv-competencies {
+    margin-top: 0.85rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+  }
+  @media (min-width: 640px) {
+    .cv-competencies {
+      columns: 2;
+      column-gap: 2.5rem;
+    }
+  }
+  .cv-competencies--single {
+    columns: 1 !important;
+    margin-top: 0.55rem;
+  }
+  .cv-competencies li {
+    padding-left: 1.2rem;
+    text-indent: -1.2rem;
+    break-inside: avoid;
+    margin-bottom: 0.5rem;
+  }
+  .cv-competencies li::before {
+    content: "—\00a0";
     color: var(--color-text-faint);
+  }
+
+  .cv-roles {
+    margin-top: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  /* The bullet marker beside each role, as printed. */
+  .cv-role {
+    position: relative;
+    padding-left: 1.1rem;
+  }
+  .cv-role::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.45rem;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: var(--color-text-primary);
+  }
+
+  .cv-role-head,
+  .cv-project-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1.5rem;
+  }
+
+  .cv-role-title {
+    font-family: var(--cv-serif);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .cv-company {
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .cv-date {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  .cv-stack {
+    margin-top: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+  }
+
+  .cv-label {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+    margin-bottom: 0.2rem;
+  }
+
+  .cv-projects {
+    margin-top: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+  .cv-project-title {
+    font-family: var(--cv-serif);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+
+  /* Bullets hang off a hairline, matching the rule the PDF runs down the left
+     of every bullet block. */
+  .cv-bullets {
+    margin-top: 0.7rem;
+    margin-left: 0.15rem;
+    padding-left: 1.3rem;
+    border-left: 1px solid var(--color-border-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+  }
+  .cv-bullets li {
+    padding-left: 1.2rem;
+    text-indent: -1.2rem;
+  }
+  .cv-bullets li::before {
+    content: "—\00a0";
+    color: var(--color-text-faint);
+  }
+
+  .cv-subsection {
+    margin-top: 1.3rem;
+  }
+
+  .cv-education {
+    margin-top: 0.85rem;
+    display: grid;
+    gap: 1.5rem 2.5rem;
+  }
+  @media (min-width: 640px) {
+    .cv-education {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .cv-edu-degree {
+    font-family: var(--cv-serif);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .cv-edu-school {
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
   }
 
   /* Print: single column, ink-friendly, no site chrome. Deliberately overrides
      the dark theme — a dark-background PDF is unusable and burns toner. */
   @media print {
     @page {
-      margin: 14mm;
+      margin: 16mm 14mm;
     }
 
     :root {
       --color-text-primary: #111;
-      --color-text-secondary: #333;
-      --color-text-muted: #666;
-      --color-text-faint: #888;
-      --color-accent: #111;
-      --color-border-soft: #ccc;
+      --color-text-secondary: #2b2b2b;
+      --color-text-muted: #5c6b7a;
+      --color-text-faint: #8a99a8;
+      --color-accent: #3f5f80;
+      --color-border-soft: #d5dbe1;
     }
 
     html,
@@ -415,37 +660,127 @@ const jsonLd = [
       color: #111 !important;
     }
 
-    /* Site chrome and anything decorative has no business on paper. */
-    header[data-site-header],
-    footer[data-site-footer],
-    canvas,
-    .no-print,
-    #scroll-progress,
-    [data-cursor-orb] {
-      display: none !important;
-    }
+    /* Site chrome is hidden globally in global.css — every page can be printed,
+       not just this one. */
 
     .resume {
       max-width: none;
       padding: 0;
     }
 
+    /* Sized in points against the source PDF. The screen sizes are tuned for a
+       reading column; on Letter they ran the document to nine pages against the
+       original's six, which is a different artifact, not a rendering of it. */
+    .cv-name {
+      font-size: 21pt;
+    }
+    .cv-title {
+      font-size: 10pt;
+    }
+    .cv-contact {
+      margin-top: 0.7rem;
+      gap: 0.25rem 1.5rem;
+      font-size: 7.6pt;
+    }
+    .cv-icon {
+      width: 10pt;
+      height: 10pt;
+    }
+    .cv-section {
+      margin-top: 1.5rem;
+    }
+    .cv-h2 {
+      font-size: 8.6pt;
+    }
+    .cv-h2--sub {
+      font-size: 7.6pt;
+    }
+    .cv-body,
+    .cv-skill-row dd,
+    .cv-competencies,
+    .cv-bullets {
+      font-size: 9pt;
+      line-height: 1.42;
+    }
+    .cv-body {
+      margin-top: 0.35rem;
+    }
+    .cv-skills {
+      margin-top: 0.55rem;
+      gap: 0.5rem;
+    }
+    .cv-skill-row {
+      grid-template-columns: 130px minmax(0, 1fr);
+    }
+    .cv-skill-row dt {
+      font-size: 8.6pt;
+    }
+    .cv-competencies {
+      margin-top: 0.55rem;
+      columns: 2;
+      column-gap: 2rem;
+    }
+    .cv-competencies li {
+      margin-bottom: 0.3rem;
+    }
+    .cv-roles {
+      margin-top: 0.7rem;
+      gap: 1.25rem;
+    }
+    .cv-role-title {
+      font-size: 12pt;
+    }
+    .cv-company {
+      font-size: 9pt;
+    }
+    .cv-project-title {
+      font-size: 10.5pt;
+    }
+    .cv-date {
+      font-size: 7.6pt;
+    }
+    .cv-stack {
+      margin-top: 0.2rem;
+      font-size: 7.2pt;
+      line-height: 1.5;
+    }
+    .cv-projects {
+      margin-top: 0.85rem;
+      gap: 1rem;
+    }
+    .cv-bullets {
+      margin-top: 0.45rem;
+      gap: 0.3rem;
+    }
+    .cv-subsection {
+      margin-top: 0.85rem;
+    }
+    .cv-education {
+      margin-top: 0.55rem;
+    }
+    .cv-edu-degree {
+      font-size: 10.5pt;
+    }
+    .cv-edu-school {
+      font-size: 8.4pt;
+    }
+
     .break-inside-avoid {
       break-inside: avoid;
     }
 
+    /* A role should not be orphaned from the engagement list under it. */
+    .cv-role-head,
+    .cv-project-head {
+      break-after: avoid;
+    }
+    .cv-h2 {
+      break-after: avoid;
+    }
+
     a {
-      color: #111 !important;
+      color: inherit !important;
       text-decoration: none;
-    }
-    /* Links are unclickable on paper — print the destination instead. */
-    .resume-head a::after {
-      content: " (" attr(href) ")";
-      font-size: 0.85em;
-      color: #555;
-    }
-    .resume-head a[href^="mailto:"]::after {
-      content: "";
     }
   }
 </style>
