@@ -446,3 +446,32 @@
   inherits: false;
   initial-value: 0px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Print
+   The site had no print rules at all, so every page printed with the rail, the
+   mobile bar, the sticky contact bar and the footer baked into the paper. Any
+   page can be printed; none of that chrome belongs on it.
+   Marked with data-site-chrome rather than matched by tag, because the rail
+   renders as <aside> plus two <div>s and the selector would have to know that.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media print {
+  [data-site-chrome],
+  #scroll-progress,
+  [data-cursor-orb],
+  canvas,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* The rail is gone, so the gutter it reserved must go with it. */
+  body {
+    --rail-w: 0px;
+  }
+}

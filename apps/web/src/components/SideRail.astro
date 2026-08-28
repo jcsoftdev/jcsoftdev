@@ -52,6 +52,7 @@ const dotClass =
 {/* ══════════════ Desktop rail (lg+) ══════════════ */}
 <aside
   aria-label="Site navigation"
+  data-site-chrome
   class="fixed inset-y-0 left-0 z-[var(--z-header)] hidden flex-col justify-between overflow-y-auto overscroll-contain border-r border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-6 lg:flex"
   style="width: var(--rail-w);"
 >
@@ -226,7 +227,7 @@ const dotClass =
 </aside>
 
 {/* ══════════════ Mobile top bar + drawer (< lg) ══════════════ */}
-<div class="sticky top-0 z-[var(--z-header)] lg:hidden">
+<div data-site-chrome class="sticky top-0 z-[var(--z-header)] lg:hidden">
   <header
     class="flex items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-[color:var(--backdrop-bg)] px-[var(--gutter)] py-2.5 backdrop-blur-xl"
   >
@@ -332,6 +333,7 @@ const dotClass =
     home indicator on iOS. */
 }
 <div
+  data-site-chrome
   class="fixed inset-x-0 bottom-0 z-[calc(var(--z-header)-2)] flex items-center justify-between gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--backdrop-bg)] px-[var(--gutter)] pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-xl lg:hidden"
 >
   <div class="flex min-w-0 flex-col">
