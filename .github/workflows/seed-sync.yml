@@ -173,7 +173,12 @@ jobs:
 
           # These are the slugs SUPERSEDED_PROJECT_SLUGS deletes. If any survives
           # on the rendered page, the sync did not take.
-          stale=$(printf '%s' "$html" | grep -oiE 'pulzifi|travitur' | sort -u | tr '\n' ' ')
+          #
+          # grep exits 1 when nothing matches. The runner's shell is `bash -e`
+          # and pipefail is set above, so without the `|| true` a CLEAN page
+          # failed this step with no message — every deploy went red while
+          # production was already correct.
+          stale=$(printf '%s' "$html" | { grep -oiE 'pulzifi|travitur' || true; } | sort -u | tr '\n' ' ')
           if [ -n "$stale" ]; then
             echo "::error::Production still renders superseded content: $stale"
             exit 1
