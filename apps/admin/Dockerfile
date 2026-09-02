@@ -12,6 +12,12 @@ COPY packages/config ./packages/config
 COPY packages/ui ./packages/ui
 COPY packages/types ./packages/types
 COPY apps/admin ./apps/admin
+# Vite inlines VITE_* at build time and this Dockerfile never copies the
+# repo-root .env that vite.config.ts points envDir at, so the value has to
+# arrive as a build arg. Without it resolveApiUrl() throws on first paint and
+# the SPA renders an empty #root in production. Same pattern as apps/web.
+ARG VITE_API_URL=https://api.jcsoftdev.com
+ENV VITE_API_URL=${VITE_API_URL}
 WORKDIR /repo/apps/admin
 RUN pnpm run build
 
