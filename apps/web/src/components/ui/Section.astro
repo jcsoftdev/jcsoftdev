@@ -15,7 +15,7 @@ const { numbered = false, class: className, id, ...rest } = Astro.props;
   {...rest}
 >
   {
-    numbered && (
+    Astro.slots.has("header") && (
       <div class="section-header-slot">
         <slot name="header" />
       </div>
