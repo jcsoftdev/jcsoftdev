@@ -97,7 +97,7 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: /send/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/rate limit exceeded/i)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(/rate limit exceeded/i);
     });
   });
 });

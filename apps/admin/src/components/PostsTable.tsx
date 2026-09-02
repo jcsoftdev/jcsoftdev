@@ -9,6 +9,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import {
   type ColumnDef,
   flexRender,
@@ -53,6 +54,21 @@ const columns: ColumnDef<Post>[] = [
     accessorKey: 'createdAt',
     header: 'Created',
     cell: ({ getValue }) => new Date(getValue<string>()).toLocaleDateString(),
+  },
+  {
+    id: 'actions',
+    header: 'Actions',
+    // The edit route existed with no way to reach it: rows had no link, so
+    // every post was read-only from the UI.
+    cell: ({ row }) => (
+      <Link
+        to="/posts/$id/edit"
+        params={{ id: row.original.id }}
+        className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-100"
+      >
+        Edit
+      </Link>
+    ),
   },
 ];
 

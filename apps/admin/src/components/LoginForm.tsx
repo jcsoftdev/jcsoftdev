@@ -97,7 +97,11 @@ export function LoginForm() {
         )}
       </form.Field>
 
-      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      {serverError && (
+        <p role="alert" className="text-sm text-red-600">
+          {serverError}
+        </p>
+      )}
 
       <button
         type="submit"

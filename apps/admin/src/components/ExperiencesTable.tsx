@@ -7,6 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import {
   type ColumnDef,
   flexRender,
@@ -88,23 +89,32 @@ export function ExperiencesTable() {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
-        <button
-          type="button"
-          aria-label="Delete"
-          onClick={() => {
-            if (
-              window.confirm(
-                `Delete experience at "${row.original.company}"? This cannot be undone.`
-              )
-            ) {
-              deleteMutation.mutate(row.original.id);
-            }
-          }}
-          disabled={deleteMutation.isPending}
-          className="rounded border border-red-400 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40"
-        >
-          Delete
-        </button>
+        <div className="flex gap-2">
+          <Link
+            to="/experiences/$id/edit"
+            params={{ id: row.original.id }}
+            className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-100"
+          >
+            Edit
+          </Link>
+          <button
+            type="button"
+            aria-label="Delete"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Delete experience at "${row.original.company}"? This cannot be undone.`
+                )
+              ) {
+                deleteMutation.mutate(row.original.id);
+              }
+            }}
+            disabled={deleteMutation.isPending}
+            className="rounded border border-red-400 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40"
+          >
+            Delete
+          </button>
+        </div>
       ),
     },
   ];

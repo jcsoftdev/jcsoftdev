@@ -10,6 +10,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the postsClient from api.js
 const mockPostsList = vi.fn();
+// Tables render TanStack Router <Link>s; outside a RouterProvider the real
+// component throws, so stand in a plain anchor that resolves $params.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    params,
+    children,
+    className,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    children: ReactNode;
+    className?: string;
+  }) => (
+    <a
+      href={Object.entries(params ?? {}).reduce((p, [k, v]) => p.replace(`$${k}`, v), to)}
+      className={className}
+    >
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock('../lib/api.js', () => ({
   postsClient: {
     list: mockPostsList,
@@ -74,6 +97,10 @@ describe('PostsTable', () => {
       expect(screen.getByText('First Post')).toBeInTheDocument();
       expect(screen.getByText('Draft Post')).toBeInTheDocument();
     });
+    // Regression: rows had no way to reach /posts/$id/edit.
+    const editLinks = screen.getAllByRole('link', { name: 'Edit' });
+    expect(editLinks).toHaveLength(2);
+    expect(editLinks[0]).toHaveAttribute('href', `/posts/${fakePosts[0]?.id}/edit`);
   });
 
   it('renders loading state initially', async () => {

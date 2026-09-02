@@ -11,6 +11,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockExperiencesList = vi.fn();
 const mockExperiencesDelete = vi.fn();
 
+// Tables render TanStack Router <Link>s; outside a RouterProvider the real
+// component throws, so stand in a plain anchor that resolves $params.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    params,
+    children,
+    className,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    children: ReactNode;
+    className?: string;
+  }) => (
+    <a
+      href={Object.entries(params ?? {}).reduce((p, [k, v]) => p.replace(`$${k}`, v), to)}
+      className={className}
+    >
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock('../lib/api.js', () => ({
   experiencesClient: {
     list: mockExperiencesList,
@@ -96,6 +119,10 @@ describe('ExperiencesTable', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText('Tech Startup')).toBeInTheDocument();
     });
+    // Regression: rows had no way to reach /experiences/$id/edit.
+    const editLinks = screen.getAllByRole('link', { name: 'Edit' });
+    expect(editLinks).toHaveLength(2);
+    expect(editLinks[0]).toHaveAttribute('href', '/experiences/exp-1/edit');
   });
 
   it('renders loading state initially', async () => {
