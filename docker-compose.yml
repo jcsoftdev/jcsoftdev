@@ -106,6 +106,8 @@ services:
   plausible-events-db:
     image: clickhouse/clickhouse-server:latest
     restart: unless-stopped
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-plausible-dev}
     volumes:
       - plausible-events-data:/var/lib/clickhouse
       # Allow default user from any network for local dev (newer CH images restrict to localhost)
@@ -131,7 +133,7 @@ services:
       BASE_URL: "http://localhost:${PLAUSIBLE_PORT:?PLAUSIBLE_PORT is required}"
       SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY_BASE:?PLAUSIBLE_SECRET_KEY_BASE is required}
       DATABASE_URL: "postgres://${PLAUSIBLE_DB_USER:?PLAUSIBLE_DB_USER is required}:${PLAUSIBLE_DB_PASSWORD:?PLAUSIBLE_DB_PASSWORD is required}@plausible-db:5432/${PLAUSIBLE_DB_NAME:?PLAUSIBLE_DB_NAME is required}"
-      CLICKHOUSE_DATABASE_URL: "http://plausible-events-db:8123/plausible_events_db"
+      CLICKHOUSE_DATABASE_URL: "http://default:${CLICKHOUSE_PASSWORD:-plausible-dev}@plausible-events-db:8123/plausible_events_db"
     ports:
       - "${PLAUSIBLE_PORT:?PLAUSIBLE_PORT is required}:8000"
     depends_on:

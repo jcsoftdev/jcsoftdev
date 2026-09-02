@@ -1,9 +1,12 @@
 <clickhouse>
-  <!-- Allow default user from any network for local dev.
-       In production, lock this down or use a dedicated Plausible user. -->
+  <!-- The default user is reachable from every container on the shared
+       docker network, so it needs a password even though the port is never
+       published on the host. The value comes from CLICKHOUSE_PASSWORD on the
+       clickhouse service (compose sets it); Plausible sends the same value in
+       CLICKHOUSE_DATABASE_URL. -->
   <users>
     <default>
-      <password></password>
+      <password from_env="CLICKHOUSE_PASSWORD"/>
       <networks>
         <ip>::/0</ip>
       </networks>

@@ -150,6 +150,8 @@ services:
   plausible-events-db:
     image: clickhouse/clickhouse-server:25.8.31.9
     restart: unless-stopped
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
     volumes:
       - plausible-events-data:/var/lib/clickhouse
       - ./infra/clickhouse/override.xml:/etc/clickhouse-server/users.d/override.xml:ro
@@ -248,7 +250,7 @@ services:
       BASE_URL: "https://analytics.${DOMAIN}"
       SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY_BASE}
       DATABASE_URL: "postgres://${PLAUSIBLE_DB_USER}:${PLAUSIBLE_DB_PASSWORD}@plausible-db:5432/${PLAUSIBLE_DB_NAME}"
-      CLICKHOUSE_DATABASE_URL: "http://plausible-events-db:8123/plausible_events_db"
+      CLICKHOUSE_DATABASE_URL: "http://default:${CLICKHOUSE_PASSWORD}@plausible-events-db:8123/plausible_events_db"
       DISABLE_REGISTRATION: "true"
     depends_on:
       plausible-db:
