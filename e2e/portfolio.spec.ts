@@ -3,12 +3,33 @@
  *
  * Tests the full portfolio content loop:
  *   1. Health check — API reachable
- *   2. Admin creates a project (with hero image upload skipped in CI — no real MinIO)
- *   3. Admin creates an experience
- *   4. Public portfolio page renders both sections
- *   5. ARIA semantic structure — article cards present
- *   6. Hero image present when heroMediaId is set
- *   7. Reduced-motion variant — no GSAP timelines started (NoOpTimeline used)
+ *   2. Public portfolio endpoint responds with the current payload shape
+ *   3. Admin creates a project (hero image upload skipped in CI — no real MinIO)
+ *   4. Admin creates an experience
+ *   5. Home page (`/`) renders both portfolio sections
+ *   6. Semantic structure of the experience list / project rows
+ *   7. Reduced-motion variant — reveal items are visible via the CSS fallback
+ *
+ * The portfolio moved off a dedicated /portfolio route onto the home page
+ * (apps/web/src/pages/index.astro): "Selected work" is #work,
+ * "Experience" is #experience. The public API's combined payload shape also
+ * changed from flat arrays to `{ projects: { items: [] }, experiences: { items: [] } }`
+ * (apps/api/src/routes/public-portfolio.ts).
+ *
+ * The project card grid was replaced by a read-out table
+ * (apps/web/src/components/islands/ProjectsGrid.tsx): rows are `<li><a>` or
+ * `<li><div>`, not `<article>`, they carry no `data-portfolio-project-card`
+ * hook any more, and they render no hero image — a gradient monogram chip
+ * replaced it. The experience list (ExperienceIsland.tsx) still marks its
+ * rows with `data-portfolio-experience-card`, but as `<li>`, not `<article>`.
+ * See the final report for exact locations — this is a genuine UI change,
+ * not something these specs should paper over.
+ *
+ * GSAP is no longer used anywhere on this page — reveal-on-scroll is plain
+ * CSS + IntersectionObserver (index.astro), guarded by a
+ * `prefers-reduced-motion: reduce` media query. There is no more
+ * NoOpTimeline to probe; the reduced-motion test below checks that CSS
+ * fallback directly.
  *
  * Prerequisites (all must be running):
  *   - API   → http://localhost:3000
@@ -54,10 +75,12 @@ async function getMagicLinkToken(apiUrl: string, email: string): Promise<string 
     return process.env.TEST_MAGIC_LINK_TOKEN;
   }
 
-  const sendRes = await fetch(`${apiUrl}/auth/magic-link/send`, {
+  // better-auth's magicLink plugin mounts the send endpoint at
+  // POST /sign-in/magic-link, not /magic-link/send.
+  const sendRes = await fetch(`${apiUrl}/auth/sign-in/magic-link`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, callbackURL: '/dashboard' }),
   });
 
   if (!sendRes.ok) {
@@ -65,6 +88,8 @@ async function getMagicLinkToken(apiUrl: string, email: string): Promise<string 
     return null;
   }
 
+  // This API has no test-mode token exposure — TEST_MAGIC_LINK_TOKEN is the
+  // only way to drive the authenticated tests below.
   const body = (await sendRes.json().catch(() => null)) as {
     testToken?: string;
   } | null;
@@ -92,8 +117,12 @@ async function authenticateWithMagicLink(
     waitUntil: 'networkidle',
   });
 
-  await page.goto(`${adminUrl}/`);
-  await page.waitForURL(/\/dashboard|\/posts|\/projects/, { timeout: 10_000 });
+  // The admin SPA's "/" route is a public landing page (apps/admin/src/routes/index.tsx)
+  // — it never redirects an authenticated session anywhere on its own. Go
+  // straight to the guarded route instead of waiting for a redirect that
+  // does not happen.
+  await page.goto(`${adminUrl}/dashboard`);
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
   return true;
 }
 
@@ -108,35 +137,27 @@ async function createProject(
   await page.goto(`${adminUrl}/projects/new`);
   await expect(page.locator('form')).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('textbox', { name: /name/i }).fill(E2E_PROJECT_NAME);
-  // Allow slug auto-generation from name if implemented, or fill manually
-  const slugInput = page.getByRole('textbox', { name: /slug/i });
-  if (await slugInput.isVisible()) {
-    await slugInput.fill(E2E_PROJECT_SLUG);
-  }
-
-  const summaryInput = page.getByRole('textbox', { name: /summary/i });
-  if (await summaryInput.isVisible()) {
-    await summaryInput.fill(E2E_PROJECT_SUMMARY);
-  }
-
-  const descInput = page.getByRole('textbox', { name: /description/i });
-  if (await descInput.isVisible()) {
-    await descInput.fill(E2E_PROJECT_DESC);
-  }
+  // slug/name/summary are required by CreateProjectSchema
+  // (apps/api/src/schemas/portfolio.ts); description is optional but filled
+  // here to exercise the markdown preview pane.
+  await page.getByRole('textbox', { name: 'Slug' }).fill(E2E_PROJECT_SLUG);
+  await page.getByRole('textbox', { name: 'Name' }).fill(E2E_PROJECT_NAME);
+  await page.getByRole('textbox', { name: 'Summary' }).fill(E2E_PROJECT_SUMMARY);
+  await page.getByRole('textbox', { name: 'Description' }).fill(E2E_PROJECT_DESC);
 
   // Hero image upload is skipped in CI (no real MinIO with test buckets initialized)
   // heroMediaId is optional — omitting it is a valid create path
 
-  await page.getByRole('button', { name: /create|save/i }).click();
+  await page.getByRole('button', { name: /save/i }).click();
 
-  // After successful create, should redirect to list or edit page
-  const redirected = await Promise.race([
-    page.waitForURL(/\/projects\/[a-zA-Z0-9-]+\/edit/, { timeout: 10_000 }).then(() => true),
-    page.waitForURL(/\/projects$/, { timeout: 10_000 }).then(() => true),
-  ]).catch(() => false);
+  // onSaved navigates straight to the projects list, never to an edit page
+  // (apps/admin/src/routes/_auth.projects.new.tsx).
+  const redirected = await page
+    .waitForURL(/\/projects$/, { timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
 
-  return Boolean(redirected);
+  return redirected;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,22 +171,25 @@ async function createExperience(
   await page.goto(`${adminUrl}/experiences/new`);
   await expect(page.locator('form')).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('textbox', { name: /company/i }).fill(E2E_EXPERIENCE_COMPANY);
-  await page.getByRole('textbox', { name: /role/i }).fill(E2E_EXPERIENCE_ROLE);
+  await page.getByRole('textbox', { name: 'Company' }).fill(E2E_EXPERIENCE_COMPANY);
+  await page.getByRole('textbox', { name: 'Role' }).fill(E2E_EXPERIENCE_ROLE);
+  await page.getByRole('textbox', { name: 'Summary' }).fill(E2E_EXPERIENCE_SUMMARY);
 
-  const summaryInput = page.getByRole('textbox', { name: /summary/i });
-  if (await summaryInput.isVisible()) {
-    await summaryInput.fill(E2E_EXPERIENCE_SUMMARY);
-  }
+  // Both required by CreateExperienceSchema (apps/api/src/schemas/portfolio.ts)
+  // — startedAt and displayOrder are non-optional server-side, and
+  // ExperienceForm's own client-side validator blocks submission until
+  // Display Order is filled too. The original test filled neither.
+  await page.getByLabel('Started At').fill('2024-01-01');
+  await page.getByLabel('Display Order').fill('99');
 
-  await page.getByRole('button', { name: /create|save/i }).click();
+  await page.getByRole('button', { name: /save/i }).click();
 
-  const redirected = await Promise.race([
-    page.waitForURL(/\/experiences\/[a-zA-Z0-9-]+\/edit/, { timeout: 10_000 }).then(() => true),
-    page.waitForURL(/\/experiences$/, { timeout: 10_000 }).then(() => true),
-  ]).catch(() => false);
+  const redirected = await page
+    .waitForURL(/\/experiences$/, { timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
 
-  return Boolean(redirected);
+  return redirected;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,22 +208,27 @@ test.describe('portfolio-interactions E2E', () => {
     expect(body.status).toBe('ok');
   });
 
-  test('2 — public portfolio endpoint responds (empty or seeded)', async ({ request }) => {
+  test('2 — public portfolio endpoint responds with the current payload shape', async ({
+    request,
+  }) => {
     const res = await request.get(`${API_URL}/api/v1/public/portfolio`);
     expect(res.ok()).toBeTruthy();
-    const body = (await res.json()) as { projects: unknown[]; experiences: unknown[] };
-    expect(Array.isArray(body.projects)).toBeTruthy();
-    expect(Array.isArray(body.experiences)).toBeTruthy();
+    const body = (await res.json()) as {
+      projects: { items: unknown[] };
+      experiences: { items: unknown[] };
+    };
+    expect(Array.isArray(body.projects.items)).toBeTruthy();
+    expect(Array.isArray(body.experiences.items)).toBeTruthy();
   });
 
   // ── 2. Admin create content ───────────────────────────────────────────────
 
-  test('3 — authenticated admin can navigate to projects list', async ({ page }) => {
+  test('3 — authenticated admin can navigate to the projects list', async ({ page }) => {
     const authed = await authenticateWithMagicLink(page, API_URL, ADMIN_URL, ADMIN_EMAIL);
     if (!authed) return;
 
     await page.goto(`${ADMIN_URL}/projects`);
-    await expect(page.locator('h1, [data-testid="projects-table"], table')).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
       timeout: 10_000,
     });
   });
@@ -220,134 +249,70 @@ test.describe('portfolio-interactions E2E', () => {
     expect(created).toBeTruthy();
   });
 
-  // ── 3. Public portfolio page ──────────────────────────────────────────────
+  // ── 3. Public home page ────────────────────────────────────────────────────
 
-  test('6 — /portfolio page loads and renders both sections', async ({ page }) => {
-    await page.goto(`${WEB_URL}/portfolio`);
+  test('6 — / renders the hero and both portfolio sections', async ({ page }) => {
+    await page.goto(`${WEB_URL}/`);
 
-    // Hero section
-    await expect(page.locator('[data-hero-title], h1')).toBeVisible({ timeout: 15_000 });
-
-    // Experience section — wait for client:visible hydration
-    await expect(
-      page.locator('#experience, section:has([data-portfolio-experience-card])')
-    ).toBeVisible({
+    // Hero
+    await expect(page.getByRole('heading', { name: /juan carlos valencia/i })).toBeVisible({
       timeout: 15_000,
     });
 
-    // Projects section
-    await expect(page.locator('#projects, section:has([data-portfolio-project-card])')).toBeVisible(
-      {
-        timeout: 15_000,
-      }
-    );
+    // Selected work — #work
+    await expect(page.locator('#work')).toBeVisible({ timeout: 15_000 });
+
+    // Experience — #experience
+    await expect(page.locator('#experience')).toBeVisible({ timeout: 15_000 });
   });
 
-  test('7 — portfolio page renders article cards with ARIA semantic structure', async ({
-    page,
-  }) => {
-    await page.goto(`${WEB_URL}/portfolio`);
+  test('7 — experience renders as a semantic list; project rows render', async ({ page }) => {
+    await page.goto(`${WEB_URL}/`);
 
     // Scroll down to trigger client:visible hydration for both islands
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
     await page.waitForTimeout(1_000);
 
-    // At least one project card OR one experience card must be present
-    // (depends on seed data; the E2E-created content may not be present if
-    // auth wasn't available in tests 4/5 — tolerate empty state)
-    const projectCards = page.locator('[data-portfolio-project-card]');
-    const experienceCards = page.locator('[data-portfolio-experience-card]');
+    // Experience rows still carry a stable data hook and are <li> elements
+    // (ExperienceIsland.tsx renders an <ol> of <li data-portfolio-experience-card>,
+    // not <article> cards).
+    const expCards = page.locator('[data-portfolio-experience-card]');
+    const expCount = await expCards.count();
+    expect(expCount).toBeGreaterThan(0);
+    const expTag = await expCards.first().evaluate((el) => el.tagName.toLowerCase());
+    expect(expTag).toBe('li');
 
-    const projectCount = await projectCards.count();
-    const experienceCount = await experienceCards.count();
-
-    if (projectCount > 0) {
-      // Cards should be article elements (ARIA semantic structure)
-      const firstProjectCard = projectCards.first();
-      const tagName = await firstProjectCard.evaluate((el) => el.tagName.toLowerCase());
-      expect(tagName).toBe('article');
-    }
-
-    if (experienceCount > 0) {
-      const firstExpCard = experienceCards.first();
-      const tagName = await firstExpCard.evaluate((el) => el.tagName.toLowerCase());
-      expect(tagName).toBe('article');
-    }
-
-    // At least one type of card must have rendered (seed data ensures this)
-    // If both are 0, the test still passes — empty portfolio is a valid state.
-    // The previous test (6) already confirmed sections render.
-    expect(projectCount + experienceCount).toBeGreaterThanOrEqual(0);
-  });
-
-  test('8 — hero image is present when heroImageUrl is set on a project', async ({ page }) => {
-    await page.goto(`${WEB_URL}/portfolio`);
-
-    // Scroll to projects section
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1_000);
-
-    const projectCards = page.locator('[data-portfolio-project-card]');
-    const count = await projectCards.count();
-
-    if (count === 0) {
-      // No projects seeded — skip assertion
-      return;
-    }
-
-    // Each card that has an img should have loading=lazy and decoding=async
-    const images = page.locator('[data-portfolio-project-card] img');
-    const imgCount = await images.count();
-
-    for (let i = 0; i < imgCount; i++) {
-      const img = images.nth(i);
-      await expect(img).toHaveAttribute('loading', 'lazy');
-      await expect(img).toHaveAttribute('decoding', 'async');
-    }
+    // ProjectsGrid no longer exposes a data hook — it renders a plain <ul> of
+    // <li> rows under #work. Assert on that structure instead.
+    const projectRows = page.locator('#work ul > li');
+    expect(await projectRows.count()).toBeGreaterThan(0);
   });
 
   // ── 4. Reduced-motion variant ─────────────────────────────────────────────
 
-  test('9 — reduced-motion: no GSAP animations on portfolio page', async ({ browser }) => {
-    // Emulate prefers-reduced-motion: reduce at the browser level
-    const context = await browser.newContext({
-      reducedMotion: 'reduce',
-    });
+  test('8 — reduced-motion: reveal items are visible via the CSS fallback', async ({ browser }) => {
+    // GSAP is no longer used on this page at all (confirmed: no import of
+    // @jcsoftdev/animations' timelines anywhere under apps/web/src — only
+    // `initLenis`, a smooth-scroll helper, is used, in HeroIsland.tsx).
+    // Reveal-on-scroll is a plain IntersectionObserver + CSS transition
+    // (index.astro), and it is guarded by a `prefers-reduced-motion: reduce`
+    // media query that sets opacity:1/transform:none/transition:none
+    // unconditionally — no scroll or intersection needed to observe it.
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await context.newPage();
 
-    await page.goto(`${WEB_URL}/portfolio`);
+    await page.goto(`${WEB_URL}/`);
 
-    // Scroll to trigger client:visible hydration
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1_500);
+    const item = page.locator('[data-reveal-item]').first();
+    await expect(item).toBeVisible({ timeout: 10_000 });
 
-    // Assert: no GSAP timeline has been started by checking that elements are
-    // NOT in mid-animation state (opacity 0 or y-translated).
-    // The NoOpTimeline never sets GSAP properties, so elements remain at their
-    // default CSS opacity (1) and transform (none).
-    const projectCards = page.locator('[data-portfolio-project-card]');
-    const expCards = page.locator('[data-portfolio-experience-card]');
+    const style = await item.evaluate((el) => {
+      const cs = window.getComputedStyle(el);
+      return { opacity: cs.opacity, transform: cs.transform };
+    });
 
-    const projectCount = await projectCards.count();
-    const expCount = await expCards.count();
-
-    // For each visible card, confirm opacity is 1 (not 0 from gsap.from())
-    for (let i = 0; i < Math.min(projectCount, 3); i++) {
-      const card = projectCards.nth(i);
-      const opacity = await card.evaluate((el) =>
-        Number.parseFloat(window.getComputedStyle(el).opacity)
-      );
-      // With NoOpTimeline, GSAP never sets opacity:0 — so computed opacity must be 1 (or close)
-      expect(opacity).toBeGreaterThanOrEqual(0.99);
-    }
-
-    for (let i = 0; i < Math.min(expCount, 3); i++) {
-      const card = expCards.nth(i);
-      const opacity = await card.evaluate((el) =>
-        Number.parseFloat(window.getComputedStyle(el).opacity)
-      );
-      expect(opacity).toBeGreaterThanOrEqual(0.99);
-    }
+    expect(Number.parseFloat(style.opacity)).toBeGreaterThanOrEqual(0.99);
+    expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(style.transform);
 
     await context.close();
   });
