@@ -37,7 +37,10 @@ export function ExperienceForm({ experience, onSaved }: ExperienceFormProps) {
         ...(values.summary ? { summary: values.summary } : {}),
         ...(values.location ? { location: values.location } : {}),
         displayOrder: Number(values.displayOrder),
-        ...(values.startedAt ? { startedAt: values.startedAt } : {}),
+        // Required by CreateExperienceSchema; the API answers 422 on an empty
+        // string, same as it did when the key was omitted, but now the type
+        // says so instead of the runtime.
+        startedAt: values.startedAt,
         ...(values.endedAt ? { endedAt: values.endedAt } : {}),
       });
       if (!res.ok) {

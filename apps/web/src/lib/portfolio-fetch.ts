@@ -6,7 +6,7 @@
  * 2. The logic is unit-testable in Vitest without the Astro Container API
  *
  * Design §9 — single combined call to GET /api/v1/public/portfolio.
- * AppType strategy: (api as any) cast — same pattern as blog-fetch.ts.
+ * Typed hc<AppType> client — no cast; fetchApiJson narrows the ok branch.
  * Description/summary is already sanitized server-side at the API serialization
  * layer (Phase 3 — isomorphic-dompurify). DO NOT re-sanitize on the client.
  */
@@ -130,8 +130,7 @@ export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSour
   }
 
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
-    const res = await (api as any).api.v1.public.portfolio.$get();
+    const res = await api.api.v1.public.portfolio.$get();
 
     const data = await fetchApiJson<{
       projects: { items: PublicProject[] };
@@ -168,8 +167,7 @@ export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSour
  * surface). Page routes should use `fetchPortfolioResilient`.
  */
 export async function fetchPortfolio(): Promise<PortfolioResult> {
-  // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
-  const res = await (api as any).api.v1.public.portfolio.$get();
+  const res = await api.api.v1.public.portfolio.$get();
 
   const data = await fetchApiJson<{
     projects: { items: PublicProject[] };

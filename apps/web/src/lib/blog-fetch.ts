@@ -95,8 +95,7 @@ export async function fetchBlogPosts({
     query.cursor = cursor;
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
-  const res = await (api as any).api.v1.public.blog.$get({ query });
+  const res = await api.api.v1.public.blog.$get({ query });
 
   return fetchApiJson<BlogListResult>(res, 'blog posts');
 }
@@ -115,8 +114,7 @@ export async function fetchBlogPosts({
  * Throws for unexpected errors (5xx).
  */
 export async function fetchBlogPost(slug: string): Promise<BlogPostResult | null> {
-  // biome-ignore lint/suspicious/noExplicitAny: hc<AppType> union inference limitation — public routes require any cast
-  const res = await (api as any).api.v1.public.blog[':slug'].$get({
+  const res = await api.api.v1.public.blog[':slug'].$get({
     param: { slug },
   });
 

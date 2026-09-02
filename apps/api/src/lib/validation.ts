@@ -14,7 +14,7 @@ import type { z } from 'zod';
  * Validate `target` ('json' | 'query') against `schema`, returning 422 with the
  * first issue's message on failure. Typed output preserves c.req.valid() types.
  */
-export function zv422<S extends z.ZodTypeAny>(target: 'json' | 'query', schema: S) {
+export function zv422<T extends 'json' | 'query', S extends z.ZodTypeAny>(target: T, schema: S) {
   return zValidator(target, schema, (result, c) => {
     if (!result.success) {
       const firstIssue = result.error.issues[0];

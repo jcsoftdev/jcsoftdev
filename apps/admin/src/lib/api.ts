@@ -11,7 +11,7 @@
  * This is a known TypeScript limitation with conditional return types.
  */
 import type { AppType } from '@jcsoftdev/types';
-import { hc } from 'hono/client';
+import { hc, type InferRequestType } from 'hono/client';
 
 // Exported for testing — resolves the API base URL from env at call time.
 // Design §6 / ADR-16: fail-fast in prod, warn-and-default in dev.
@@ -43,8 +43,14 @@ export const api = hc<AppType>(resolveApiUrl(), {
 // We use unknown-cast to bypass the union inference limitation.
 // --------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: AppType union requires cast to reach full route tree
-const fullClient = api as any;
+const fullClient = api;
+
+// Request bodies inferred from the route tree, so the admin cannot drift from
+// the API's zod schemas without a typecheck failure.
+type CreateProjectBody = InferRequestType<typeof fullClient.api.v1.projects.$post>['json'];
+type CreateExperienceBody = InferRequestType<typeof fullClient.api.v1.experiences.$post>['json'];
+type CreatePostBody = InferRequestType<typeof fullClient.api.v1.posts.$post>['json'];
+type FinalizeBody = InferRequestType<typeof fullClient.api.v1.upload.finalize.$post>['json'];
 
 export type PostStatus = 'draft' | 'published' | 'archived';
 
@@ -123,7 +129,7 @@ export const projectsClient = {
   list: (query: Record<string, string>): Promise<Response> =>
     fullClient.api.v1.projects.$get({ query }),
   get: (id: string): Promise<Response> => fullClient.api.v1.projects[':id'].$get({ param: { id } }),
-  create: (json: Record<string, unknown>): Promise<Response> =>
+  create: (json: CreateProjectBody): Promise<Response> =>
     fullClient.api.v1.projects.$post({ json }),
   update: (id: string, json: Record<string, unknown>): Promise<Response> =>
     fullClient.api.v1.projects[':id'].$patch({ param: { id }, json }),
@@ -137,7 +143,7 @@ export const experiencesClient = {
     fullClient.api.v1.experiences.$get({ query }),
   get: (id: string): Promise<Response> =>
     fullClient.api.v1.experiences[':id'].$get({ param: { id } }),
-  create: (json: Record<string, unknown>): Promise<Response> =>
+  create: (json: CreateExperienceBody): Promise<Response> =>
     fullClient.api.v1.experiences.$post({ json }),
   update: (id: string, json: Record<string, unknown>): Promise<Response> =>
     fullClient.api.v1.experiences[':id'].$patch({ param: { id }, json }),
@@ -149,8 +155,7 @@ export const postsClient = {
   list: (query: Record<string, string>): Promise<Response> =>
     fullClient.api.v1.posts.$get({ query }),
   get: (id: string): Promise<Response> => fullClient.api.v1.posts[':id'].$get({ param: { id } }),
-  create: (json: Record<string, unknown>): Promise<Response> =>
-    fullClient.api.v1.posts.$post({ json }),
+  create: (json: CreatePostBody): Promise<Response> => fullClient.api.v1.posts.$post({ json }),
   update: (id: string, json: Record<string, unknown>): Promise<Response> =>
     fullClient.api.v1.posts[':id'].$patch({ param: { id }, json }),
   delete: (id: string): Promise<Response> =>
@@ -161,7 +166,7 @@ export const postsClient = {
 export const uploadClient = {
   presign: (json: Record<string, unknown>): Promise<Response> =>
     fullClient.api.v1.upload.presign.$post({ json }),
-  finalize: (json: Record<string, unknown>): Promise<Response> =>
+  finalize: (json: FinalizeBody): Promise<Response> =>
     fullClient.api.v1.upload.finalize.$post({ json }),
 } as const;
 
