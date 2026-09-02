@@ -1,6 +1,6 @@
 # Hi, I'm Juan Carlos 👋
 
-Web UI Developer from Huancayo, Peru. I build full-stack products with **React**, **Node**, and **Go**, with a strong focus on clean architecture and user experience.
+Full Stack Developer, currently working with AI tools. I build full-stack products with **React**, **Node**, and **Go**, with a strong focus on clean architecture and user experience.
 
 - 🌐 Portfolio: [jcsoftdev.com](https://jcsoftdev.com)
 - 💼 LinkedIn: [linkedin.com/in/jcsoftdev](https://linkedin.com/in/jcsoftdev)
