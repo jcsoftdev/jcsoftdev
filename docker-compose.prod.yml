@@ -101,6 +101,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # MinIO has no bucket-level CORS (PutBucketCors is NotImplemented); the
+      # browser PUT from the admin needs its origin allowed here.
+      MINIO_API_CORS_ALLOW_ORIGIN: https://admin.${DOMAIN}
     volumes:
       - minio-data:/data
     healthcheck:

@@ -124,7 +124,22 @@ if mc cors --help &>/dev/null 2>&1; then
     echo "[minio-bootstrap] ERROR: CORS XML not found at $CORS_XML"
     exit 1
   fi
-  run mc cors set "${MC_ALIAS}/${MINIO_BUCKET_MEDIA}" "$CORS_XML"
+  # MinIO does not implement bucket-level CORS (PutBucketCors answers
+  # NotImplemented); it reads the allowed origins from the server env
+  # MINIO_API_CORS_ALLOW_ORIGIN instead. Against MinIO this step is therefore
+  # informational: log it and move on. Any other failure is still fatal.
+  if [ "$DRY_RUN" = "true" ]; then
+    echo "  [DRY-RUN] mc cors set ${MC_ALIAS}/${MINIO_BUCKET_MEDIA} $CORS_XML"
+  elif ! cors_out=$(mc cors set "${MC_ALIAS}/${MINIO_BUCKET_MEDIA}" "$CORS_XML" 2>&1); then
+    if printf '%s' "$cors_out" | grep -qi 'not implemented'; then
+      log "  Server does not implement bucket CORS (MinIO). Set MINIO_API_CORS_ALLOW_ORIGIN on the server instead."
+    else
+      printf '%s\n' "$cors_out" >&2
+      exit 1
+    fi
+  else
+    printf '%s\n' "$cors_out"
+  fi
 else
   # Fallback: use aws CLI with MinIO endpoint
   log "  mc cors not available — falling back to aws s3api"
@@ -145,7 +160,7 @@ fi
 # ---------------------------------------------------------------------------
 log "Bootstrap complete."
 log "  Bucket '$MINIO_BUCKET_MEDIA' is ready at $MINIO_ENDPOINT"
-log "  CORS policy applied from $CORS_FILE"
+log "  CORS: bucket policy attempted (MinIO ignores it; MINIO_API_CORS_ALLOW_ORIGIN on the server is what counts)"
 if [ "$DRY_RUN" = "true" ]; then
   log "  (DRY-RUN: no changes were made)"
 fi
