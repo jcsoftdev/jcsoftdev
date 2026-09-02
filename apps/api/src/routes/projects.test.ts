@@ -537,3 +537,56 @@ describe('DELETE /api/v1/projects/:id', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('PATCH /api/v1/projects/:id — slug collision', () => {
+  function selectOnce(rows: unknown[]) {
+    return {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue(rows),
+    };
+  }
+
+  it('returns 409 when the new slug belongs to another project', async () => {
+    // Regression: PATCH had no pre-check, so a slug collision surfaced as a
+    // bare 500 from projects_slug_unique instead of the 409 POST returns.
+    const db = createMockDb();
+    const valkey = createMockValkey();
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectOnce([sampleProject]) as any)
+      .mockReturnValueOnce(selectOnce([{ id: 'another-project-id' }]) as any);
+
+    const res = await buildApp(db, valkey).request(`/api/v1/projects/${PROJ_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'taken-slug' }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/already in use/i);
+    expect(db.update).not.toHaveBeenCalled();
+    expect(valkey.del).not.toHaveBeenCalled();
+  });
+
+  it('does not run the collision query when the slug is unchanged', async () => {
+    const db = createMockDb();
+    const valkey = createMockValkey();
+    const updateChain = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([sampleProject]),
+    };
+    vi.mocked(db.select).mockReturnValue(selectOnce([sampleProject]) as any);
+    vi.mocked(db.update).mockReturnValue(updateChain as any);
+
+    const res = await buildApp(db, valkey).request(`/api/v1/projects/${PROJ_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: sampleProject.slug }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+});

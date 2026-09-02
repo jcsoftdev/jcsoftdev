@@ -99,10 +99,10 @@ export function createUploadRouter(
         const userId = getSessionUserId(c) as string;
         const body = c.req.valid('json');
 
-        // The default Hono serve target is 'posts-media'. The bucket name is stored
-        // in the media row for future flexibility (e.g., serving from a CDN bucket).
-        // We infer it from the objectKey prefix or use the configured default.
-        const bucket = 'posts-media';
+        // The object was PUT to the presigner's configured bucket (env.MINIO_BUCKET_MEDIA),
+        // so the row MUST record that same bucket — not a hardcoded literal — or public
+        // read URLs built from mediaRow.bucket will point at a bucket the object isn't in.
+        const bucket = presigner.bucket;
 
         // pgBouncer constraint: single insert, no transaction needed (single table).
         const insertResult = await db

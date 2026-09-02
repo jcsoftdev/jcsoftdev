@@ -21,7 +21,7 @@
 
 import type { DbClient, Project } from '@jcsoftdev/db';
 import { projects } from '@jcsoftdev/db';
-import { count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { invalidatePortfolioCache } from '../lib/portfolio-cache.js';
 import { zv422 } from '../lib/validation.js';
@@ -153,15 +153,44 @@ export function createProjectsRouter(db: DbClient, valkey: ValkeyClient) {
       const id = c.req.param('id');
       const body = c.req.valid('json') as UpdateProjectInput;
 
-      // Verify project exists
+      // Verify project exists — also fetch slug so we can tell a no-op slug
+      // update (same value) apart from a genuine change requiring a collision
+      // check below.
       const [current] = await db
-        .select({ id: projects.id })
+        .select({ id: projects.id, slug: projects.slug })
         .from(projects)
         .where(eq(projects.id, id))
         .limit(1);
 
       if (!current) {
         return c.json({ error: 'Project not found' }, 404);
+      }
+
+      // Slug uniqueness check — mirrors the POST pre-check so a collision on
+      // update returns the same actionable 409 instead of a bare 500 from the
+      // Postgres unique_violation (projects_slug_unique). Excludes the row
+      // being updated so re-submitting the record's own current slug is not a
+      // false conflict.
+      //
+      // NOTE: this is a read-then-write and is racy under concurrency — see
+      // the matching note in posts.ts PATCH. We deliberately do NOT wrap it
+      // in a transaction: pgBouncer runs in transaction pooling mode and this
+      // codebase avoids nested transactions (see `transaction: false` in
+      // lib/auth-config.ts). The DB unique constraint remains the last line
+      // of defense.
+      if (body.slug !== undefined && body.slug !== current.slug) {
+        const collision = await db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(eq(projects.slug, body.slug), ne(projects.id, id)))
+          .limit(1);
+
+        if (collision.length > 0) {
+          return c.json(
+            { error: `Slug '${body.slug}' is already in use. Choose a different slug.` },
+            409
+          );
+        }
       }
 
       // Build update payload — only include provided fields.

@@ -51,8 +51,9 @@ function buildApp(
   return app;
 }
 
-function createMockPresigner() {
+function createMockPresigner(bucket = 'posts-media') {
   return {
+    bucket,
     createPresignedPutUrl: vi.fn().mockResolvedValue({
       uploadUrl: 'https://minio.example.com/presigned-put?sig=abc',
       objectKey: `posts/${USER_ID}/2026/05/uuid-photo.jpg`,
@@ -216,5 +217,48 @@ describe('POST /api/v1/upload/finalize', () => {
     });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/v1/upload/finalize — bucket comes from the presigner', () => {
+  it('persists the presigner bucket, not a hardcoded literal', async () => {
+    // Regression: finalize wrote bucket='posts-media' regardless of
+    // env.MINIO_BUCKET_MEDIA, so public read URLs built from media.bucket
+    // pointed at a bucket the object was never PUT into.
+    const db = createMockDb();
+    const presigner = createMockPresigner('configured-bucket');
+    const insertChain = {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([
+        {
+          id: MEDIA_ID,
+          objectKey: `posts/${USER_ID}/2026/05/uuid-photo.jpg`,
+          bucket: 'configured-bucket',
+          mimeType: 'image/jpeg',
+          sizeBytes: 1,
+          width: null,
+          height: null,
+          alt: null,
+          uploadedBy: USER_ID,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]),
+    };
+    vi.mocked(db.insert).mockReturnValue(insertChain as any);
+
+    const res = await buildApp(db, presigner).request('/api/v1/upload/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        objectKey: `posts/${USER_ID}/2026/05/uuid-photo.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: 'configured-bucket' })
+    );
   });
 });

@@ -85,6 +85,14 @@ export function createMinioPresigner(config: MinioConfig) {
 
   return {
     /**
+     * The bucket this presigner is configured against. Callers that persist a
+     * media row (see upload.ts) MUST read the bucket from here rather than
+     * hardcoding a literal — the object is actually written to this bucket,
+     * so the row has to agree or public read URLs built from it will 404.
+     */
+    bucket: config.bucket,
+
+    /**
      * Validate + generate a presigned PUT URL.
      *
      * @throws Error with message matching /size/i when sizeBytes > MAX_SIZE_BYTES

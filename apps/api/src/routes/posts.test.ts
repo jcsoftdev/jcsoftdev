@@ -426,3 +426,117 @@ describe('DELETE /api/v1/posts/:id (soft-archive)', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('POST /api/v1/posts — publishedAt on create', () => {
+  function insertSpy(
+    returned: Omit<typeof samplePost, 'status'> & { status: 'draft' | 'published' }
+  ) {
+    return {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([returned]),
+    };
+  }
+
+  it('stamps publishedAt when the post is created directly as published', async () => {
+    // Regression: only the PATCH transition set publishedAt, so a post created
+    // as 'published' had publishedAt=null and the blog/RSS/JSON-LD fell back
+    // to updatedAt — the post rendered with no real publish date.
+    const db = createMockDb();
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    };
+    const insertChain = insertSpy({ ...samplePost, status: 'published' as const });
+    vi.mocked(db.select).mockReturnValue(selectChain as any);
+    vi.mocked(db.insert).mockReturnValue(insertChain as any);
+
+    const res = await buildApp(db).request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Live',
+        slug: 'live',
+        content: '# live',
+        status: 'published',
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ publishedAt: expect.any(Date) })
+    );
+  });
+
+  it('leaves publishedAt unset when the post is created as draft', async () => {
+    const db = createMockDb();
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    };
+    const insertChain = insertSpy(samplePost);
+    vi.mocked(db.select).mockReturnValue(selectChain as any);
+    vi.mocked(db.insert).mockReturnValue(insertChain as any);
+
+    const res = await buildApp(db).request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Draft', slug: 'draft', content: '# d', status: 'draft' }),
+    });
+
+    expect(res.status).toBe(201);
+    const values = vi.mocked(insertChain.values).mock.calls[0]?.[0] as { publishedAt?: unknown };
+    expect(values.publishedAt).toBeUndefined();
+  });
+});
+
+describe('PATCH /api/v1/posts/:id — slug collision', () => {
+  function selectOnce(rows: unknown[]) {
+    return {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue(rows),
+    };
+  }
+
+  it('returns 409 when the new slug belongs to another post', async () => {
+    // Regression: PATCH had no pre-check, so a slug collision surfaced as a
+    // bare 500 from posts_slug_unique instead of the 409 POST already returns.
+    const db = createMockDb();
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectOnce([samplePost]) as any) // load current row
+      .mockReturnValueOnce(selectOnce([{ id: 'another-post-id' }]) as any); // collision
+
+    const res = await buildApp(db).request(`/api/v1/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'taken-slug' }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/already in use/i);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('does not run the collision query when the slug is unchanged', async () => {
+    const db = createMockDb();
+    const updateChain = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([samplePost]),
+    };
+    vi.mocked(db.select).mockReturnValue(selectOnce([samplePost]) as any);
+    vi.mocked(db.update).mockReturnValue(updateChain as any);
+
+    const res = await buildApp(db).request(`/api/v1/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: samplePost.slug }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+});

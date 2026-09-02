@@ -16,7 +16,7 @@
 
 import type { DbClient, Post } from '@jcsoftdev/db';
 import { posts } from '@jcsoftdev/db';
-import { count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { zv422 } from '../lib/validation.js';
 import { getSessionUserId, requireAdmin, requireAuth } from '../middleware/auth.js';
@@ -91,6 +91,10 @@ export function createPostsRouter(db: DbClient) {
           status: body.status,
           userId: userId as string,
           heroMediaId: body.heroMediaId,
+          // Mirrors the transition logic in PATCH: a post created directly as
+          // 'published' must get a publishedAt, or the blog/RSS/JSON-LD fall
+          // back to updatedAt and the post renders with no publish date.
+          publishedAt: body.status === 'published' ? new Date() : undefined,
         })
         .returning();
 
@@ -181,6 +185,34 @@ export function createPostsRouter(db: DbClient) {
               error: `Invalid status transition: '${current.status}' → '${body.status}'. Archived posts cannot be unarchived.`,
             },
             422
+          );
+        }
+      }
+
+      // Slug uniqueness check — mirrors the POST pre-check so a collision on
+      // update returns the same actionable 409 instead of a bare 500 from the
+      // Postgres unique_violation (posts_slug_unique). Excludes the row being
+      // updated so re-submitting the record's own current slug is not a
+      // false conflict.
+      //
+      // NOTE: this is a read-then-write and is racy under concurrency — two
+      // concurrent PATCHes could both pass this check before either commits.
+      // We deliberately do NOT wrap it in a transaction: pgBouncer runs in
+      // transaction pooling mode and this codebase avoids nested transactions
+      // (see the `transaction: false` comment in lib/auth-config.ts). The DB
+      // unique constraint remains the last line of defense; this check only
+      // upgrades the common case from an opaque 500 to an actionable 409.
+      if (body.slug !== undefined && body.slug !== current.slug) {
+        const collision = await db
+          .select({ id: posts.id })
+          .from(posts)
+          .where(and(eq(posts.slug, body.slug), ne(posts.id, id)))
+          .limit(1);
+
+        if (collision.length > 0) {
+          return c.json(
+            { error: `Slug '${body.slug}' is already in use. Choose a different slug.` },
+            409
           );
         }
       }
