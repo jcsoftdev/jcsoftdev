@@ -51,6 +51,8 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORS_FILE="${SCRIPT_DIR}/cors.json"
+# mc reads the S3 XML form; the JSON stays for the aws-cli fallback below.
+CORS_XML="${SCRIPT_DIR}/cors.xml"
 
 log() { echo "[minio-bootstrap] $*"; }
 run() {
@@ -110,14 +112,19 @@ log "Step 3: Setting anonymous download policy for public media serving"
 run mc anonymous set download "${MC_ALIAS}/${MINIO_BUCKET_MEDIA}"
 
 # ---------------------------------------------------------------------------
-# 4. Apply CORS policy via AWS S3 API (mc does not support CORS natively)
-#    Falls back to aws CLI if mc cors is unavailable.
+# 4. Apply CORS policy. `mc cors set` takes the S3 XML document — feeding it
+#    the JSON fails with "decoding xml: EOF", which is how the E2E job died
+#    on every run. The aws-cli fallback still takes the JSON.
 # ---------------------------------------------------------------------------
-log "Step 4: Applying CORS policy from $CORS_FILE"
 
 # mc >= RELEASE.2024-05-x supports 'mc cors set'
 if mc cors --help &>/dev/null 2>&1; then
-  run mc cors set "${MC_ALIAS}/${MINIO_BUCKET_MEDIA}" "$CORS_FILE"
+  log "Step 4: Applying CORS policy from $CORS_XML"
+  if [ ! -f "$CORS_XML" ]; then
+    echo "[minio-bootstrap] ERROR: CORS XML not found at $CORS_XML"
+    exit 1
+  fi
+  run mc cors set "${MC_ALIAS}/${MINIO_BUCKET_MEDIA}" "$CORS_XML"
 else
   # Fallback: use aws CLI with MinIO endpoint
   log "  mc cors not available — falling back to aws s3api"
