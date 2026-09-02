@@ -91,3 +91,23 @@ describe('sendMagicLink', () => {
     ).rejects.toThrow(/Invalid API key/);
   });
 });
+
+describe('sendMagicLink — timeout', () => {
+  it('rejects after SEND_TIMEOUT_MS when Resend never answers', async () => {
+    // Regression: the previous implementation passed an AbortSignal that the
+    // Resend SDK does not accept, so a hung upstream was never bounded.
+    vi.useFakeTimers();
+    try {
+      const spy = vi.fn().mockReturnValue(new Promise(() => {}));
+      const pending = sendMagicLink(
+        { email: 'a@b.c', url: 'https://x/verify?token=t', fromEmail: 'n@b.c' },
+        makeFakeResend(spy) as any
+      );
+      const assertion = expect(pending).rejects.toThrow(/timed out after 10000ms/);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

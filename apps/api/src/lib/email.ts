@@ -13,16 +13,13 @@
  */
 export interface ResendEmailsClient {
   emails: {
-    send(
-      payload: {
-        from: string;
-        to: string;
-        subject: string;
-        text: string;
-        html: string;
-      },
-      options?: { signal?: AbortSignal }
-    ): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+    send(payload: {
+      from: string;
+      to: string;
+      subject: string;
+      text: string;
+      html: string;
+    }): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
   };
 }
 
@@ -56,29 +53,34 @@ export async function sendMagicLink(
   const html = buildHtml(url);
 
   // Bound the Resend call with a timeout so a hung upstream never blocks the
-  // magic-link request path indefinitely.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
+  // magic-link request path indefinitely. The SDK's send() takes no
+  // AbortSignal (its options are query + idempotencyKey only), so the bound is
+  // a race: the caller gets an error after SEND_TIMEOUT_MS while the HTTP
+  // request itself is left to finish or fail on its own.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Resend send timed out after ${SEND_TIMEOUT_MS}ms`)),
+      SEND_TIMEOUT_MS
+    );
+  });
 
   let result: Awaited<ReturnType<ResendEmailsClient['emails']['send']>>;
   try {
-    result = await client.emails.send(
-      {
+    result = await Promise.race([
+      client.emails.send({
         from: fromEmail,
         to: email,
         subject: 'Your sign-in link for jcsoftdev',
         text,
         html,
-      },
-      { signal: controller.signal }
-    );
+      }),
+      timeout,
+    ]);
   } catch (cause) {
-    if (controller.signal.aborted) {
-      throw new Error(`Resend send timed out after ${SEND_TIMEOUT_MS}ms`);
-    }
     throw cause instanceof Error ? cause : new Error('Resend send failed');
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timer);
   }
 
   if (result.error) {

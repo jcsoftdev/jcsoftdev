@@ -37,7 +37,7 @@ const auth = createAuthInstance({
   corsOrigins: env.CORS_ORIGINS,
   resendFromEmail: env.RESEND_FROM_EMAIL,
   sendMagicLinkEmail: async ({ email, url }) => {
-    await sendMagicLink({ email, url, fromEmail: env.RESEND_FROM_EMAIL }, resend as any);
+    await sendMagicLink({ email, url, fromEmail: env.RESEND_FROM_EMAIL }, resend);
   },
   valkeyClient: valkey,
   dbClient: db,
