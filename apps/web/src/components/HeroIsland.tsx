@@ -1,6 +1,8 @@
 import { initLenis } from '@jcsoftdev/animations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
+import { readWebglSignals, shouldMountWebgl } from '../lib/webgl-gate';
+import CountUp from './islands/CountUp';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
 
@@ -61,9 +63,22 @@ function SocialIconButton({
 // SSR HTML so it paints at FCP regardless of when this chunk arrives.
 const HeroMesh = lazy(() => import('./islands/HeroMesh'));
 
-/** Steady-state ground behind the mesh, so the hero never flashes empty. */
+/**
+ * Steady-state ground behind the mesh, so the hero never flashes empty. It is
+ * also the static poster for gated devices (data saver, low memory, touch-first):
+ * a flat near-black ground, in CSS only.
+ */
 function HeroMeshPlaceholder() {
-  return <div aria-hidden className="absolute inset-0" style={{ background: 'oklch(0 0 0)' }} />;
+  return (
+    <div
+      aria-hidden
+      data-hero-poster
+      className="absolute inset-0"
+      style={{
+        background: 'oklch(0.04 0.005 270)',
+      }}
+    />
+  );
 }
 
 /** Crossfades the WebGL canvas over the placeholder once the chunk resolves. */
@@ -88,6 +103,14 @@ function HeroMeshFadeIn() {
     </div>
   );
 }
+
+/** Verifiable facts only: each figure is quoted in the CV or the experience bullets. */
+const PROOF: { figure: string; value?: number; suffix: string; label: string }[] = [
+  { figure: '8+', value: 8, suffix: '+', label: 'years shipping' },
+  { figure: '76%', value: 76, suffix: '%', label: 'lower response time' },
+  { figure: '80%+', value: 80, suffix: '%+', label: 'coverage gates in CI' },
+  { figure: 'AWS · Azure · GCP', suffix: '', label: 'cloud platforms' },
+];
 
 /**
  * HeroIsland — hero for the home page (/), rail layout.
@@ -118,7 +141,10 @@ export default function HeroIsland() {
     // Mount the WebGL chunk ASAP after hydration. The placeholder stays visible
     // behind, the lazy chunk fetches in parallel, and HeroMeshFadeIn crossfades
     // the canvas in once it is actually rendered. No artificial delays.
-    const meshFrame = requestAnimationFrame(() => setMeshReady(true));
+    // Gated devices keep the CSS poster and never request the Three.js chunk.
+    const meshFrame = shouldMountWebgl(readWebglSignals())
+      ? requestAnimationFrame(() => setMeshReady(true))
+      : 0;
     const lenis = initLenis();
 
     return () => {
@@ -150,15 +176,6 @@ export default function HeroIsland() {
         style={{
           background:
             'linear-gradient(to right, oklch(0.04 0.005 270 / 0.95) 0px, oklch(0.04 0.005 270 / 0.90) min(430px, 40vw), oklch(0.04 0.005 270 / 0.62) min(660px, 58vw), oklch(0.04 0.005 270 / 0.28) min(880px, 76vw), oklch(0.04 0.005 270 / 0.08) min(1080px, 92vw), transparent min(1260px, 100vw))',
-        }}
-      />
-
-      {/* Bottom fade into the section boundary below. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 z-[1] h-24"
-        style={{
-          background: 'linear-gradient(to bottom, transparent, var(--color-background))',
         }}
       />
 
@@ -237,7 +254,7 @@ export default function HeroIsland() {
               <a
                 href="#work"
                 data-hero-cta
-                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,box-shadow] duration-[var(--duration-fast)] hover:brightness-110 hover:shadow-[0_8px_32px_-8px_var(--color-accent-muted)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,transform] duration-[var(--duration-fast)] motion-safe:active:translate-y-px hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 View selected work
                 <span aria-hidden>→</span>
@@ -246,19 +263,37 @@ export default function HeroIsland() {
             <a
               href="/resume"
               data-hero-cta
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-black/40 px-6 py-3.5 min-[26rem]:w-auto font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] outline-none backdrop-blur-sm transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-white focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-1 font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] underline decoration-white/30 underline-offset-[6px] outline-none transition-[color,transform] duration-[var(--duration-fast)] motion-safe:active:translate-y-px [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)] hover:text-white hover:decoration-[color:var(--color-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
               Read the résumé
               <span aria-hidden>↗</span>
             </a>
           </div>
 
+          <ul
+            data-hero-reveal
+            data-hero-proof
+            style={{ '--hero-i': 4 } as React.CSSProperties}
+            className="m-0 mt-4 flex list-none flex-wrap items-baseline gap-x-5 gap-y-1.5 border-t border-white/25 p-0 pt-4 font-mono text-xs [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
+          >
+            {PROOF.map(({ figure, value, suffix, label }) => (
+              <li key={label} className="flex items-baseline gap-1.5">
+                <span className="text-[oklch(0.96_0.005_270)]">
+                  {value === undefined ? figure : <CountUp value={value} suffix={suffix} />}
+                </span>
+                <span className="text-[oklch(0.78_0.01_270)]">{label}</span>
+              </li>
+            ))}
+          </ul>
+
           <div
             data-hero-reveal
-            style={{ '--hero-i': 4 } as React.CSSProperties}
-            className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-white/15 pt-4 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
+            style={{ '--hero-i': 5 } as React.CSSProperties}
+            className="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
           >
-            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">Latest</span>
+            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">
+              Latest project
+            </span>
             <span>
               Multi-tenant web-monitoring SaaS — Go, Next.js 16, schema-per-tenant Postgres, AI
               insights on Bedrock.
@@ -268,7 +303,7 @@ export default function HeroIsland() {
           {/* Social icons — mobile only; the rail carries these on lg+ */}
           <nav
             data-hero-reveal
-            style={{ '--hero-i': 5 } as React.CSSProperties}
+            style={{ '--hero-i': 6 } as React.CSSProperties}
             aria-label="Social links"
             className="mt-2 flex gap-3 lg:hidden"
           >

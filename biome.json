@@ -19,7 +19,7 @@
     {
       "includes": [
         "apps/admin/src/components/PostEditor.tsx",
-        "apps/web/src/components/islands/ProjectsIsland.tsx",
+        "apps/web/src/components/islands/ProjectsGrid.tsx",
         "apps/web/src/components/islands/ExperienceIsland.tsx"
       ],
       "linter": {

@@ -60,12 +60,7 @@ export default function CopyEmail({ email, note }: CopyEmailProps) {
           type="button"
           onClick={copy}
           aria-label={`${label}: ${email}`}
-          className="group inline-flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors"
-          style={{
-            borderColor: 'var(--color-border-soft)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text-primary)',
-          }}
+          className="group inline-flex items-center gap-3 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-elevated)] px-4 py-3 text-left text-[color:var(--color-text-primary)] transition-[border-color,transform] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] motion-safe:active:translate-y-px"
         >
           <span className="font-display text-xl font-semibold break-all md:text-2xl">{email}</span>
           <span

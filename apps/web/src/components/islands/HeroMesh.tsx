@@ -3084,8 +3084,14 @@ export default function HeroMesh() {
       else renderer.render(scene, camera);
     };
 
+    // The loop only runs while the hero is on screen and the tab is visible.
+    // Off-screen it is fully stopped (not polling), and resumes from either signal.
+    let inView = true;
+    const canRun = () => inView && !document.hidden;
+
     const tick = () => {
-      if (!document.hidden) {
+      raf = 0;
+      if (canRun()) {
         const t = (performance.now() - start) / 1000;
 
         mCur.x += (mTgt.x - mCur.x) * 0.05;
@@ -3183,8 +3189,23 @@ export default function HeroMesh() {
 
         renderFrame();
       }
-      if (!reduced) raf = requestAnimationFrame(tick);
+      if (!reduced && canRun()) raf = requestAnimationFrame(tick);
     };
+
+    const resume = () => {
+      if (reduced || raf !== 0 || !canRun()) return;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const viewObserver =
+      typeof IntersectionObserver === 'function'
+        ? new IntersectionObserver((entries) => {
+            inView = entries[entries.length - 1]?.isIntersecting ?? true;
+            if (inView) resume();
+          })
+        : null;
+    viewObserver?.observe(container);
+    document.addEventListener('visibilitychange', resume);
 
     if (reduced) {
       renderFrame();
@@ -3195,6 +3216,8 @@ export default function HeroMesh() {
     // ── Cleanup ──────────────────────────────────────────────────────────────
     return () => {
       cancelAnimationFrame(raf);
+      viewObserver?.disconnect();
+      document.removeEventListener('visibilitychange', resume);
       window.removeEventListener('resize', setSize);
       window.removeEventListener('pointermove', onPointer);
       bgGeo.dispose();

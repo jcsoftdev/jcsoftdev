@@ -12,7 +12,14 @@
  * longer pulls in GSAP or ScrollTrigger.
  */
 
+import { useId, useRef, useState } from 'react';
 import type { PublicExperience } from '../../lib/portfolio-fetch.js';
+import {
+  defaultExpandedIndexes,
+  splitSummary,
+  VISIBLE_BULLETS,
+} from '../../lib/summary-bullets.js';
+import { useStaggerReveal } from '../../lib/use-stagger-reveal.js';
 
 interface ExperienceIslandProps {
   experiences: PublicExperience[];
@@ -50,14 +57,17 @@ const TECH_BY_ROLE: Record<string, string[]> = {
 };
 
 /**
- * One measurable outcome per role — the line that separates a senior CV from a
- * job list. Deliberately EMPTY: the figures the CV does claim (76% response-time
- * cut, 80%+ coverage) already sit in the role summaries, and repeating one here
- * reads as padding. Add an entry and the row renders a Result line.
+ * One measurable outcome per role. Only figures that already appear in that
+ * role's bullets belong here: surfacing them above the fold is the point, since
+ * the bullet that carries them may sit behind "+N more". Add an entry and the
+ * row renders a Result line.
  *
  * Shape: 'Company|Role': 'Cut p95 checkout latency from 900ms to 220ms.'
  */
-const RESULT_BY_ROLE: Record<string, string> = {};
+const RESULT_BY_ROLE: Record<string, string> = {
+  'GlobalLogic|Senior Software Engineer':
+    'Redis caching cut response times 76% (30s to 7s); 80%+ coverage gates in CI.',
+};
 
 /** Brand color hint per role (subtle accent on monogram). */
 const ROLE_HUE: Record<string, string> = {
@@ -110,6 +120,49 @@ function Period({ startedAt, endedAt }: { startedAt: string; endedAt: string | n
   );
 }
 
+const PROSE =
+  'max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)]';
+
+/** Lead-in plus bullets; everything past the first two folds behind a toggle. */
+function Scope({ html, defaultOpen }: { html: string; defaultOpen: boolean }) {
+  const { intro, bullets } = splitSummary(html);
+  const [open, setOpen] = useState(defaultOpen);
+  const listId = useId();
+  const hidden = bullets.length - VISIBLE_BULLETS;
+  const shown = open ? bullets : bullets.slice(0, VISIBLE_BULLETS);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {intro && (
+        // Sanitized server-side by isomorphic-dompurify (ADR-14).
+        <div className={`${PROSE} space-y-2`} dangerouslySetInnerHTML={{ __html: intro }} />
+      )}
+      {bullets.length > 0 && (
+        <ul
+          id={listId}
+          className="max-w-[62ch] list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-[color:var(--color-text-secondary)] marker:text-[color:var(--color-text-faint)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)]"
+        >
+          {shown.map((b) => (
+            // Sanitized server-side by isomorphic-dompurify (ADR-14).
+            <li key={b} className="pl-1" dangerouslySetInnerHTML={{ __html: b }} />
+          ))}
+        </ul>
+      )}
+      {hidden > 0 && (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((v) => !v)}
+          className="w-fit rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-[color,transform] motion-safe:active:translate-y-px hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        >
+          {open ? 'Show less' : `+${hidden} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
   const sorted = [...experiences].sort((a, b) => {
     const da = a.displayOrder ?? Number.POSITIVE_INFINITY;
@@ -117,6 +170,10 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
     if (da !== db) return da - db;
     return b.startedAt.localeCompare(a.startedAt);
   });
+
+  const expanded = defaultExpandedIndexes(sorted.length);
+  const listRef = useRef<HTMLOListElement>(null);
+  useStaggerReveal(listRef);
 
   if (sorted.length === 0) {
     return (
@@ -127,12 +184,15 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
   }
 
   return (
-    <ol className="flex flex-col">
-      {sorted.map((exp) => {
+    <ol ref={listRef} className="relative flex flex-col gap-3 pl-6">
+      {/* Timeline: a hairline that draws once, with a dot per role that fills as its row arrives. */}
+      <span aria-hidden="true" className="tl-line" />
+      {sorted.map((exp, index) => {
         const isCurrent = exp.endedAt === null;
         const key = roleKey(exp.company, exp.role);
         const tech = TECH_BY_ROLE[key] ?? [];
         const result = RESULT_BY_ROLE[key];
+        const defaultOpen = expanded.includes(index);
         const hue = ROLE_HUE[key] ?? 'var(--color-border-strong)';
 
         return (
@@ -140,88 +200,86 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
             key={exp.id}
             data-portfolio-experience-card
             data-current={String(isCurrent)}
-            className={[
-              'grid grid-cols-1 gap-x-6 gap-y-3 border-t border-[color:var(--color-border-soft)] px-3 py-6 @4xl:grid-cols-[112px_200px_minmax(0,1fr)] @4xl:px-0',
-              isCurrent
-                ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
-                : '',
-            ].join(' ')}
+            data-stagger
+            className="relative"
           >
-            {/* Period */}
-            <div className="flex flex-col gap-2 @4xl:pl-3">
-              <Period startedAt={exp.startedAt} endedAt={exp.endedAt} />
-              {isCurrent && (
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--color-accent)]">
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)]"
-                  />
-                  Now
-                </span>
-              )}
-            </div>
-
-            {/* Company + role */}
-            <div className="flex items-start gap-3">
-              <span
-                aria-hidden="true"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border font-mono text-[11px] font-semibold"
-                style={{ borderColor: hue, color: hue }}
-              >
-                {monogram(exp.company)}
-              </span>
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="font-display text-lg font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)]">
-                  {exp.company}
-                </span>
-                <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
-                  {exp.role}
-                </span>
-                {exp.location && (
-                  <span className="font-mono text-[11px] text-[color:var(--color-text-faint)]">
-                    {exp.location}
+            <span aria-hidden="true" className="tl-dot" />
+            <div
+              className={[
+                'grid grid-cols-1 gap-x-6 gap-y-3 rounded-md border bg-[color:var(--color-surface-elevated)] px-4 py-6 transition-[border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] @4xl:grid-cols-[112px_200px_minmax(0,1fr)]',
+                isCurrent
+                  ? 'border-[color:var(--color-border-strong)]'
+                  : 'border-[color:var(--color-border)]',
+              ].join(' ')}
+            >
+              {/* Period */}
+              <div className="flex flex-col gap-2">
+                <Period startedAt={exp.startedAt} endedAt={exp.endedAt} />
+                {isCurrent && (
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--color-accent)]">
+                    <span
+                      aria-hidden="true"
+                      className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)]"
+                    />
+                    Now
                   </span>
                 )}
-              </span>
-            </div>
+              </div>
 
-            {/* Scope */}
-            <div className="flex flex-col gap-3">
-              {exp.summaryHtml && (
-                // Sanitized server-side by isomorphic-dompurify (ADR-14).
-                <div
-                  className="max-w-[62ch] space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)] [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
-                  dangerouslySetInnerHTML={{ __html: exp.summaryHtml }}
-                />
-              )}
-
-              {result && (
-                <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]">
-                    Result
+              {/* Company + role */}
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border font-mono text-[11px] font-semibold"
+                  style={{ borderColor: hue, color: hue }}
+                >
+                  {monogram(exp.company)}
+                </span>
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="font-display text-lg font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)]">
+                    {exp.company}
                   </span>
-                  <span className="text-[color:var(--color-text-primary)]">{result}</span>
-                </p>
-              )}
+                  <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
+                    {exp.role}
+                  </span>
+                  {exp.location && (
+                    <span className="font-mono text-[11px] text-[color:var(--color-text-faint)]">
+                      {exp.location}
+                    </span>
+                  )}
+                </span>
+              </div>
 
-              {tech.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5">
-                  {tech.map((t) => (
-                    <li
-                      key={t}
-                      className="rounded-xs border border-[color:var(--color-border)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-muted)]"
-                    >
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {/* Scope */}
+              <div className="flex flex-col gap-3">
+                {exp.summaryHtml && <Scope html={exp.summaryHtml} defaultOpen={defaultOpen} />}
+
+                {result && (
+                  <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]">
+                      Result
+                    </span>
+                    <span className="text-[color:var(--color-text-primary)]">{result}</span>
+                  </p>
+                )}
+
+                {tech.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {tech.map((t) => (
+                      <li
+                        key={t}
+                        className="rounded-xs border border-[color:var(--color-border)] bg-[color:var(--color-background)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-secondary)] transition-[transform,border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] motion-safe:hover:-translate-y-px"
+                      >
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </li>
         );
       })}
-
-      <li aria-hidden="true" className="border-t border-[color:var(--color-border)]" />
     </ol>
   );
 }

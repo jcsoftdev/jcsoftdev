@@ -10,6 +10,8 @@ import { resolvePlausibleHost } from "../lib/analytics";
 // serve from /fonts/ instead. ADR-20 updated to reflect this.
 const geistSansUrl = "/fonts/geist-sans-variable.woff2";
 const geistMonoUrl = "/fonts/geist-mono-variable.woff2";
+// Bebas Neue (SIL OFL) — condensed all-caps display face, self-hosted like Geist.
+const bebasUrl = "/fonts/bebas-neue-latin-400.woff2";
 
 type JsonLdValue = Record<string, unknown> | Array<Record<string, unknown>>;
 
@@ -172,6 +174,14 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
       crossorigin="anonymous"
     />
 
+    <link
+      rel="preload"
+      href={bebasUrl}
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
+
     <!-- Caveat — handwriting display font for the hero signature -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -196,6 +206,13 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
         font-family: 'Geist Mono';
         src: url('${geistMonoUrl}') format('woff2-variations');
         font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Bebas Neue';
+        src: url('${bebasUrl}') format('woff2');
+        font-weight: 400;
         font-style: normal;
         font-display: swap;
       }
@@ -264,7 +281,11 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
          the viewport. With a rail whose width varies, viewport breakpoints lie
          — at 1024px the column is ~740px wide, and a `lg:` two-column split
          there produced a 307px reading measure. -->
-    <div id="content" class="@container relative min-w-0">
+    <div
+      id="content"
+      tabindex="-1"
+      class="@container relative min-w-0 outline-none"
+    >
       <slot />
       <Footer />
     </div>

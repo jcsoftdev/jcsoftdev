@@ -26,7 +26,7 @@
  * markup that no longer exists.
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublicExperience } from '../../lib/portfolio-fetch.js';
 
@@ -254,5 +254,33 @@ describe('ExperienceIsland', () => {
 
     const cards = container.querySelectorAll('[data-portfolio-experience-card]');
     expect(cards).toHaveLength(2);
+  });
+
+  it('folds bullets past the second behind a +N more toggle on older roles', async () => {
+    const { ExperienceIsland } = await import('./ExperienceIsland.js');
+    const bullets = ['A', 'B', 'C', 'D'].map((x) => `<li>Bullet ${x}</li>`).join('');
+    const roles: PublicExperience[] = [0, 1, 2, 3].map((i) => ({
+      id: `r${i}`,
+      company: `Co${i}`,
+      role: 'Dev',
+      summaryHtml: `<p>Lead ${i}.</p><ul>${bullets}</ul>`,
+      startedAt: `20${10 + (3 - i)}-01-01`,
+      endedAt: i === 0 ? null : `20${11 + (3 - i)}-01-01`,
+      location: null,
+      displayOrder: i + 1,
+    }));
+    render(<ExperienceIsland experiences={roles} />);
+
+    const toggles = screen.getAllByRole('button');
+    // Four roles: only the newest starts expanded.
+    expect(toggles[0]).toHaveAttribute('aria-expanded', 'true');
+    expect(toggles[1]).toHaveAttribute('aria-expanded', 'false');
+    expect(toggles[1]).toHaveTextContent('+2 more');
+    expect(screen.getAllByText('Bullet D')).toHaveLength(1);
+
+    fireEvent.click(toggles[1] as HTMLElement);
+    expect(toggles[1]).toHaveAttribute('aria-expanded', 'true');
+    expect(toggles[1]).toHaveTextContent('Show less');
+    expect(screen.getAllByText('Bullet D')).toHaveLength(2);
   });
 });
