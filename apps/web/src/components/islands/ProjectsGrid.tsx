@@ -1,21 +1,24 @@
 /**
- * ProjectsGrid — projects as a readout table.
+ * ProjectsGrid — projects as an expandable readout table.
  *
- * The card grid was three tiles of chrome around one sentence each. A table
- * puts every project's name and summary on one scan line, which is how
- * someone actually reads a portfolio: down the names first, then across the one
- * that catches them.
+ * Every row is a disclosure: the name and one-line summary stay on the scan
+ * line, and the row opens inline to the longer description, the period and the
+ * live/source links that exist. Rows without a link used to be dead dividers;
+ * now every row has something behind it. Rows open independently, and the panel
+ * is toggled with `hidden` rather than animated, so nothing moves under
+ * reduced-motion.
  *
  * The slug-hash gradient survives as a monogram chip so projects stay visually
- * identifiable, and the featured project keeps an accent rail.
+ * identifiable. The first three featured rows get a larger treatment.
  *
- * Two columns are deliberately absent: Stack and Result. `PublicProject` has no
- * field for either, and inventing them would be worse than omitting them. Both
- * are a column away once the API serializes them.
+ * Stack is deliberately absent: `PublicProject` has no field for it, and
+ * inventing one would be worse than omitting it.
  */
 
+import { useId, useState } from 'react';
 import { gradientFromSlug } from '../../lib/gradient-from-slug.js';
 import type { PublicProject } from '../../lib/portfolio-fetch.js';
+import { projectPeriod } from '../../lib/project-period.js';
 
 interface ProjectsGridProps {
   projects: PublicProject[];
@@ -36,6 +39,148 @@ function monogram(name: string): string {
 const GRID =
   'grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 @3xl:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_28px] @3xl:items-start @3xl:gap-x-5 @3xl:gap-y-0';
 
+const FEATURED_LARGE = 3;
+
+const PANEL_LINK =
+  'inline-flex items-center gap-1.5 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]';
+
+function ProjectRow({
+  project,
+  large,
+  open,
+  onToggle,
+}: {
+  project: PublicProject;
+  large: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const panelId = useId();
+  const isFeatured = project.featuredOrder !== null;
+  const period = projectPeriod(project.startedAt, project.endedAt);
+
+  return (
+    <li className="border-t border-[color:var(--color-border-soft)]">
+      <div
+        className={[
+          GRID,
+          'group relative px-3 transition-colors duration-[var(--duration-fast)] @3xl:px-0',
+          large ? 'py-6 @3xl:py-7' : 'py-4',
+          'hover:bg-[color:var(--color-surface)]',
+          isFeatured || open
+            ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
+            : '',
+        ].join(' ')}
+      >
+        {/* Project — the button owns the whole row via a stretched pseudo-element */}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className="order-1 flex min-w-0 items-center gap-3 text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[color:var(--color-accent)] @3xl:order-none @3xl:pl-3"
+        >
+          <span
+            aria-hidden="true"
+            className={[
+              'flex shrink-0 items-center justify-center rounded-sm font-display font-bold text-white/85',
+              large ? 'h-10 w-10 text-xs' : 'h-8 w-8 text-[11px]',
+            ].join(' ')}
+            style={{
+              background: gradientFromSlug(project.slug),
+              textShadow: '0 1px 4px oklch(0 0 0 / 0.5)',
+            }}
+          >
+            {monogram(project.name)}
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span
+              className={[
+                'font-display font-semibold leading-tight tracking-tight transition-colors',
+                large ? 'text-xl @3xl:text-2xl' : 'text-base @3xl:text-lg',
+                isFeatured
+                  ? 'text-[color:var(--color-accent)]'
+                  : 'text-[color:var(--color-text-primary)] group-hover:text-[color:var(--color-accent)]',
+              ].join(' ')}
+            >
+              {project.name}
+            </span>
+            <span className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
+              {isFeatured && <span>Featured</span>}
+              {period && (
+                <span className="normal-case tracking-normal text-[color:var(--color-text-faint)]">
+                  {period}
+                </span>
+              )}
+            </span>
+          </span>
+        </button>
+
+        {/* Summary */}
+        <p
+          className={[
+            'order-3 col-span-2 mt-1 leading-relaxed text-[color:var(--color-text-secondary)] @3xl:order-none @3xl:col-span-1 @3xl:mt-0',
+            large ? 'text-base' : 'text-sm',
+          ].join(' ')}
+        >
+          {project.summary ?? '—'}
+        </p>
+
+        {/* Affordance */}
+        <span
+          aria-hidden="true"
+          className="order-2 pointer-events-none justify-self-end font-mono text-base text-[color:var(--color-text-muted)] transition-colors group-hover:text-[color:var(--color-accent)] @3xl:order-none"
+        >
+          {open ? '−' : '+'}
+        </span>
+      </div>
+
+      <div
+        id={panelId}
+        hidden={!open}
+        className="border-t border-[color:var(--color-border-soft)] px-3 py-5 @3xl:pl-[calc(0.75rem+2.75rem)] @3xl:pr-6"
+      >
+        <div className="flex max-w-[62ch] flex-col gap-4">
+          {project.descriptionHtml && (
+            // Sanitized server-side by isomorphic-dompurify (ADR-14).
+            <div
+              className="space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
+              dangerouslySetInnerHTML={{ __html: project.descriptionHtml }}
+            />
+          )}
+          {period && !project.descriptionHtml && (
+            <p className="font-mono text-xs text-[color:var(--color-text-muted)]">{period}</p>
+          )}
+          {(project.liveUrl || project.repoUrl) && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              {project.liveUrl && (
+                <a
+                  href={project.liveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={PANEL_LINK}
+                >
+                  Live site <span aria-hidden="true">↗</span>
+                </a>
+              )}
+              {project.repoUrl && (
+                <a
+                  href={project.repoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={PANEL_LINK}
+                >
+                  Source <span aria-hidden="true">↗</span>
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function ProjectsGrid({ projects }: ProjectsGridProps) {
   const sorted = [...projects].sort((a, b) => {
     const fa = a.featuredOrder ?? Number.POSITIVE_INFINITY;
@@ -43,6 +188,7 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
     if (fa !== fb) return fa - fb;
     return (b.startedAt ?? '').localeCompare(a.startedAt ?? '');
   });
+  const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
 
   if (sorted.length === 0) {
     return (
@@ -52,11 +198,17 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
     );
   }
 
+  const toggle = (id: string) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   return (
     <div>
       {/* Column header. Hidden on small screens, where each row stacks. */}
       <div
-        aria-hidden="true"
         className={`${GRID} hidden border-t border-[color:var(--color-border)] py-2.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-faint)] @3xl:grid`}
       >
         <span>Project</span>
@@ -65,73 +217,15 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
       </div>
 
       <ul className="flex flex-col">
-        {sorted.map((project) => {
-          const href = project.liveUrl ?? project.repoUrl ?? null;
-          const isFeatured = project.featuredOrder !== null;
-          const external = Boolean(href);
-
-          const Row = href ? 'a' : 'div';
-
-          return (
-            <li key={project.id}>
-              <Row
-                {...(href ? { href, target: '_blank', rel: 'noopener noreferrer' } : {})}
-                className={[
-                  GRID,
-                  'group border-t border-[color:var(--color-border-soft)] px-3 py-4 outline-none transition-colors duration-[var(--duration-fast)] @3xl:px-0 @3xl:py-4',
-                  'hover:bg-[color:var(--color-surface)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]',
-                  isFeatured
-                    ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
-                    : '',
-                ].join(' ')}
-              >
-                {/* Project — monogram chip keeps the slug gradient alive */}
-                <span className="flex min-w-0 items-center gap-3 @3xl:pl-3">
-                  <span
-                    aria-hidden="true"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm font-display text-[11px] font-bold text-white/85"
-                    style={{
-                      background: gradientFromSlug(project.slug),
-                      textShadow: '0 1px 4px oklch(0 0 0 / 0.5)',
-                    }}
-                  >
-                    {monogram(project.name)}
-                  </span>
-                  <span className="flex min-w-0 flex-col">
-                    <span
-                      className={[
-                        'font-display text-base font-semibold leading-tight tracking-tight transition-colors @3xl:text-lg',
-                        isFeatured
-                          ? 'text-[color:var(--color-accent)]'
-                          : 'text-[color:var(--color-text-primary)] group-hover:text-[color:var(--color-accent)]',
-                      ].join(' ')}
-                    >
-                      {project.name}
-                    </span>
-                    {isFeatured && (
-                      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
-                        Featured
-                      </span>
-                    )}
-                  </span>
-                </span>
-
-                {/* Summary */}
-                <span className="order-3 col-span-2 mt-1 text-sm leading-relaxed text-[color:var(--color-text-secondary)] @3xl:order-none @3xl:col-span-1 @3xl:mt-0">
-                  {project.summary ?? '—'}
-                </span>
-
-                {/* Affordance */}
-                <span
-                  aria-hidden="true"
-                  className="order-4 hidden font-mono text-sm text-[color:var(--color-text-muted)] transition-[color,transform] group-hover:translate-x-1 group-hover:text-[color:var(--color-accent)] @3xl:order-none @3xl:inline"
-                >
-                  {external ? '↗' : ''}
-                </span>
-              </Row>
-            </li>
-          );
-        })}
+        {sorted.map((project, index) => (
+          <ProjectRow
+            key={project.id}
+            project={project}
+            large={index < FEATURED_LARGE && project.featuredOrder !== null}
+            open={openIds.has(project.id)}
+            onToggle={() => toggle(project.id)}
+          />
+        ))}
       </ul>
 
       <div className="border-t border-[color:var(--color-border)]" />

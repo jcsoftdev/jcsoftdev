@@ -51,6 +51,22 @@ const EYEBROW =
 /** Section label rendered as `( LABEL )`. */
 const SECTION_EYEBROW = "eyebrow-label";
 
+/** Derived from the About copy: architecture, performance, teaching. */
+const HOW_I_WORK = [
+  {
+    title: "Architecture",
+    body: "Hexagonal, DDD and Screaming architecture, so the structure shows what the system does.",
+  },
+  {
+    title: "Performance",
+    body: "SSR/SSG, caching and query tuning.",
+  },
+  {
+    title: "Teaching",
+    body: "Writing, code review and pairing with anyone willing to push past their comfort zone.",
+  },
+];
+
 const CONTACT_HEADING = "Have a problem worth solving?";
 /** Index of the first word that carries the accent colour in the contact heading. */
 const CONTACT_ACCENT_FROM = 4;
@@ -211,6 +227,32 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             Allergic to shortcuts.
           </p>
 
+          <ol
+            data-reveal-item
+            aria-label="How I work"
+            class="mt-4 grid list-none gap-0 p-0 @3xl:grid-cols-3"
+          >
+            {
+              HOW_I_WORK.map((step, i) => (
+                <li class="relative border-t border-[color:var(--color-border)] pb-6 pt-4 @3xl:pr-6">
+                  <span
+                    aria-hidden="true"
+                    class="absolute -top-px left-0 h-px w-8 bg-[color:var(--color-accent)]"
+                  />
+                  <span class="display-numeral block text-[color:var(--color-text-faint)]">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 class="mt-3 font-display text-lg font-semibold tracking-tight text-[color:var(--color-text-primary)]">
+                    {step.title}
+                  </h3>
+                  <p class="mt-1 max-w-[30ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                    {step.body}
+                  </p>
+                </li>
+              ))
+            }
+          </ol>
+
           {
             /* Reading used to be a stat cell doing nothing. It belongs next to
               the writing it feeds. */
@@ -266,14 +308,12 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                 <dt
                   class="font-mono text-xs text-[color:var(--color-text-muted)]"
                 >
-                  Projects shipped
+                  Projects listed
                 </dt>
                 <dd
                   class="display-numeral text-[color:var(--color-text-primary)]"
                 >
-                  {projects.length}<span
-                    class="text-[color:var(--color-accent)]">+</span
-                  >
+                  {projects.length}
                 </dd>
               </div>
               <div class="flex items-baseline justify-between gap-3 pt-3">

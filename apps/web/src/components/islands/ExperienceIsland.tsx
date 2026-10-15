@@ -12,7 +12,13 @@
  * longer pulls in GSAP or ScrollTrigger.
  */
 
+import { useId, useState } from 'react';
 import type { PublicExperience } from '../../lib/portfolio-fetch.js';
+import {
+  defaultExpandedIndexes,
+  splitSummary,
+  VISIBLE_BULLETS,
+} from '../../lib/summary-bullets.js';
 
 interface ExperienceIslandProps {
   experiences: PublicExperience[];
@@ -50,14 +56,17 @@ const TECH_BY_ROLE: Record<string, string[]> = {
 };
 
 /**
- * One measurable outcome per role — the line that separates a senior CV from a
- * job list. Deliberately EMPTY: the figures the CV does claim (76% response-time
- * cut, 80%+ coverage) already sit in the role summaries, and repeating one here
- * reads as padding. Add an entry and the row renders a Result line.
+ * One measurable outcome per role. Only figures that already appear in that
+ * role's bullets belong here: surfacing them above the fold is the point, since
+ * the bullet that carries them may sit behind "+N more". Add an entry and the
+ * row renders a Result line.
  *
  * Shape: 'Company|Role': 'Cut p95 checkout latency from 900ms to 220ms.'
  */
-const RESULT_BY_ROLE: Record<string, string> = {};
+const RESULT_BY_ROLE: Record<string, string> = {
+  'GlobalLogic|Senior Software Engineer':
+    'Redis caching cut response times 76% (30s to 7s); 80%+ coverage gates in CI.',
+};
 
 /** Brand color hint per role (subtle accent on monogram). */
 const ROLE_HUE: Record<string, string> = {
@@ -110,6 +119,49 @@ function Period({ startedAt, endedAt }: { startedAt: string; endedAt: string | n
   );
 }
 
+const PROSE =
+  'max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)]';
+
+/** Lead-in plus bullets; everything past the first two folds behind a toggle. */
+function Scope({ html, defaultOpen }: { html: string; defaultOpen: boolean }) {
+  const { intro, bullets } = splitSummary(html);
+  const [open, setOpen] = useState(defaultOpen);
+  const listId = useId();
+  const hidden = bullets.length - VISIBLE_BULLETS;
+  const shown = open ? bullets : bullets.slice(0, VISIBLE_BULLETS);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {intro && (
+        // Sanitized server-side by isomorphic-dompurify (ADR-14).
+        <div className={`${PROSE} space-y-2`} dangerouslySetInnerHTML={{ __html: intro }} />
+      )}
+      {bullets.length > 0 && (
+        <ul
+          id={listId}
+          className="max-w-[62ch] list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-[color:var(--color-text-secondary)] marker:text-[color:var(--color-text-faint)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)]"
+        >
+          {shown.map((b) => (
+            // Sanitized server-side by isomorphic-dompurify (ADR-14).
+            <li key={b} className="pl-1" dangerouslySetInnerHTML={{ __html: b }} />
+          ))}
+        </ul>
+      )}
+      {hidden > 0 && (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((v) => !v)}
+          className="w-fit rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        >
+          {open ? 'Show less' : `+${hidden} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
   const sorted = [...experiences].sort((a, b) => {
     const da = a.displayOrder ?? Number.POSITIVE_INFINITY;
@@ -117,6 +169,8 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
     if (da !== db) return da - db;
     return b.startedAt.localeCompare(a.startedAt);
   });
+
+  const expanded = defaultExpandedIndexes(sorted.length);
 
   if (sorted.length === 0) {
     return (
@@ -128,11 +182,12 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
 
   return (
     <ol className="flex flex-col">
-      {sorted.map((exp) => {
+      {sorted.map((exp, index) => {
         const isCurrent = exp.endedAt === null;
         const key = roleKey(exp.company, exp.role);
         const tech = TECH_BY_ROLE[key] ?? [];
         const result = RESULT_BY_ROLE[key];
+        const defaultOpen = expanded.includes(index);
         const hue = ROLE_HUE[key] ?? 'var(--color-border-strong)';
 
         return (
@@ -187,13 +242,7 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
 
             {/* Scope */}
             <div className="flex flex-col gap-3">
-              {exp.summaryHtml && (
-                // Sanitized server-side by isomorphic-dompurify (ADR-14).
-                <div
-                  className="max-w-[62ch] space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_em]:not-italic [&_em]:text-[color:var(--color-text-primary)] [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
-                  dangerouslySetInnerHTML={{ __html: exp.summaryHtml }}
-                />
-              )}
+              {exp.summaryHtml && <Scope html={exp.summaryHtml} defaultOpen={defaultOpen} />}
 
               {result && (
                 <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">

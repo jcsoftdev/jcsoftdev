@@ -89,6 +89,14 @@ function HeroMeshFadeIn() {
   );
 }
 
+/** Verifiable facts only: each figure is quoted in the CV or the experience bullets. */
+const PROOF = [
+  { figure: '8+', label: 'years shipping' },
+  { figure: '76%', label: 'lower response time' },
+  { figure: '80%+', label: 'coverage gates in CI' },
+  { figure: 'AWS · Azure · GCP', label: 'cloud platforms' },
+];
+
 /**
  * HeroIsland — hero for the home page (/), rail layout.
  *
@@ -253,12 +261,28 @@ export default function HeroIsland() {
             </a>
           </div>
 
+          <ul
+            data-hero-reveal
+            data-hero-proof
+            style={{ '--hero-i': 4 } as React.CSSProperties}
+            className="m-0 mt-4 flex list-none flex-wrap items-baseline gap-x-5 gap-y-1.5 border-t border-white/15 p-0 pt-4 font-mono text-xs [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
+          >
+            {PROOF.map(({ figure, label }) => (
+              <li key={label} className="flex items-baseline gap-1.5">
+                <span className="text-[oklch(0.96_0.005_270)]">{figure}</span>
+                <span className="text-[oklch(0.78_0.01_270)]">{label}</span>
+              </li>
+            ))}
+          </ul>
+
           <div
             data-hero-reveal
-            style={{ '--hero-i': 4 } as React.CSSProperties}
-            className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-white/15 pt-4 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
+            style={{ '--hero-i': 5 } as React.CSSProperties}
+            className="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 font-mono text-xs text-[oklch(0.90_0.01_270)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
           >
-            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">Latest</span>
+            <span className="uppercase tracking-[0.2em] text-[oklch(0.72_0.01_270)]">
+              Latest project
+            </span>
             <span>
               Multi-tenant web-monitoring SaaS — Go, Next.js 16, schema-per-tenant Postgres, AI
               insights on Bedrock.
@@ -268,7 +292,7 @@ export default function HeroIsland() {
           {/* Social icons — mobile only; the rail carries these on lg+ */}
           <nav
             data-hero-reveal
-            style={{ '--hero-i': 5 } as React.CSSProperties}
+            style={{ '--hero-i': 6 } as React.CSSProperties}
             aria-label="Social links"
             className="mt-2 flex gap-3 lg:hidden"
           >
