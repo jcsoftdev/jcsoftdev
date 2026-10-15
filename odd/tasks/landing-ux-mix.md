@@ -15,7 +15,7 @@ TDD: disabled. Runner: vitest (`pnpm --filter @jcsoftdev/web test`), biome lint,
 - [x] U5 Hero WebGL: gate on saveData/low memory/coarse pointer with static fallback; pause when off-screen (audit #4)
 - [x] U6 Raise --color-text-faint contrast in both themes (audit #6)
 - [x] U7 One primary CTA per screen; resume as text link; marquee words become real stack; skip link (audit #5, #8, #11)
-- [ ] U8 Checks + visual check (desktop + mobile width)
+- [x] U8 Checks (typecheck 0 errors, lint clean, vitest 112 + 34 passed, format ok) + visual check at 1440px and 390px, light scheme (Playwright). Dark scheme not checked. Fixed mobile bottom-bar contrast (opaque bar).
 
 Route: delegated direct, one writer per task group. Forecast: ~600-800 authored changed lines (above the ~400 delivery budget).
 Delivery strategy: single-pr (user: "all in one, doesnt matter"). Writers run sequentially: A = U1-U3, B = U4-U7, then U8.
