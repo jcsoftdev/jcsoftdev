@@ -39,6 +39,7 @@
   /* Fonts */
   --font-display: 'Geist', system-ui, -apple-system, sans-serif;
   --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-condensed: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Type scale — fluid clamp(min, preferred, max) */
@@ -434,6 +435,144 @@
     [data-hero-sig-path] {
       stroke-dashoffset: 0;
       animation: none;
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Display typography + rhythm
+   ─────────────────────────────────────────────────────────────────────────────
+   Section headings, the stats readout and the marquee share one condensed
+   all-caps face. Anything explanatory stays in Geist.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  .display-heading {
+    font-family: var(--font-condensed);
+    font-weight: 400;
+    font-size: clamp(2.75rem, 2rem + 3.6vw, 5.5rem);
+    line-height: 1;
+    letter-spacing: -0.025em;
+    text-transform: uppercase;
+    color: var(--color-text-primary);
+  }
+
+  .display-numeral {
+    font-family: var(--font-condensed);
+    font-weight: 400;
+    font-size: clamp(2.25rem, 1.8rem + 1.6vw, 3.25rem);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Eyebrow: ( LABEL ) — tiny, widely tracked, dim. */
+  .eyebrow-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4em;
+    color: var(--color-text-faint);
+  }
+
+  .eyebrow-label::before {
+    content: "( ";
+  }
+
+  .eyebrow-label::after {
+    content: " )";
+  }
+
+  /* Marquee band. The track holds two identical groups; translating by -50%
+     lands the second group exactly where the first started, so the loop has
+     no seam. */
+  .marquee {
+    overflow: hidden;
+    border-block: 1px solid var(--color-border);
+    padding-block: 1rem;
+  }
+
+  .marquee__track {
+    display: flex;
+    width: max-content;
+    animation: dsi-marquee 32s linear infinite;
+  }
+
+  .marquee__group {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .marquee__word {
+    margin-inline: 1.5rem;
+    font-family: var(--font-condensed);
+    font-size: clamp(1.75rem, 1.2rem + 2.4vw, 3.5rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--color-border-strong);
+  }
+
+  .marquee__sep {
+    font-family: var(--font-condensed);
+    font-size: clamp(1.75rem, 1.2rem + 2.4vw, 3.5rem);
+    line-height: 1.1;
+    color: var(--color-border-strong);
+  }
+
+  @keyframes dsi-marquee {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee__track {
+      animation: none;
+    }
+  }
+
+  /* Per-letter heading reveal. Final state is the default; the hidden start
+     state only exists once the page has marked JS as available, and the
+     parent reveal observer adds .is-revealed to release it. */
+  .letter-reveal__word {
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  .letter-reveal__mask {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: top;
+  }
+
+  .letter-reveal__char {
+    display: inline-block;
+  }
+
+  html.js .letter-reveal:not(.is-revealed) .letter-reveal__char {
+    transform: translateY(115%);
+    opacity: 0;
+  }
+
+  html.js .letter-reveal.is-revealed .letter-reveal__char {
+    transition:
+      transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(var(--ch-i, 0) * 28ms + 120ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.js .letter-reveal:not(.is-revealed) .letter-reveal__char {
+      transform: none;
+      opacity: 1;
+    }
+
+    html.js .letter-reveal.is-revealed .letter-reveal__char {
+      transition: none;
     }
   }
 }

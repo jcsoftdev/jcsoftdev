@@ -1,0 +1,30 @@
+---
+/**
+ * Thin looping band of outlined display words between sections.
+ * Decorative only: hidden from assistive tech and from the tab order.
+ */
+interface Props {
+  words: string[];
+}
+
+const { words } = Astro.props;
+// Two identical groups so translating the track by -50% loops without a seam.
+const groups = [0, 1];
+---
+
+<div class="marquee" aria-hidden="true">
+  <div class="marquee__track">
+    {
+      groups.map(() => (
+        <div class="marquee__group">
+          {words.map((word) => (
+            <>
+              <span class="marquee__word">{word}</span>
+              <span class="marquee__sep">/</span>
+            </>
+          ))}
+        </div>
+      ))
+    }
+  </div>
+</div>

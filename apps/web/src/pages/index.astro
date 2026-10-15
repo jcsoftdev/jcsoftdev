@@ -13,6 +13,7 @@ import HeroIsland from "../components/HeroIsland.tsx";
 import CopyEmail from "../components/islands/CopyEmail.tsx";
 import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
+import MarqueeBand from "../components/MarqueeBand.astro";
 import RootLayout from "../layouts/RootLayout.astro";
 import { fetchPortfolioResilient } from "../lib/portfolio-fetch";
 import {
@@ -47,6 +48,18 @@ const experiences = portfolio.experiences;
 const GUTTER = "mx-auto w-full max-w-[75rem] px-[var(--gutter)]";
 const EYEBROW =
   "font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]";
+/** Section label rendered as `( LABEL )`. */
+const SECTION_EYEBROW = "eyebrow-label";
+
+const CONTACT_HEADING = "Have a problem worth solving?";
+/** Index of the first word that carries the accent colour in the contact heading. */
+const CONTACT_ACCENT_FROM = 4;
+const contactWords = CONTACT_HEADING.split(" ");
+let charIndex = 0;
+const contactLetters = contactWords.map((word, wordIndex) => ({
+  accent: wordIndex >= CONTACT_ACCENT_FROM,
+  chars: [...word].map((char) => ({ char, index: charIndex++ })),
+}));
 ---
 
 <RootLayout
@@ -94,15 +107,16 @@ const EYEBROW =
       <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
         <div class="flex items-end justify-between gap-6 pb-4">
           <div class="space-y-2.5">
-            <span data-reveal-item class={`${EYEBROW} block`}>
-              Selected work
+            <span data-reveal-item class={`${SECTION_EYEBROW} block`}>
+              Portfolio
             </span>
-            <h2
+            <h2 data-reveal-item class="display-heading">Selected work</h2>
+            <p
               data-reveal-item
-              class="max-w-[24ch] font-display text-[clamp(1.5rem,1.25rem+1.1vw,2rem)] font-semibold leading-[1.1] tracking-tight text-[color:var(--color-text-primary)]"
+              class="max-w-[40ch] text-[color:var(--color-text-secondary)]"
             >
               Things I've shipped over the years.
-            </h2>
+            </p>
           </div>
           <span
             data-reveal-item
@@ -118,6 +132,10 @@ const EYEBROW =
       </div>
     </section>
 
+    <MarqueeBand
+      words={["Architecture", "Performance", "Product", "Teaching"]}
+    />
+
     {/* ── Experience ─────────────────────────────────────────────── */}
     <section
       id="experience"
@@ -125,8 +143,13 @@ const EYEBROW =
       class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
     >
       <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
-        <div class="flex items-baseline justify-between gap-6 pb-4">
-          <span data-reveal-item class={EYEBROW}>Experience</span>
+        <div class="flex items-end justify-between gap-6 pb-4">
+          <div class="space-y-2.5">
+            <span data-reveal-item class={`${SECTION_EYEBROW} block`}>
+              Career
+            </span>
+            <h2 data-reveal-item class="display-heading">Experience</h2>
+          </div>
           <span
             data-reveal-item
             class="font-mono text-xs italic text-[color:var(--color-text-muted)]"
@@ -151,13 +174,14 @@ const EYEBROW =
         class={`${GUTTER} grid gap-8 py-[var(--section-py)] @5xl:grid-cols-[minmax(0,1fr)_22rem] @5xl:gap-10`}
       >
         <div class="flex flex-col gap-5">
-          <span data-reveal-item class={EYEBROW}>About</span>
-          <h2
+          <span data-reveal-item class={SECTION_EYEBROW}>Profile</span>
+          <h2 data-reveal-item class="display-heading">About</h2>
+          <p
             data-reveal-item
-            class="font-display text-[clamp(1.5rem,1.25rem+1.1vw,2rem)] font-semibold leading-[1.1] tracking-tight text-[color:var(--color-text-primary)]"
+            class="font-display text-xl font-medium tracking-tight text-[color:var(--color-text-primary)]"
           >
             The shape of my work.
-          </h2>
+          </p>
           <p
             data-reveal-item
             class="max-w-[58ch] text-lg leading-relaxed text-[color:var(--color-text-primary)]"
@@ -220,7 +244,7 @@ const EYEBROW =
           <div
             class="panel-frame rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5"
           >
-            <p class={`${EYEBROW} mb-4`}>By the numbers</p>
+            <p class={`${SECTION_EYEBROW} mb-4 block`}>By the numbers</p>
             <dl class="flex flex-col">
               <div
                 class="flex items-baseline justify-between gap-3 border-b border-[color:var(--color-border)] pb-3"
@@ -231,7 +255,7 @@ const EYEBROW =
                   Shipping since
                 </dt>
                 <dd
-                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                  class="display-numeral text-[color:var(--color-text-primary)]"
                 >
                   2017
                 </dd>
@@ -245,7 +269,7 @@ const EYEBROW =
                   Projects shipped
                 </dt>
                 <dd
-                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                  class="display-numeral text-[color:var(--color-text-primary)]"
                 >
                   {projects.length}<span
                     class="text-[color:var(--color-accent)]">+</span
@@ -259,7 +283,7 @@ const EYEBROW =
                   Roles
                 </dt>
                 <dd
-                  class="font-display text-2xl font-semibold tabular-nums text-[color:var(--color-text-primary)]"
+                  class="display-numeral text-[color:var(--color-text-primary)]"
                 >
                   {experiences.length}
                 </dd>
@@ -292,15 +316,37 @@ const EYEBROW =
             <span
               class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-success)] [box-shadow:0_0_12px_var(--color-success)]"
             ></span>
-            <span class={EYEBROW}>Get in touch</span>
+            <span class={SECTION_EYEBROW}>Get in touch</span>
           </div>
           <h2
             data-reveal-item
-            class="font-display text-[clamp(1.875rem,1.35rem+2.4vw,3rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-[color:var(--color-text-primary)]"
+            aria-label={CONTACT_HEADING}
+            class="display-heading letter-reveal"
           >
-            Have a problem worth <em
-              class="not-italic text-[color:var(--color-accent)]">solving?</em
-            >
+            {
+              contactLetters.map(({ accent, chars }) => (
+                <>
+                  <span
+                    aria-hidden="true"
+                    class:list={[
+                      "letter-reveal__word",
+                      accent && "text-[color:var(--color-accent)]",
+                    ]}
+                  >
+                    {chars.map(({ char, index }) => (
+                      <span class="letter-reveal__mask">
+                        <span
+                          class="letter-reveal__char"
+                          style={`--ch-i: ${index}`}
+                        >
+                          {char}
+                        </span>
+                      </span>
+                    ))}
+                  </span>{" "}
+                </>
+              ))
+            }
           </h2>
           <p
             data-reveal-item
