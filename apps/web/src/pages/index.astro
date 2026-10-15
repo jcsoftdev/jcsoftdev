@@ -99,7 +99,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
   ]}
   jsonLd={homeJsonLd}
 >
-  <main class="measure-grid">
+  <main>
     {
       /* Scroll progress — inset past the rail so it measures the column it tracks */
     }
@@ -118,7 +118,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
     <section
       id="work"
       data-reveal
-      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
+      class="scroll-mt-[var(--header-height)] bg-[color:var(--color-background)] border-t border-[color:var(--color-border)]"
     >
       <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
         <div class="flex items-end justify-between gap-6 pb-4">
@@ -164,7 +164,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
     <section
       id="experience"
       data-reveal
-      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
+      class="scroll-mt-[var(--header-height)] bg-[color:var(--color-surface)] border-t border-[color:var(--color-border)]"
     >
       <div class={`${GUTTER} pt-[var(--section-py)] pb-4`}>
         <div class="flex items-end justify-between gap-6 pb-4">
@@ -192,7 +192,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
     <section
       id="about"
       data-reveal
-      class="scroll-mt-[var(--header-height)] border-t border-[color:var(--color-border)]"
+      class="scroll-mt-[var(--header-height)] bg-[color:var(--color-background)] border-t border-[color:var(--color-border)]"
     >
       <div
         class={`${GUTTER} grid gap-8 py-[var(--section-py)] @5xl:grid-cols-[minmax(0,1fr)_22rem] @5xl:gap-10`}
@@ -292,7 +292,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
         }
         <aside data-reveal-item class="@5xl:pt-9">
           <div
-            class="panel-frame rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5"
+            class="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5"
           >
             <p class={`${SECTION_EYEBROW} mb-4 block`}>By the numbers</p>
             <dl class="flex flex-col">
@@ -346,15 +346,8 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
     <section
       id="contact"
       data-reveal
-      class="relative scroll-mt-[var(--header-height)] overflow-hidden border-t border-[color:var(--color-border)]"
+      class="relative scroll-mt-[var(--header-height)] bg-[color:var(--color-surface)] border-t border-[color:var(--color-border)]"
     >
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute right-[-20%] top-1/2 h-[46vmax] w-[46vmax] -translate-y-1/2 rounded-full"
-        style="background: radial-gradient(circle, oklch(0.70 0.20 249 / 0.14) 0%, transparent 65%); filter: blur(80px); z-index: var(--z-orbs);"
-      >
-      </div>
-
       <div
         class={`${GUTTER} relative py-[var(--section-py)]`}
         style="z-index: var(--z-content);"
@@ -362,7 +355,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
         <div class="max-w-[58ch] space-y-4">
           <div data-reveal-item class="flex items-center gap-3">
             <span
-              class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-success)] [box-shadow:0_0_12px_var(--color-success)]"
+              class="inline-block h-2 w-2 rounded-full bg-[color:var(--color-success)]"
             ></span>
             <span class={SECTION_EYEBROW}>Get in touch</span>
           </div>
@@ -453,7 +446,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                       {...(external
                         ? { target: "_blank", rel: "noopener noreferrer" }
                         : {})}
-                      class="group flex items-center justify-between rounded-sm border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+                      class="group flex items-center justify-between rounded-sm border border-[color:var(--color-border)] bg-[color:var(--color-background)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                     >
                       <span class="flex items-center gap-3">
                         <span class="text-[color:var(--color-text-muted)]">

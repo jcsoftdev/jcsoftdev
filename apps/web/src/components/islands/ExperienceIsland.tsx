@@ -198,7 +198,7 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
             className={[
               'grid grid-cols-1 gap-x-6 gap-y-3 border-t border-[color:var(--color-border-soft)] px-3 py-6 @4xl:grid-cols-[112px_200px_minmax(0,1fr)] @4xl:px-0',
               isCurrent
-                ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
+                ? 'bg-[color:var(--color-surface-elevated)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
                 : '',
             ].join(' ')}
           >

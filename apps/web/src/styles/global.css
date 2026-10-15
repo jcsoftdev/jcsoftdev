@@ -315,48 +315,6 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Rail-layout primitives
-   ─────────────────────────────────────────────────────────────────────────────
-   Two shapes the rail layout leans on everywhere. Both are plain classes rather
-   than Tailwind arbitrary values because the arbitrary-value spelling of an
-   eight-stop background is unreadable at the call site, and because both need
-   to react to the light palette through the same tokens every component reads.
-   ───────────────────────────────────────────────────────────────────────────── */
-
-@layer components {
-  /* Faint measurement grid — the backdrop that makes the layout read as an
-     instrument rather than a document. 64px matches the section rhythm. */
-  .measure-grid {
-    background-image:
-      linear-gradient(var(--color-border-soft) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-border-soft) 1px, transparent 1px);
-    background-size: 64px 64px;
-  }
-
-  /* Corner ticks on a bordered panel. Drawn as one pseudo-element with eight
-     background stops so no panel needs four extra spans in the markup. */
-  .panel-frame {
-    position: relative;
-  }
-
-  .panel-frame::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    pointer-events: none;
-    background:
-      linear-gradient(var(--color-accent), var(--color-accent)) 0 0 / 9px 1px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 0 0 / 1px 9px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 100% 0 / 9px 1px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 100% 0 / 1px 9px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 0 100% / 9px 1px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 0 100% / 1px 9px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 100% 100% / 9px 1px no-repeat,
-      linear-gradient(var(--color-accent), var(--color-accent)) 100% 100% / 1px 9px no-repeat;
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
    Hero entrance
    ─────────────────────────────────────────────────────────────────────────────
    Deliberately CSS, not GSAP. The hero island is client:idle behind a ~720KB

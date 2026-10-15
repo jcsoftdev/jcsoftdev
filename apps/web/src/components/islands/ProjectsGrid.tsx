@@ -8,15 +8,13 @@
  * is toggled with `hidden` rather than animated, so nothing moves under
  * reduced-motion.
  *
- * The slug-hash gradient survives as a monogram chip so projects stay visually
- * identifiable. The first three featured rows get a larger treatment.
+ * A flat monogram chip keeps projects visually identifiable. The first three featured rows get a larger treatment.
  *
  * Stack is deliberately absent: `PublicProject` has no field for it, and
  * inventing one would be worse than omitting it.
  */
 
 import { useId, useState } from 'react';
-import { gradientFromSlug } from '../../lib/gradient-from-slug.js';
 import type { PublicProject } from '../../lib/portfolio-fetch.js';
 import { projectPeriod } from '../../lib/project-period.js';
 
@@ -83,13 +81,9 @@ function ProjectRow({
           <span
             aria-hidden="true"
             className={[
-              'flex shrink-0 items-center justify-center rounded-sm font-display font-bold text-white/85',
+              'flex shrink-0 items-center justify-center rounded-sm border border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-elevated)] font-display font-bold text-[color:var(--color-text-secondary)]',
               large ? 'h-10 w-10 text-xs' : 'h-8 w-8 text-[11px]',
             ].join(' ')}
-            style={{
-              background: gradientFromSlug(project.slug),
-              textShadow: '0 1px 4px oklch(0 0 0 / 0.5)',
-            }}
           >
             {monogram(project.name)}
           </span>
@@ -98,9 +92,7 @@ function ProjectRow({
               className={[
                 'font-display font-semibold leading-tight tracking-tight transition-colors',
                 large ? 'text-xl @3xl:text-2xl' : 'text-base @3xl:text-lg',
-                isFeatured
-                  ? 'text-[color:var(--color-accent)]'
-                  : 'text-[color:var(--color-text-primary)] group-hover:text-[color:var(--color-accent)]',
+                'text-[color:var(--color-text-primary)]',
               ].join(' ')}
             >
               {project.name}

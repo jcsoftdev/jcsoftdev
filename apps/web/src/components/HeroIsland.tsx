@@ -65,7 +65,7 @@ const HeroMesh = lazy(() => import('./islands/HeroMesh'));
 /**
  * Steady-state ground behind the mesh, so the hero never flashes empty. It is
  * also the static poster for gated devices (data saver, low memory, touch-first):
- * a soft accent glow where the planet would sit, in CSS only.
+ * a flat near-black ground, in CSS only.
  */
 function HeroMeshPlaceholder() {
   return (
@@ -74,8 +74,7 @@ function HeroMeshPlaceholder() {
       data-hero-poster
       className="absolute inset-0"
       style={{
-        background:
-          'radial-gradient(ellipse 55% 60% at 78% 45%, oklch(0.70 0.20 249 / 0.22), transparent 70%), oklch(0 0 0)',
+        background: 'oklch(0.04 0.005 270)',
       }}
     />
   );
@@ -179,15 +178,6 @@ export default function HeroIsland() {
         }}
       />
 
-      {/* Bottom fade into the section boundary below. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 z-[1] h-24"
-        style={{
-          background: 'linear-gradient(to bottom, transparent, var(--color-background))',
-        }}
-      />
-
       {/* Copy */}
       <div className="relative z-10 mx-auto flex min-h-[max(32rem,calc(100svh-var(--header-height)))] w-full max-w-[75rem] flex-col justify-center px-[var(--gutter)] py-[var(--section-py)]">
         <div className="flex w-full max-w-[min(62ch,100%)] flex-col items-start gap-4 @2xl:gap-5">
@@ -263,7 +253,7 @@ export default function HeroIsland() {
               <a
                 href="#work"
                 data-hero-cta
-                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,box-shadow] duration-[var(--duration-fast)] hover:brightness-110 hover:shadow-[0_8px_32px_-8px_var(--color-accent-muted)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter] duration-[var(--duration-fast)] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 View selected work
                 <span aria-hidden>→</span>

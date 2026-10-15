@@ -19,3 +19,7 @@ TDD: disabled. Runner: vitest (`pnpm --filter @jcsoftdev/web test`), biome lint,
 
 Route: delegated direct, one writer per task group. Forecast: ~600-800 authored changed lines (above the ~400 delivery budget).
 Delivery strategy: single-pr (user: "all in one, doesnt matter"). Writers run sequentially: A = U1-U3, B = U4-U7, then U8.
+
+## Follow-up (user feedback 2026-10-15: "no mejoró la UX, el fondo no se ve bien, gradientes muy slop")
+Verified in dark scheme: 64px .measure-grid over the whole <main>, blue radial glow orb in Contact (blur 80), blue radial poster gradient in HeroIsland fallback, accent-blue featured project titles, accent corner ticks on panel-frame.
+- [x] U9 Flat grounds: remove measure-grid backdrop and decorative gradients/orbs (keep the hero scrim that guards legibility), alternate section grounds with surface tokens + hairlines, neutral project titles (accent only on hover/focus/marker), drop panel-frame ticks. Visual re-check in dark and light at 1440 and 390. Visual check dark 1440/390 done; light not re-checked after this pass. Monogram chips flattened too.
