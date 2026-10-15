@@ -17,19 +17,22 @@
   /* Color — OKLCH. Dark is the default; the light set is below the @theme
      block, since @theme itself cannot hold a media query. */
   --color-background: oklch(0.10 0 0);
-  --color-surface: oklch(0.13 0 0);
-  --color-surface-elevated: oklch(0.16 0 0);
-  --color-surface-overlay: oklch(0.20 0 0);
-  --color-border: oklch(0.22 0 0);
-  --color-border-soft: oklch(0.16 0 0);
-  --color-border-strong: oklch(0.30 0 0);
+  /* Box steps: surface 1.08:1 over the ground, elevated 1.16:1, 1.08:1 over
+     surface. A 1px border (1.4:1 vs surface) and border-strong (2.0:1) carry
+     the edge, so a box reads without any shadow or gradient. */
+  --color-surface: oklch(0.17 0 0);
+  --color-surface-elevated: oklch(0.21 0 0);
+  --color-surface-overlay: oklch(0.25 0 0);
+  --color-border: oklch(0.30 0 0);
+  --color-border-soft: oklch(0.24 0 0);
+  --color-border-strong: oklch(0.39 0 0);
   --color-text-primary: oklch(0.96 0 0);
-  --color-text-secondary: oklch(0.78 0 0);
-  /* Contrast vs --color-background (oklch 0.10): secondary ~10.6:1,
-     muted ~5.9:1, faint ~4.6:1 (AA). Muted moved up with faint so the
-     secondary > muted > faint ordering stays visible. */
-  --color-text-muted: oklch(0.63 0 0);
-  --color-text-faint: oklch(0.57 0 0);
+  /* Text steps were raised with the surfaces so they hold the previous
+     ratios on the lighter boxes. Vs background (0.10) / surface-elevated
+     (0.21): secondary ~11.8 / 10.2, muted ~7.7 / 6.6, faint ~5.9 / 5.1. */
+  --color-text-secondary: oklch(0.82 0 0);
+  --color-text-muted: oklch(0.70 0 0);
+  --color-text-faint: oklch(0.63 0 0);
   --color-accent: oklch(0.70 0.20 249);
   --color-accent-hover: oklch(0.79 0.20 249);
   --color-accent-soft: oklch(0.70 0.20 249 / 0.15);
@@ -130,6 +133,8 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Shared reveal curve: heading masks, row staggers, timeline draw. */
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Z-index */
   --z-base: 0;
@@ -198,10 +203,10 @@
    is a deliberate composition, not an oversight.
 
    Contrast checked against --color-background (oklch 0.99):
-     text-primary   0.20  → ~15.8:1   (AAA)
-     text-secondary 0.38  →  ~8.9:1   (AAA)
-     text-muted     0.50  →  ~5.8:1   (AA, body-legal)
-     text-faint     0.54  →  ~4.9:1   (AA; ~4.6:1 on --color-surface)
+     text-primary   0.20  → ~17.6:1   (AAA)
+     text-secondary 0.36  → ~10.6:1   (AAA)
+     text-muted     0.44  →  ~7.5:1   (AAA)
+     text-faint     0.50  →  ~5.8:1   (AA; ~5.2:1 on --color-surface)
      accent         0.48  →  ~6.4:1   (AA for body text and controls)
    The accent darkens from 0.70 to 0.48 because the dark-mode blue lands at
    ~2.4:1 on white — unreadable, and it is used for links.
@@ -210,16 +215,16 @@
 @media (prefers-color-scheme: light) {
   :root {
     --color-background: oklch(0.99 0.002 250);
-    --color-surface: oklch(0.97 0.003 250);
+    --color-surface: oklch(0.95 0.004 250);
     --color-surface-elevated: oklch(1 0 0);
     --color-surface-overlay: oklch(1 0 0);
-    --color-border: oklch(0.87 0.005 250);
-    --color-border-soft: oklch(0.92 0.004 250);
-    --color-border-strong: oklch(0.78 0.008 250);
+    --color-border: oklch(0.82 0.006 250);
+    --color-border-soft: oklch(0.90 0.005 250);
+    --color-border-strong: oklch(0.68 0.01 250);
     --color-text-primary: oklch(0.20 0.01 250);
-    --color-text-secondary: oklch(0.38 0.01 250);
-    --color-text-muted: oklch(0.50 0.01 250);
-    --color-text-faint: oklch(0.54 0.01 250);
+    --color-text-secondary: oklch(0.36 0.01 250);
+    --color-text-muted: oklch(0.44 0.01 250);
+    --color-text-faint: oklch(0.50 0.01 250);
     --color-accent: oklch(0.48 0.19 249);
     --color-accent-hover: oklch(0.40 0.19 249);
     --color-accent-soft: oklch(0.48 0.19 249 / 0.10);
@@ -484,6 +489,11 @@
     color: var(--color-border-strong);
   }
 
+  .marquee:hover .marquee__track,
+  .marquee:focus-within .marquee__track {
+    animation-play-state: paused;
+  }
+
   @keyframes dsi-marquee {
     to {
       transform: translateX(-50%);
@@ -521,8 +531,8 @@
 
   html.js .letter-reveal.is-revealed .letter-reveal__char {
     transition:
-      transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+      transform 0.75s var(--ease-reveal),
+      opacity 0.75s var(--ease-reveal);
     transition-delay: calc(var(--ch-i, 0) * 28ms + 120ms);
   }
 
@@ -534,6 +544,78 @@
 
     html.js .letter-reveal.is-revealed .letter-reveal__char {
       transition: none;
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Row stagger + experience timeline
+   ─────────────────────────────────────────────────────────────────────────────
+   Islands hydrate after the page's section observer has already fired, so their
+   rows cannot rely on it. useStaggerReveal() marks each [data-stagger] row with
+   data-in as it scrolls in. Hidden states exist only under html.js and
+   no-preference motion; without either, the final state is the default.
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* A heading that masks its own letters must not also fade as a block. */
+  html.js .letter-reveal[data-reveal-item] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .tl-line {
+    position: absolute;
+    inset-block: 0;
+    left: 5px;
+    width: 1px;
+    background: var(--color-border-strong);
+  }
+
+  .tl-dot {
+    position: absolute;
+    left: -23px;
+    top: 1.9rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 9999px;
+    border: 1px solid var(--color-accent);
+    background-color: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html.js [data-stagger] {
+      transition:
+        opacity 0.6s var(--ease-reveal),
+        transform 0.6s var(--ease-reveal);
+      transition-delay: var(--stagger-delay, 0ms);
+    }
+
+    html.js [data-stagger]:not([data-in]) {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+
+    html.js .tl-line {
+      transform: scaleY(0);
+      transform-origin: top;
+      transition: transform 0.9s var(--ease-reveal);
+    }
+
+    html.js [data-in] > .tl-line {
+      transform: scaleY(1);
+    }
+
+    html.js .tl-dot {
+      transition:
+        background-color 0.45s var(--ease-reveal),
+        border-color 0.45s var(--ease-reveal);
+      transition-delay: var(--stagger-delay, 0ms);
+    }
+
+    html.js [data-stagger]:not([data-in]) .tl-dot {
+      background-color: var(--color-background);
+      border-color: var(--color-border-strong);
     }
   }
 }

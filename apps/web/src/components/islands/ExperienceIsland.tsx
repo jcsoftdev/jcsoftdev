@@ -12,13 +12,14 @@
  * longer pulls in GSAP or ScrollTrigger.
  */
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { PublicExperience } from '../../lib/portfolio-fetch.js';
 import {
   defaultExpandedIndexes,
   splitSummary,
   VISIBLE_BULLETS,
 } from '../../lib/summary-bullets.js';
+import { useStaggerReveal } from '../../lib/use-stagger-reveal.js';
 
 interface ExperienceIslandProps {
   experiences: PublicExperience[];
@@ -153,7 +154,7 @@ function Scope({ html, defaultOpen }: { html: string; defaultOpen: boolean }) {
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpen((v) => !v)}
-          className="w-fit rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+          className="w-fit rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-[color,transform] motion-safe:active:translate-y-px hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
         >
           {open ? 'Show less' : `+${hidden} more`}
         </button>
@@ -171,6 +172,8 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
   });
 
   const expanded = defaultExpandedIndexes(sorted.length);
+  const listRef = useRef<HTMLOListElement>(null);
+  useStaggerReveal(listRef);
 
   if (sorted.length === 0) {
     return (
@@ -181,7 +184,9 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
   }
 
   return (
-    <ol className="flex flex-col">
+    <ol ref={listRef} className="relative flex flex-col gap-3 pl-6">
+      {/* Timeline: a hairline that draws once, with a dot per role that fills as its row arrives. */}
+      <span aria-hidden="true" className="tl-line" />
       {sorted.map((exp, index) => {
         const isCurrent = exp.endedAt === null;
         const key = roleKey(exp.company, exp.role);
@@ -195,82 +200,86 @@ export function ExperienceIsland({ experiences }: ExperienceIslandProps) {
             key={exp.id}
             data-portfolio-experience-card
             data-current={String(isCurrent)}
-            className={[
-              'grid grid-cols-1 gap-x-6 gap-y-3 border-t border-[color:var(--color-border-soft)] px-3 py-6 @4xl:grid-cols-[112px_200px_minmax(0,1fr)] @4xl:px-0',
-              isCurrent
-                ? 'bg-[color:var(--color-surface-elevated)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
-                : '',
-            ].join(' ')}
+            data-stagger
+            className="relative"
           >
-            {/* Period */}
-            <div className="flex flex-col gap-2 @4xl:pl-3">
-              <Period startedAt={exp.startedAt} endedAt={exp.endedAt} />
-              {isCurrent && (
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--color-accent)]">
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)]"
-                  />
-                  Now
-                </span>
-              )}
-            </div>
-
-            {/* Company + role */}
-            <div className="flex items-start gap-3">
-              <span
-                aria-hidden="true"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border font-mono text-[11px] font-semibold"
-                style={{ borderColor: hue, color: hue }}
-              >
-                {monogram(exp.company)}
-              </span>
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="font-display text-lg font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)]">
-                  {exp.company}
-                </span>
-                <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
-                  {exp.role}
-                </span>
-                {exp.location && (
-                  <span className="font-mono text-[11px] text-[color:var(--color-text-faint)]">
-                    {exp.location}
+            <span aria-hidden="true" className="tl-dot" />
+            <div
+              className={[
+                'grid grid-cols-1 gap-x-6 gap-y-3 rounded-md border bg-[color:var(--color-surface-elevated)] px-4 py-6 transition-[border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] @4xl:grid-cols-[112px_200px_minmax(0,1fr)]',
+                isCurrent
+                  ? 'border-[color:var(--color-border-strong)]'
+                  : 'border-[color:var(--color-border)]',
+              ].join(' ')}
+            >
+              {/* Period */}
+              <div className="flex flex-col gap-2">
+                <Period startedAt={exp.startedAt} endedAt={exp.endedAt} />
+                {isCurrent && (
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--color-accent)]">
+                    <span
+                      aria-hidden="true"
+                      className="inline-block h-1 w-1 rounded-full bg-[color:var(--color-accent)]"
+                    />
+                    Now
                   </span>
                 )}
-              </span>
-            </div>
+              </div>
 
-            {/* Scope */}
-            <div className="flex flex-col gap-3">
-              {exp.summaryHtml && <Scope html={exp.summaryHtml} defaultOpen={defaultOpen} />}
-
-              {result && (
-                <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]">
-                    Result
+              {/* Company + role */}
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border font-mono text-[11px] font-semibold"
+                  style={{ borderColor: hue, color: hue }}
+                >
+                  {monogram(exp.company)}
+                </span>
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="font-display text-lg font-semibold leading-tight tracking-tight text-[color:var(--color-text-primary)]">
+                    {exp.company}
                   </span>
-                  <span className="text-[color:var(--color-text-primary)]">{result}</span>
-                </p>
-              )}
+                  <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
+                    {exp.role}
+                  </span>
+                  {exp.location && (
+                    <span className="font-mono text-[11px] text-[color:var(--color-text-faint)]">
+                      {exp.location}
+                    </span>
+                  )}
+                </span>
+              </div>
 
-              {tech.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5">
-                  {tech.map((t) => (
-                    <li
-                      key={t}
-                      className="rounded-xs border border-[color:var(--color-border)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-muted)]"
-                    >
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {/* Scope */}
+              <div className="flex flex-col gap-3">
+                {exp.summaryHtml && <Scope html={exp.summaryHtml} defaultOpen={defaultOpen} />}
+
+                {result && (
+                  <p className="flex flex-wrap items-baseline gap-2.5 text-sm leading-relaxed">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-success)]">
+                      Result
+                    </span>
+                    <span className="text-[color:var(--color-text-primary)]">{result}</span>
+                  </p>
+                )}
+
+                {tech.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {tech.map((t) => (
+                      <li
+                        key={t}
+                        className="rounded-xs border border-[color:var(--color-border)] bg-[color:var(--color-background)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--color-text-secondary)] transition-[transform,border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] motion-safe:hover:-translate-y-px"
+                      >
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </li>
         );
       })}
-
-      <li aria-hidden="true" className="border-t border-[color:var(--color-border)]" />
     </ol>
   );
 }

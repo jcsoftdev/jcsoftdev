@@ -14,9 +14,10 @@
  * inventing one would be worse than omitting it.
  */
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { PublicProject } from '../../lib/portfolio-fetch.js';
 import { projectPeriod } from '../../lib/project-period.js';
+import { useStaggerReveal } from '../../lib/use-stagger-reveal.js';
 
 interface ProjectsGridProps {
   projects: PublicProject[];
@@ -40,7 +41,7 @@ const GRID =
 const FEATURED_LARGE = 3;
 
 const PANEL_LINK =
-  'inline-flex items-center gap-1.5 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]';
+  'inline-flex items-center gap-1.5 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-[color,transform] motion-safe:active:translate-y-px hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]';
 
 function ProjectRow({
   project,
@@ -58,115 +59,119 @@ function ProjectRow({
   const period = projectPeriod(project.startedAt, project.endedAt);
 
   return (
-    <li className="border-t border-[color:var(--color-border-soft)]">
+    <li data-stagger>
       <div
         className={[
-          GRID,
-          'group relative px-3 transition-colors duration-[var(--duration-fast)] @3xl:px-0',
-          large ? 'py-6 @3xl:py-7' : 'py-4',
-          'hover:bg-[color:var(--color-surface)]',
-          isFeatured || open
-            ? 'bg-[color:var(--color-surface)] shadow-[inset_2px_0_0_0_var(--color-accent)]'
-            : '',
+          'overflow-hidden rounded-md border',
+          'transition-[background-color,border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)]',
+          'hover:border-[color:var(--color-border-strong)] hover:bg-[color:var(--color-surface-elevated)]',
+          open
+            ? 'border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-elevated)]'
+            : 'border-[color:var(--color-border)] bg-[color:var(--color-surface)]',
         ].join(' ')}
       >
-        {/* Project — the button owns the whole row via a stretched pseudo-element */}
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={onToggle}
-          className="order-1 flex min-w-0 items-center gap-3 text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[color:var(--color-accent)] @3xl:order-none @3xl:pl-3"
-        >
+        <div className={[GRID, 'group relative px-4', large ? 'py-6 @3xl:py-7' : 'py-4'].join(' ')}>
+          {/* Project — the button owns the whole row via a stretched pseudo-element */}
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={onToggle}
+            className="order-1 flex min-w-0 items-center gap-3 text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[color:var(--color-accent)] @3xl:order-none"
+          >
+            <span
+              aria-hidden="true"
+              className={[
+                'flex shrink-0 items-center justify-center rounded-sm border border-[color:var(--color-border-strong)] bg-[color:var(--color-background)] font-display font-bold text-[color:var(--color-text-secondary)]',
+                large ? 'h-10 w-10 text-xs' : 'h-8 w-8 text-[11px]',
+              ].join(' ')}
+            >
+              {monogram(project.name)}
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span
+                className={[
+                  'font-display font-semibold leading-tight tracking-tight transition-transform duration-[var(--duration-base)] ease-[var(--ease-out-expo)] motion-safe:group-hover:translate-x-1',
+                  large ? 'text-xl @3xl:text-2xl' : 'text-base @3xl:text-lg',
+                  'text-[color:var(--color-text-primary)]',
+                ].join(' ')}
+              >
+                {project.name}
+              </span>
+              <span className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
+                {isFeatured && <span>Featured</span>}
+                {period && (
+                  <span className="normal-case tracking-normal text-[color:var(--color-text-faint)]">
+                    {period}
+                  </span>
+                )}
+              </span>
+            </span>
+          </button>
+
+          {/* Summary */}
+          <p
+            className={[
+              'order-3 col-span-2 mt-1 leading-relaxed text-[color:var(--color-text-secondary)] @3xl:order-none @3xl:col-span-1 @3xl:mt-0',
+              large ? 'text-base' : 'text-sm',
+            ].join(' ')}
+          >
+            {project.summary ?? '—'}
+          </p>
+
+          {/* Affordance */}
           <span
             aria-hidden="true"
             className={[
-              'flex shrink-0 items-center justify-center rounded-sm border border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-elevated)] font-display font-bold text-[color:var(--color-text-secondary)]',
-              large ? 'h-10 w-10 text-xs' : 'h-8 w-8 text-[11px]',
+              'order-2 pointer-events-none inline-block justify-self-end font-mono text-base leading-none text-[color:var(--color-text-muted)] transition-[color,transform] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] group-hover:text-[color:var(--color-accent)] @3xl:order-none',
+              open ? 'rotate-45' : '',
             ].join(' ')}
           >
-            {monogram(project.name)}
+            +
           </span>
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span
-              className={[
-                'font-display font-semibold leading-tight tracking-tight transition-colors',
-                large ? 'text-xl @3xl:text-2xl' : 'text-base @3xl:text-lg',
-                'text-[color:var(--color-text-primary)]',
-              ].join(' ')}
-            >
-              {project.name}
-            </span>
-            <span className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
-              {isFeatured && <span>Featured</span>}
-              {period && (
-                <span className="normal-case tracking-normal text-[color:var(--color-text-faint)]">
-                  {period}
-                </span>
-              )}
-            </span>
-          </span>
-        </button>
+        </div>
 
-        {/* Summary */}
-        <p
-          className={[
-            'order-3 col-span-2 mt-1 leading-relaxed text-[color:var(--color-text-secondary)] @3xl:order-none @3xl:col-span-1 @3xl:mt-0',
-            large ? 'text-base' : 'text-sm',
-          ].join(' ')}
+        <div
+          id={panelId}
+          hidden={!open}
+          className="border-t border-[color:var(--color-border)] bg-[color:var(--color-surface-elevated)] px-4 py-5 @3xl:pl-[calc(1rem+2.75rem)] @3xl:pr-6"
         >
-          {project.summary ?? '—'}
-        </p>
-
-        {/* Affordance */}
-        <span
-          aria-hidden="true"
-          className="order-2 pointer-events-none justify-self-end font-mono text-base text-[color:var(--color-text-muted)] transition-colors group-hover:text-[color:var(--color-accent)] @3xl:order-none"
-        >
-          {open ? '−' : '+'}
-        </span>
-      </div>
-
-      <div
-        id={panelId}
-        hidden={!open}
-        className="border-t border-[color:var(--color-border-soft)] px-3 py-5 @3xl:pl-[calc(0.75rem+2.75rem)] @3xl:pr-6"
-      >
-        <div className="flex max-w-[62ch] flex-col gap-4">
-          {project.descriptionHtml && (
-            // Sanitized server-side by isomorphic-dompurify (ADR-14).
-            <div
-              className="space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
-              dangerouslySetInnerHTML={{ __html: project.descriptionHtml }}
-            />
-          )}
-          {period && !project.descriptionHtml && (
-            <p className="font-mono text-xs text-[color:var(--color-text-muted)]">{period}</p>
-          )}
-          {(project.liveUrl || project.repoUrl) && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              {project.liveUrl && (
-                <a
-                  href={project.liveUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={PANEL_LINK}
-                >
-                  Live site <span aria-hidden="true">↗</span>
-                </a>
-              )}
-              {project.repoUrl && (
-                <a
-                  href={project.repoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={PANEL_LINK}
-                >
-                  Source <span aria-hidden="true">↗</span>
-                </a>
-              )}
-            </div>
-          )}
+          <div className="flex max-w-[62ch] flex-col gap-4">
+            {project.descriptionHtml && (
+              // Sanitized server-side by isomorphic-dompurify (ADR-14).
+              <div
+                className="space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)] [&_a]:text-[color:var(--color-text-primary)] [&_a]:underline [&_code]:font-mono [&_li]:pl-1 [&_li::marker]:text-[color:var(--color-text-faint)] [&_strong]:font-medium [&_strong]:text-[color:var(--color-text-primary)] [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-4"
+                dangerouslySetInnerHTML={{ __html: project.descriptionHtml }}
+              />
+            )}
+            {period && !project.descriptionHtml && (
+              <p className="font-mono text-xs text-[color:var(--color-text-muted)]">{period}</p>
+            )}
+            {(project.liveUrl || project.repoUrl) && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                {project.liveUrl && (
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={PANEL_LINK}
+                  >
+                    Live site <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+                {project.repoUrl && (
+                  <a
+                    href={project.repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={PANEL_LINK}
+                  >
+                    Source <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </li>
@@ -181,6 +186,8 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
     return (b.startedAt ?? '').localeCompare(a.startedAt ?? '');
   });
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
+  const rootRef = useRef<HTMLDivElement>(null);
+  useStaggerReveal(rootRef);
 
   if (sorted.length === 0) {
     return (
@@ -198,17 +205,17 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
     });
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* Column header. Hidden on small screens, where each row stacks. */}
       <div
-        className={`${GRID} hidden border-t border-[color:var(--color-border)] py-2.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-faint)] @3xl:grid`}
+        className={`${GRID} hidden px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--color-text-faint)] @3xl:grid`}
       >
         <span>Project</span>
         <span>What it does</span>
         <span />
       </div>
 
-      <ul className="flex flex-col">
+      <ul className="flex flex-col gap-2">
         {sorted.map((project, index) => (
           <ProjectRow
             key={project.id}
@@ -219,8 +226,6 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
           />
         ))}
       </ul>
-
-      <div className="border-t border-[color:var(--color-border)]" />
     </div>
   );
 }

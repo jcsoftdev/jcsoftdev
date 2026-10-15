@@ -2,6 +2,7 @@ import { initLenis } from '@jcsoftdev/animations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
 import { readWebglSignals, shouldMountWebgl } from '../lib/webgl-gate';
+import CountUp from './islands/CountUp';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
 
@@ -104,11 +105,11 @@ function HeroMeshFadeIn() {
 }
 
 /** Verifiable facts only: each figure is quoted in the CV or the experience bullets. */
-const PROOF = [
-  { figure: '8+', label: 'years shipping' },
-  { figure: '76%', label: 'lower response time' },
-  { figure: '80%+', label: 'coverage gates in CI' },
-  { figure: 'AWS · Azure · GCP', label: 'cloud platforms' },
+const PROOF: { figure: string; value?: number; suffix: string; label: string }[] = [
+  { figure: '8+', value: 8, suffix: '+', label: 'years shipping' },
+  { figure: '76%', value: 76, suffix: '%', label: 'lower response time' },
+  { figure: '80%+', value: 80, suffix: '%+', label: 'coverage gates in CI' },
+  { figure: 'AWS · Azure · GCP', suffix: '', label: 'cloud platforms' },
 ];
 
 /**
@@ -253,7 +254,7 @@ export default function HeroIsland() {
               <a
                 href="#work"
                 data-hero-cta
-                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter] duration-[var(--duration-fast)] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="flex w-full items-center justify-center gap-2.5 rounded-md bg-[color:var(--color-accent)] px-7 py-3.5 min-[26rem]:w-auto font-sans text-sm font-semibold text-[oklch(0.10_0_0)] outline-none transition-[filter,transform] duration-[var(--duration-fast)] motion-safe:active:translate-y-px hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 View selected work
                 <span aria-hidden>→</span>
@@ -262,7 +263,7 @@ export default function HeroIsland() {
             <a
               href="/resume"
               data-hero-cta
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-1 font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] underline decoration-white/30 underline-offset-[6px] outline-none transition-colors duration-[var(--duration-fast)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)] hover:text-white hover:decoration-[color:var(--color-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-1 font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] underline decoration-white/30 underline-offset-[6px] outline-none transition-[color,transform] duration-[var(--duration-fast)] motion-safe:active:translate-y-px [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)] hover:text-white hover:decoration-[color:var(--color-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
               Read the résumé
               <span aria-hidden>↗</span>
@@ -273,11 +274,13 @@ export default function HeroIsland() {
             data-hero-reveal
             data-hero-proof
             style={{ '--hero-i': 4 } as React.CSSProperties}
-            className="m-0 mt-4 flex list-none flex-wrap items-baseline gap-x-5 gap-y-1.5 border-t border-white/15 p-0 pt-4 font-mono text-xs [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
+            className="m-0 mt-4 flex list-none flex-wrap items-baseline gap-x-5 gap-y-1.5 border-t border-white/25 p-0 pt-4 font-mono text-xs [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)]"
           >
-            {PROOF.map(({ figure, label }) => (
+            {PROOF.map(({ figure, value, suffix, label }) => (
               <li key={label} className="flex items-baseline gap-1.5">
-                <span className="text-[oklch(0.96_0.005_270)]">{figure}</span>
+                <span className="text-[oklch(0.96_0.005_270)]">
+                  {value === undefined ? figure : <CountUp value={value} suffix={suffix} />}
+                </span>
                 <span className="text-[oklch(0.78_0.01_270)]">{label}</span>
               </li>
             ))}

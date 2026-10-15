@@ -1,0 +1,49 @@
+---
+/**
+ * Section heading whose letters rise out of a mask when the section reveals.
+ *
+ * The page's reveal observer adds `.is-revealed` (the element carries
+ * data-reveal-item); the styles live in global.css under `.letter-reveal`.
+ * The visible letters are aria-hidden and the heading keeps the full text as
+ * its accessible name. Without JS, or under reduced motion, it is plain text.
+ */
+import { splitLetters } from "../lib/split-letters";
+
+interface Props {
+  text: string;
+  /** Word index from which words take the accent colour. */
+  accentFrom?: number;
+  class?: string;
+}
+
+const { text, accentFrom, class: className } = Astro.props;
+const words = splitLetters(text, accentFrom);
+---
+
+<h2
+  data-reveal-item
+  aria-label={text}
+  class:list={["display-heading", "letter-reveal", className]}
+>
+  {
+    words.map(({ accent, chars }) => (
+      <>
+        <span
+          aria-hidden="true"
+          class:list={[
+            "letter-reveal__word",
+            accent && "text-[color:var(--color-accent)]",
+          ]}
+        >
+          {chars.map(({ char, index }) => (
+            <span class="letter-reveal__mask">
+              <span class="letter-reveal__char" style={`--ch-i: ${index}`}>
+                {char}
+              </span>
+            </span>
+          ))}
+        </span>{" "}
+      </>
+    ))
+  }
+</h2>

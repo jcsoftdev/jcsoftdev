@@ -23,3 +23,9 @@ Delivery strategy: single-pr (user: "all in one, doesnt matter"). Writers run se
 ## Follow-up (user feedback 2026-10-15: "no mejoró la UX, el fondo no se ve bien, gradientes muy slop")
 Verified in dark scheme: 64px .measure-grid over the whole <main>, blue radial glow orb in Contact (blur 80), blue radial poster gradient in HeroIsland fallback, accent-blue featured project titles, accent corner ticks on panel-frame.
 - [x] U9 Flat grounds: remove measure-grid backdrop and decorative gradients/orbs (keep the hero scrim that guards legibility), alternate section grounds with surface tokens + hairlines, neutral project titles (accent only on hover/focus/marker), drop panel-frame ticks. Visual re-check in dark and light at 1440 and 390. Visual check dark 1440/390 done; light not re-checked after this pass. Monogram chips flattened too.
+
+## Follow-up 2 (user: "esos cuadros no hacen buen contraste, falta darle vida, motions etc")
+- [x] U10 Contrast: boxes (project rows, role rows, By-the-numbers panel, reading card, link rows, chips) clearly separate from the ground in dark and light, calm, no gradients/glows.
+- [x] U11 Motion/life (transform+opacity only, one easing, reduced-motion safe, no new dependency, no pinned/scrubbed scroll): heading mask reveals, staggered row reveals, hover/press feedback on boxes, count-up numbers, experience timeline line that draws, marquee pause on hover. Visual check dark+light 1440 done (no stuck items after natural scroll); hover and 390px not re-checked.
+
+U10/U11 implemented; checks passed (typecheck 0 errors, lint clean, vitest 121 + 34, format ok). Visual check (dark + light, 1440/390, hover/reduced-motion) stays with the parent.

@@ -191,7 +191,7 @@ const dotClass =
       <ul class="flex flex-wrap gap-1.5">
         {
           stack.map((t) => (
-            <li class="rounded-xs border border-[color:var(--color-border)] px-[7px] py-[3px] font-mono text-[11px] text-[color:var(--color-text-muted)]">
+            <li class="rounded-xs border border-[color:var(--color-border)] bg-[color:var(--color-background)] px-[7px] py-[3px] font-mono text-[11px] text-[color:var(--color-text-secondary)] transition-[transform,border-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] motion-safe:hover:-translate-y-px">
               {t}
             </li>
           ))
@@ -205,7 +205,7 @@ const dotClass =
     <div class="h-px bg-[color:var(--color-border)]"></div>
     <a
       href={`mailto:${AUTHOR_EMAIL}`}
-      class="flex items-center justify-between gap-2 rounded-sm border border-[color:var(--color-accent-muted)] bg-[color:var(--color-accent-soft)] px-3 py-2.5 font-mono text-xs text-[color:var(--color-accent)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      class="flex items-center justify-between gap-2 rounded-sm border border-[color:var(--color-accent-muted)] bg-[color:var(--color-accent-soft)] px-3 py-2.5 font-mono text-xs text-[color:var(--color-accent)] outline-none transition-[color,border-color,transform] duration-[var(--duration-fast)] motion-safe:active:translate-y-px hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
     >
       {AUTHOR_EMAIL}
       <svg
@@ -380,7 +380,7 @@ const dotClass =
   </nav>
   <a
     href={`mailto:${AUTHOR_EMAIL}`}
-    class="inline-flex h-12 shrink-0 items-center gap-2 rounded-md bg-[color:var(--color-accent)] px-4 font-mono text-sm font-medium text-[color:var(--color-background)] outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-background)]"
+    class="inline-flex h-12 shrink-0 items-center gap-2 rounded-md bg-[color:var(--color-accent)] px-4 font-mono text-sm font-medium text-[color:var(--color-background)] outline-none transition-[filter,transform] motion-safe:active:translate-y-px hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-background)]"
   >
     Say hi
     <span aria-hidden="true">→</span>

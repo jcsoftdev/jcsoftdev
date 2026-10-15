@@ -13,7 +13,9 @@ import HeroIsland from "../components/HeroIsland.tsx";
 import CopyEmail from "../components/islands/CopyEmail.tsx";
 import { ExperienceIsland } from "../components/islands/ExperienceIsland.tsx";
 import { ProjectsGrid } from "../components/islands/ProjectsGrid.tsx";
+import CountUp from "../components/islands/CountUp.tsx";
 import MarqueeBand from "../components/MarqueeBand.astro";
+import SplitHeading from "../components/SplitHeading.astro";
 import RootLayout from "../layouts/RootLayout.astro";
 import { fetchPortfolioResilient } from "../lib/portfolio-fetch";
 import {
@@ -70,12 +72,6 @@ const HOW_I_WORK = [
 const CONTACT_HEADING = "Have a problem worth solving?";
 /** Index of the first word that carries the accent colour in the contact heading. */
 const CONTACT_ACCENT_FROM = 4;
-const contactWords = CONTACT_HEADING.split(" ");
-let charIndex = 0;
-const contactLetters = contactWords.map((word, wordIndex) => ({
-  accent: wordIndex >= CONTACT_ACCENT_FROM,
-  chars: [...word].map((char) => ({ char, index: charIndex++ })),
-}));
 ---
 
 <RootLayout
@@ -126,7 +122,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             <span data-reveal-item class={`${SECTION_EYEBROW} block`}>
               Portfolio
             </span>
-            <h2 data-reveal-item class="display-heading">Selected work</h2>
+            <SplitHeading text="Selected work" />
             <p
               data-reveal-item
               class="max-w-[40ch] text-[color:var(--color-text-secondary)]"
@@ -172,7 +168,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             <span data-reveal-item class={`${SECTION_EYEBROW} block`}>
               Career
             </span>
-            <h2 data-reveal-item class="display-heading">Experience</h2>
+            <SplitHeading text="Experience" />
           </div>
           <span
             data-reveal-item
@@ -199,7 +195,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
       >
         <div class="flex flex-col gap-5">
           <span data-reveal-item class={SECTION_EYEBROW}>Profile</span>
-          <h2 data-reveal-item class="display-heading">About</h2>
+          <SplitHeading text="About" />
           <p
             data-reveal-item
             class="font-display text-xl font-medium tracking-tight text-[color:var(--color-text-primary)]"
@@ -236,17 +232,15 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
           </p>
 
           <ol
-            data-reveal-item
             aria-label="How I work"
-            class="mt-4 grid list-none gap-0 p-0 @3xl:grid-cols-3"
+            class="mt-4 grid list-none gap-3 p-0 @3xl:grid-cols-3"
           >
             {
               HOW_I_WORK.map((step, i) => (
-                <li class="relative border-t border-[color:var(--color-border)] pb-6 pt-4 @3xl:pr-6">
-                  <span
-                    aria-hidden="true"
-                    class="absolute -top-px left-0 h-px w-8 bg-[color:var(--color-accent)]"
-                  />
+                <li
+                  data-reveal-item
+                  class="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 transition-[border-color,background-color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] hover:bg-[color:var(--color-surface-elevated)]"
+                >
                   <span class="display-numeral block text-[color:var(--color-text-faint)]">
                     {String(i + 1).padStart(2, "0")}
                   </span>
@@ -277,7 +271,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             </div>
             <a
               href="/blog"
-              class="inline-flex items-center gap-2 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-colors hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+              class="inline-flex items-center gap-2 rounded-sm font-mono text-xs uppercase tracking-[0.12em] text-[color:var(--color-accent)] outline-none transition-[color,transform] motion-safe:active:translate-y-px hover:text-[color:var(--color-accent-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
               Notes
               <span aria-hidden="true">→</span>
@@ -307,7 +301,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                 <dd
                   class="display-numeral text-[color:var(--color-text-primary)]"
                 >
-                  2017
+                  <CountUp value={2017} client:visible />
                 </dd>
               </div>
               <div
@@ -321,7 +315,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                 <dd
                   class="display-numeral text-[color:var(--color-text-primary)]"
                 >
-                  {projects.length}
+                  <CountUp value={projects.length} client:visible />
                 </dd>
               </div>
               <div class="flex items-baseline justify-between gap-3 pt-3">
@@ -333,7 +327,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                 <dd
                   class="display-numeral text-[color:var(--color-text-primary)]"
                 >
-                  {experiences.length}
+                  <CountUp value={experiences.length} client:visible />
                 </dd>
               </div>
             </dl>
@@ -359,36 +353,10 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             ></span>
             <span class={SECTION_EYEBROW}>Get in touch</span>
           </div>
-          <h2
-            data-reveal-item
-            aria-label={CONTACT_HEADING}
-            class="display-heading letter-reveal"
-          >
-            {
-              contactLetters.map(({ accent, chars }) => (
-                <>
-                  <span
-                    aria-hidden="true"
-                    class:list={[
-                      "letter-reveal__word",
-                      accent && "text-[color:var(--color-accent)]",
-                    ]}
-                  >
-                    {chars.map(({ char, index }) => (
-                      <span class="letter-reveal__mask">
-                        <span
-                          class="letter-reveal__char"
-                          style={`--ch-i: ${index}`}
-                        >
-                          {char}
-                        </span>
-                      </span>
-                    ))}
-                  </span>{" "}
-                </>
-              ))
-            }
-          </h2>
+          <SplitHeading
+            text={CONTACT_HEADING}
+            accentFrom={CONTACT_ACCENT_FROM}
+          />
           <p
             data-reveal-item
             class="text-lg italic text-[color:var(--color-text-secondary)]"
@@ -410,8 +378,8 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             />
           </div>
 
-          <div data-reveal-item class="flex flex-col gap-2.5">
-            <span class={EYEBROW}>Or find me on</span>
+          <div class="flex flex-col gap-2.5">
+            <span data-reveal-item class={EYEBROW}>Or find me on</span>
             <ul class="flex flex-col gap-2">
               {
                 [
@@ -440,13 +408,13 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                     external: false,
                   },
                 ].map(({ label, handle, href, external }) => (
-                  <li>
+                  <li data-reveal-item>
                     <a
                       href={href}
                       {...(external
                         ? { target: "_blank", rel: "noopener noreferrer" }
                         : {})}
-                      class="group flex items-center justify-between rounded-sm border border-[color:var(--color-border)] bg-[color:var(--color-background)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] outline-none transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+                      class="group flex items-center justify-between rounded-sm border border-[color:var(--color-border)] bg-[color:var(--color-surface-elevated)] px-4 py-3 font-mono text-sm text-[color:var(--color-text-secondary)] outline-none transition-[border-color,color] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] hover:border-[color:var(--color-border-strong)] hover:text-[color:var(--color-text-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                     >
                       <span class="flex items-center gap-3">
                         <span class="text-[color:var(--color-text-muted)]">
@@ -456,7 +424,7 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
                       </span>
                       <span
                         aria-hidden="true"
-                        class="text-[color:var(--color-text-muted)] transition-[color,transform] group-hover:translate-x-1 group-hover:text-[color:var(--color-accent)]"
+                        class="text-[color:var(--color-text-muted)] transition-[color,transform] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] motion-safe:group-hover:translate-x-1 group-hover:text-[color:var(--color-accent)]"
                       >
                         →
                       </span>
@@ -518,7 +486,10 @@ const contactLetters = contactWords.map((word, wordIndex) => ({
             section.classList.add("is-revealed");
           } else {
             items.forEach((item, i) => {
-              item.style.setProperty("--reveal-delay", `${i * 55}ms`);
+              item.style.setProperty(
+                "--reveal-delay",
+                `${Math.min(i, 9) * 55}ms`,
+              );
               item.classList.add("is-revealed");
             });
           }
