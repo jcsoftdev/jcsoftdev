@@ -15,7 +15,7 @@ TDD: disabled (implement, then tests where they buy safety). Runner: vitest (`pn
 - [x] T3 Marquee band component between sections (CSS keyframes, reduced-motion safe)
 - [~] T4 Hairline lattice / stats bar polish for about + projects; grayscale-to-color images (stats readout in display face done; images skipped: ProjectsGrid renders none)
 - [x] T5 Contact heading per-letter reveal (reduced-motion safe)
-- [ ] T6 Checks: typecheck, lint, tests, format:astro:check, visual check
+- [x] T6 Checks + visual check at 1440px, light scheme (dev server, Playwright). Dark scheme not checked.
 
 Route: delegated direct (one writer; 2+ non-trivial files). Delivery: ask-on-risk.
 Progress: branch created.
