@@ -182,14 +182,6 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
       crossorigin="anonymous"
     />
 
-    <!-- Caveat — handwriting display font for the hero signature -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
     <!-- Geist @font-face via Vite-resolved URLs (guaranteed match with preloads above).
          Using set:html to inject the URLs as string literals into the <style> block.
          This is the canonical approach in Astro when @font-face src must match preload. -->
