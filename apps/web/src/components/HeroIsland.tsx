@@ -1,6 +1,7 @@
 import { initLenis } from '@jcsoftdev/animations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
+import { readWebglSignals, shouldMountWebgl } from '../lib/webgl-gate';
 import Magnetic from './islands/Magnetic';
 import { SignatureName } from './SignatureName';
 
@@ -61,9 +62,23 @@ function SocialIconButton({
 // SSR HTML so it paints at FCP regardless of when this chunk arrives.
 const HeroMesh = lazy(() => import('./islands/HeroMesh'));
 
-/** Steady-state ground behind the mesh, so the hero never flashes empty. */
+/**
+ * Steady-state ground behind the mesh, so the hero never flashes empty. It is
+ * also the static poster for gated devices (data saver, low memory, touch-first):
+ * a soft accent glow where the planet would sit, in CSS only.
+ */
 function HeroMeshPlaceholder() {
-  return <div aria-hidden className="absolute inset-0" style={{ background: 'oklch(0 0 0)' }} />;
+  return (
+    <div
+      aria-hidden
+      data-hero-poster
+      className="absolute inset-0"
+      style={{
+        background:
+          'radial-gradient(ellipse 55% 60% at 78% 45%, oklch(0.70 0.20 249 / 0.22), transparent 70%), oklch(0 0 0)',
+      }}
+    />
+  );
 }
 
 /** Crossfades the WebGL canvas over the placeholder once the chunk resolves. */
@@ -126,7 +141,10 @@ export default function HeroIsland() {
     // Mount the WebGL chunk ASAP after hydration. The placeholder stays visible
     // behind, the lazy chunk fetches in parallel, and HeroMeshFadeIn crossfades
     // the canvas in once it is actually rendered. No artificial delays.
-    const meshFrame = requestAnimationFrame(() => setMeshReady(true));
+    // Gated devices keep the CSS poster and never request the Three.js chunk.
+    const meshFrame = shouldMountWebgl(readWebglSignals())
+      ? requestAnimationFrame(() => setMeshReady(true))
+      : 0;
     const lenis = initLenis();
 
     return () => {
@@ -254,7 +272,7 @@ export default function HeroIsland() {
             <a
               href="/resume"
               data-hero-cta
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-black/40 px-6 py-3.5 min-[26rem]:w-auto font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] outline-none backdrop-blur-sm transition-colors duration-[var(--duration-fast)] hover:border-[color:var(--color-accent-muted)] hover:text-white focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-1 font-mono text-xs uppercase tracking-[0.05em] text-[oklch(0.92_0.01_270)] underline decoration-white/30 underline-offset-[6px] outline-none transition-colors duration-[var(--duration-fast)] [text-shadow:0_0_5px_oklch(0.04_0_0/0.95),0_1px_10px_oklch(0.04_0_0/0.92)] hover:text-white hover:decoration-[color:var(--color-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
               Read the résumé
               <span aria-hidden>↗</span>

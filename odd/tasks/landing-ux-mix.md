@@ -11,10 +11,10 @@ TDD: disabled. Runner: vitest (`pnpm --filter @jcsoftdev/web test`), biome lint,
 - [x] U1 Project rows expand inline (problem/result + stack chips), year/type, larger top-3, dead rows handled (audit #1, #9)
 - [x] U2 Experience: show top 2 bullets + stack, collapse the rest, older roles collapsed (audit #3)
 - [x] U3 Proof strip under hero CTAs from real data + "How I work" 3-step row in About (audit #2, #12)
-- [ ] U4 Chapter meter "01/04" in rail + mobile section anchors in bottom bar (audit #7)
-- [ ] U5 Hero WebGL: gate on saveData/low memory/coarse pointer with static fallback; pause when off-screen (audit #4)
-- [ ] U6 Raise --color-text-faint contrast in both themes (audit #6)
-- [ ] U7 One primary CTA per screen; resume as text link; marquee words become real stack; skip link (audit #5, #8, #11)
+- [x] U4 Chapter meter "01/04" in rail + mobile section anchors in bottom bar (audit #7)
+- [x] U5 Hero WebGL: gate on saveData/low memory/coarse pointer with static fallback; pause when off-screen (audit #4)
+- [x] U6 Raise --color-text-faint contrast in both themes (audit #6)
+- [x] U7 One primary CTA per screen; resume as text link; marquee words become real stack; skip link (audit #5, #8, #11)
 - [ ] U8 Checks + visual check (desktop + mobile width)
 
 Route: delegated direct, one writer per task group. Forecast: ~600-800 authored changed lines (above the ~400 delivery budget).

@@ -25,8 +25,11 @@
   --color-border-strong: oklch(0.30 0 0);
   --color-text-primary: oklch(0.96 0 0);
   --color-text-secondary: oklch(0.78 0 0);
-  --color-text-muted: oklch(0.58 0 0);
-  --color-text-faint: oklch(0.42 0 0);
+  /* Contrast vs --color-background (oklch 0.10): secondary ~10.6:1,
+     muted ~5.9:1, faint ~4.6:1 (AA). Muted moved up with faint so the
+     secondary > muted > faint ordering stays visible. */
+  --color-text-muted: oklch(0.63 0 0);
+  --color-text-faint: oklch(0.57 0 0);
   --color-accent: oklch(0.70 0.20 249);
   --color-accent-hover: oklch(0.79 0.20 249);
   --color-accent-soft: oklch(0.70 0.20 249 / 0.15);
@@ -197,8 +200,8 @@
    Contrast checked against --color-background (oklch 0.99):
      text-primary   0.20  → ~15.8:1   (AAA)
      text-secondary 0.38  →  ~8.9:1   (AAA)
-     text-muted     0.52  →  ~5.3:1   (AA, body-legal)
-     text-faint     0.62  →  ~3.6:1   (large text / non-essential only)
+     text-muted     0.50  →  ~5.8:1   (AA, body-legal)
+     text-faint     0.54  →  ~4.9:1   (AA; ~4.6:1 on --color-surface)
      accent         0.48  →  ~6.4:1   (AA for body text and controls)
    The accent darkens from 0.70 to 0.48 because the dark-mode blue lands at
    ~2.4:1 on white — unreadable, and it is used for links.
@@ -215,8 +218,8 @@
     --color-border-strong: oklch(0.78 0.008 250);
     --color-text-primary: oklch(0.20 0.01 250);
     --color-text-secondary: oklch(0.38 0.01 250);
-    --color-text-muted: oklch(0.52 0.01 250);
-    --color-text-faint: oklch(0.62 0.01 250);
+    --color-text-muted: oklch(0.50 0.01 250);
+    --color-text-faint: oklch(0.54 0.01 250);
     --color-accent: oklch(0.48 0.19 249);
     --color-accent-hover: oklch(0.40 0.19 249);
     --color-accent-soft: oklch(0.48 0.19 249 / 0.10);

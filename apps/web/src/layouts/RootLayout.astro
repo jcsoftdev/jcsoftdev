@@ -281,7 +281,11 @@ const jsonLdArray = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
          the viewport. With a rail whose width varies, viewport breakpoints lie
          — at 1024px the column is ~740px wide, and a `lg:` two-column split
          there produced a 307px reading measure. -->
-    <div id="content" class="@container relative min-w-0">
+    <div
+      id="content"
+      tabindex="-1"
+      class="@container relative min-w-0 outline-none"
+    >
       <slot />
       <Footer />
     </div>
