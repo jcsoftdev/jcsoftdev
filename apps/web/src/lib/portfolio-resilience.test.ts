@@ -140,6 +140,45 @@ describe('fetchPortfolioResilient', () => {
     expect(fresh.source).toBe('live');
   });
 
+  it('gives up on an API that never answers and serves the snapshot', async () => {
+    vi.useFakeTimers();
+    try {
+      mockGet.mockReturnValue(new Promise(() => {}));
+      const { fetchPortfolioResilient } = await load();
+
+      const pending = fetchPortfolioResilient();
+      await vi.advanceTimersByTimeAsync(2_000);
+      const result = await pending;
+
+      expect(result.source).toBe('fallback');
+      expect(result.projects.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves a failing API alone for a while instead of retrying on every visit', async () => {
+    mockGet.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+
+    const mod = await load();
+    let clock = 1_000_000;
+    mod.__setPortfolioClock(() => clock);
+
+    await mod.fetchPortfolioResilient();
+    expect(mockGet).toHaveBeenCalledTimes(1);
+
+    clock += 10_000; // inside the 15s back-off
+    const degraded = await mod.fetchPortfolioResilient();
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(degraded.source).toBe('fallback');
+
+    clock += 6_000; // past it
+    mockGet.mockResolvedValue({ ok: true, status: 200, json: async () => live });
+    const recovered = await mod.fetchPortfolioResilient();
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(recovered.source).toBe('live');
+  });
+
   it('the committed snapshot matches the shape consumers destructure', async () => {
     const { default: fallback } = await import('./portfolio.fallback.json');
 

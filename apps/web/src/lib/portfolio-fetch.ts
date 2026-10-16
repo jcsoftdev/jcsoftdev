@@ -99,6 +99,22 @@ let lastGoodAt = 0;
  */
 const CACHE_TTL_MS = 60_000;
 
+/**
+ * Longest the page waits on the API. The homepage renders after this call, so
+ * an upstream that accepts the connection and never answers used to hold every
+ * visitor's request open until undici's 300s header timeout.
+ */
+const FETCH_TIMEOUT_MS = 2_000;
+
+/**
+ * After a failure the API is left alone for this long and the page is served
+ * from the last good payload or the snapshot straight away, so an outage costs
+ * one slow request per window instead of a timeout on every visit.
+ */
+const RETRY_AFTER_FAILURE_MS = 15_000;
+
+let lastFailureAt = Number.NEGATIVE_INFINITY;
+
 /** Injectable clock so the TTL is testable without wall-clock sleeps. */
 let now = () => Date.now();
 
@@ -129,18 +145,13 @@ export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSour
     return { ...lastGood, source: 'cached' };
   }
 
+  // The API just failed — do not make this visitor wait to find out again.
+  if (now() - lastFailureAt < RETRY_AFTER_FAILURE_MS) {
+    return lastGood ? { ...lastGood, source: 'cached' } : { ...FALLBACK, source: 'fallback' };
+  }
+
   try {
-    const res = await api.api.v1.public.portfolio.$get();
-
-    const data = await fetchApiJson<{
-      projects: { items: PublicProject[] };
-      experiences: { items: PublicExperience[] };
-    }>(res, 'portfolio data');
-
-    const result: PortfolioResult = {
-      projects: data.projects.items,
-      experiences: data.experiences.items,
-    };
+    const result = await fetchPortfolioWithin(FETCH_TIMEOUT_MS);
 
     // Only promote a response that actually carries content — an empty 200
     // must not overwrite a good cache or mask an upstream problem.
@@ -151,12 +162,45 @@ export async function fetchPortfolioResilient(): Promise<PortfolioResultWithSour
 
     return { ...result, source: 'live' };
   } catch (err) {
+    lastFailureAt = now();
     if (lastGood) {
       log.warn('portfolio.serving_cached', { err });
       return { ...lastGood, source: 'cached' };
     }
     log.error('portfolio.serving_fallback', { err });
     return { ...FALLBACK, source: 'fallback' };
+  }
+}
+
+/** One live fetch that gives up (and aborts the socket) after `timeoutMs`. */
+async function fetchPortfolioWithin(timeoutMs: number): Promise<PortfolioResult> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`portfolio API did not answer within ${timeoutMs} ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const res = await Promise.race([
+      api.api.v1.public.portfolio.$get(undefined, { init: { signal: controller.signal } }),
+      timeout,
+    ]);
+    const data = await Promise.race([
+      fetchApiJson<{
+        projects: { items: PublicProject[] };
+        experiences: { items: PublicExperience[] };
+      }>(res, 'portfolio data'),
+      timeout,
+    ]);
+    return {
+      projects: data.projects.items,
+      experiences: data.experiences.items,
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -184,5 +228,6 @@ export async function fetchPortfolio(): Promise<PortfolioResult> {
 export function __resetPortfolioCache(): void {
   lastGood = null;
   lastGoodAt = 0;
+  lastFailureAt = Number.NEGATIVE_INFINITY;
   now = () => Date.now();
 }
