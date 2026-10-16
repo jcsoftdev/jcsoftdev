@@ -35,29 +35,42 @@ export default function Magnetic({ children, strength = 0.35, className }: Magne
     const target = { x: 0, y: 0 };
     const current = { x: 0, y: 0 };
 
+    // The lerp only runs while the button is travelling. It used to tick on
+    // every frame for the life of the page, restyling an element at rest.
+    const tick = () => {
+      current.x += (target.x - current.x) * 0.18;
+      current.y += (target.y - current.y) * 0.18;
+      const settled =
+        Math.abs(target.x - current.x) < 0.01 && Math.abs(target.y - current.y) < 0.01;
+      if (settled) {
+        current.x = target.x;
+        current.y = target.y;
+      }
+      el.style.transform = `translate3d(${current.x}px, ${current.y}px, 0)`;
+      raf = settled ? 0 : requestAnimationFrame(tick);
+    };
+
+    const wake = () => {
+      if (raf === 0) raf = requestAnimationFrame(tick);
+    };
+
     const onMove = (e: PointerEvent) => {
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       target.x = (e.clientX - cx) * strength;
       target.y = (e.clientY - cy) * strength;
+      wake();
     };
 
     const onLeave = () => {
       target.x = 0;
       target.y = 0;
-    };
-
-    const tick = () => {
-      current.x += (target.x - current.x) * 0.18;
-      current.y += (target.y - current.y) * 0.18;
-      el.style.transform = `translate3d(${current.x}px, ${current.y}px, 0)`;
-      raf = requestAnimationFrame(tick);
+      wake();
     };
 
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerleave', onLeave);
-    raf = requestAnimationFrame(tick);
 
     return () => {
       cancelAnimationFrame(raf);
