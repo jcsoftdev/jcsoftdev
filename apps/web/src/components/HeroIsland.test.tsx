@@ -43,9 +43,12 @@ vi.mock('@jcsoftdev/animations', async (importOriginal) => {
     ...original,
     createHeroFadeTimeline: mockTimelineFactory,
     createCursorOrbTimeline: mockCursorOrbFactory,
-    initLenis: mockInitLenis,
   };
 });
+
+vi.mock('@jcsoftdev/animations/smooth-scroll', () => ({
+  initSmoothScroll: mockInitLenis,
+}));
 
 // ---------------------------------------------------------------------------
 // Tests

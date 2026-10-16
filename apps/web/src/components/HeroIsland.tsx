@@ -1,4 +1,4 @@
-import { initLenis } from '@jcsoftdev/animations';
+import { initSmoothScroll } from '@jcsoftdev/animations/smooth-scroll';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AUTHOR_GITHUB, AUTHOR_LINKEDIN } from '../lib/seo';
 import { readWebglSignals, shouldMountWebgl } from '../lib/webgl-gate';
@@ -145,7 +145,7 @@ export default function HeroIsland() {
     const meshFrame = shouldMountWebgl(readWebglSignals())
       ? requestAnimationFrame(() => setMeshReady(true))
       : 0;
-    const lenis = initLenis();
+    const lenis = initSmoothScroll();
 
     return () => {
       cancelAnimationFrame(meshFrame);
