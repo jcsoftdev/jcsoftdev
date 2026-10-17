@@ -12,11 +12,11 @@ Constraints: no gradients/glows/shadows; keep SEO + JSON-LD; reduced-motion hono
 - [x] B1 Index: display-heading header, editorial list rows (numeral, title, excerpt, date, hover motion), featured latest post, reveal/stagger, empty/error states in the new language, pagination restyled
 - [x] B2 Post page: display title, meta line (date + reading time from html), hero, wider/cleaner reading column, refined prose (code blocks, quotes, tables, headings with anchors), scroll progress bar
 - [x] B3 Post extras: table of contents from h2/h3 (desktop sticky, hidden on mobile), prev/next or "more writing" footer, share/copy-link
-- [~] B4 Checks: vitest for new pure helpers (reading time, TOC extraction), typecheck, biome, format:astro:check; visual dark/light 1440 + 390
+- [x] B4 Checks: vitest for new pure helpers (reading time, TOC extraction), typecheck, biome, format:astro:check; visual dark/light 1440 + 390
 
 ## Progress
 - 2026-10-16 ac2d862 helpers: reading-time, post-headings (ids + TOC), post-date, with vitest tests.
 - 2026-10-16 9f3ab06 B1-B3 UI: blog index, post page, styles/blog.css, scripts/blog-client.ts, SplitHeading `as` prop.
 - Checks observed: web tests 165+34 pass, typecheck 0 errors, biome clean, format:astro:check clean.
-- B4 partial: SSR output verified via curl against a temporary mock API (not committed). Pixel-level dark/light 1440 + 390 check NOT done (chrome-devtools drives the user's real Chrome and timed out).
+- B4 done: visual check by parent (Playwright, mock API): index and post, dark 1440 and light 390, no horizontal overflow, title reveal, TOC highlight, more-writing footer OK. Hover/reduced-motion not checked; real API not tried.
 - Route: delegated direct, one writer.
