@@ -5,7 +5,7 @@
  * SSR — renders a single published post fetched by slug from the API.
  * The API returns pre-compiled MDX HTML (cached in Valkey by the public-blog route).
  * This page is a thin presentation layer: it receives HTML and renders it.
- * Styled with DSI design system components.
+ * Styled with the landing's display language (styles/blog.css).
  *
  * Route: /blog/[slug]
  *
@@ -21,20 +21,28 @@
  * SEO: basic <title> from post title + <meta name="description"> from excerpt.
  * Full OG/SEO meta is deferred to the `seo` change.
  *
- * Reading column: max-w-[65ch] for optimal line length per REQ-BLOG-3.
- * Prose: h1/h2/h3 use Geist Sans display; body uses Geist Sans; code/pre uses Geist Mono.
- * Code blocks bleed wider via not-prose negative-margin trick.
+ * Reading column: var(--reading-column) (65ch) per REQ-BLOG-3, with a sticky
+ * table of contents beside it from 1024px.
+ * The API HTML is already sanitized; the only transformation done here is
+ * adding id attributes to h2/h3 (lib/post-headings.ts).
  */
 import RootLayout from "../../layouts/RootLayout.astro";
-import Container from "../../components/ui/Container.astro";
-import Heading from "../../components/ui/Heading.astro";
-import Mono from "../../components/ui/Mono.astro";
-import { buildHeroImageUrl, fetchBlogPost } from "../../lib/blog-fetch";
+import SplitHeading from "../../components/SplitHeading.astro";
+import {
+  buildHeroImageUrl,
+  fetchBlogPost,
+  fetchBlogPosts,
+  type PublicPost,
+} from "../../lib/blog-fetch";
+import { formatPostDate } from "../../lib/post-date";
+import { addHeadingIds } from "../../lib/post-headings";
+import { readingTimeMinutes } from "../../lib/reading-time";
 import {
   buildBlogPostingSchema,
   buildBreadcrumbSchema,
   SITE_URL,
 } from "../../lib/seo";
+import "../../styles/blog.css";
 
 // SSR — no prerender
 export const prerender = false;
@@ -53,6 +61,27 @@ const { post, html } = result;
 // Hero image URL — provided directly by the API when heroMediaId is set.
 // The API constructs: ${MINIO_PUBLIC_URL}/${bucket}/${objectKey}
 const heroImageUrl = buildHeroImageUrl(post.heroImageUrl);
+
+// Anchor ids on h2/h3 (id attributes only) + the outline for the TOC.
+const { html: proseHtml, toc } = addHeadingIds(html);
+const minutes = readingTimeMinutes(html);
+const publishedLabel = formatPostDate(post.publishedAt);
+const canonical = `${SITE_URL}/blog/${post.slug}`;
+
+// "More writing" is a nicety: bounded wait, and any failure just hides it.
+const MORE_WAIT_MS = 1500;
+let more: PublicPost[] = [];
+try {
+  const listing = await Promise.race([
+    fetchBlogPosts({ cursor: null, limit: 4 }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), MORE_WAIT_MS),
+    ),
+  ]);
+  more = listing.items.filter((p) => p.slug !== post.slug).slice(0, 3);
+} catch {
+  more = [];
+}
 
 const pageTitle = `${post.title} — jcsoftdev`;
 const pageDescription = post.excerpt ?? `Read "${post.title}" on jcsoftdev`;
@@ -77,7 +106,7 @@ const articleJsonLd = [
 <RootLayout
   title={pageTitle}
   description={pageDescription}
-  canonical={`${SITE_URL}/blog/${post.slug}`}
+  canonical={canonical}
   type="article"
   publishedTime={post.publishedAt ?? undefined}
   modifiedTime={post.updatedAt}
@@ -86,217 +115,143 @@ const articleJsonLd = [
   ogEyebrow="Writing"
   jsonLd={articleJsonLd}
 >
-  <main>
-    <Container>
-      <div
-        style="max-width: 65ch; margin-inline: auto; padding-block: var(--section-y);"
-      >
-        <article>
-          {/* Post header */}
-          <header style="margin-bottom: var(--spacing-10);">
-            <a
-              href="/blog"
-              style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2); margin-bottom: var(--spacing-6);"
-            >
-              &larr; <span>Back to Writing</span>
-            </a>
+  <div
+    id="scroll-progress"
+    aria-hidden="true"
+    class="fixed top-0 z-[var(--z-header)] h-[2px] origin-left motion-reduce:hidden"
+    style="left: var(--rail-w); width: calc(100% - var(--rail-w)); background: var(--color-accent); transform: scaleX(0); transition: transform 80ms linear;"
+  >
+  </div>
 
-            <Heading level={1} variant="display">
-              {post.title}
-            </Heading>
-
-            {
-              post.publishedAt && (
-                <p style="margin-top: var(--spacing-4);">
-                  <Mono accent>
-                    <time datetime={post.publishedAt}>
-                      Published{" "}
-                      {new Date(post.publishedAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </time>
-                  </Mono>
-                </p>
-              )
-            }
-
-            {/* Hero image — only rendered when a URL is available */}
-            {
-              heroImageUrl && (
-                <img
-                  src={heroImageUrl}
-                  alt={post.title}
-                  style="margin-top: var(--spacing-8); width: 100%; aspect-ratio: 16 / 10; border-radius: var(--radius-md); object-fit: cover;"
-                  loading="eager"
-                  fetchpriority="high"
-                  decoding="async"
-                />
-              )
-            }
-          </header>
-
-          <hr
-            style="border: none; border-top: 1px solid var(--color-border-soft); margin-bottom: var(--spacing-10);"
-          />
-
-          {/* Compiled MDX HTML from API — set:html injects safely */}
+  <main class="blog-page">
+    <article class="blog-shell">
+      <header data-reveal class="post-head">
+        <a data-reveal-item href="/blog" class="post-back">
+          <span aria-hidden="true">&larr;</span> Writing
+        </a>
+        <SplitHeading as="h1" text={post.title} class="post-title" />
+        <div data-reveal-item class="post-meta">
           {
-            /* Sanitized server-side per ADR-14 — no client-side DOMPurify needed */
+            publishedLabel && post.publishedAt && (
+              <time datetime={post.publishedAt}>{publishedLabel}</time>
+            )
           }
-          <div
-            class="post-prose"
-            style={`
-              color: var(--color-text-primary);
-              font-family: var(--font-sans);
-              font-size: var(--text-base);
-              line-height: var(--leading-relaxed);
-            `}
-            set:html={html}
-          />
+          {publishedLabel && <span class="post-meta__dot" aria-hidden="true" />}
+          <span>{minutes} min read</span>
+        </div>
+        {
+          post.excerpt && (
+            <p data-reveal-item class="post-excerpt">
+              {post.excerpt}
+            </p>
+          )
+        }
+      </header>
 
-          <hr
-            style="border: none; border-top: 1px solid var(--color-border-soft); margin-top: var(--spacing-10); margin-bottom: var(--spacing-8);"
+      {
+        heroImageUrl && (
+          <img
+            src={heroImageUrl}
+            alt={post.title}
+            class="post-hero"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
           />
+        )
+      }
 
-          <footer>
-            <a
-              href="/blog"
-              style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
-            >
-              &larr; <span>Back to Writing</span>
+      <div class:list={["post-layout", toc.length >= 2 && "post-layout--toc"]}>
+        <div class="post-body">
+          {
+            /* Sanitized server-side per ADR-14; only id attributes were added. */
+          }
+          <div class="post-prose" set:html={proseHtml} />
+
+          <footer class="post-foot">
+            <a href="/blog" class="blog-link">
+              <span aria-hidden="true">&larr;</span> All writing
             </a>
+            <button type="button" class="blog-link" data-copy-link={canonical}>
+              <span data-copy-label aria-live="polite">Copy link</span>
+            </button>
           </footer>
-        </article>
+        </div>
+
+        {
+          toc.length >= 2 && (
+            <nav class="post-toc" aria-label="Table of contents" data-toc>
+              <span class="eyebrow-label">On this page</span>
+              <ul class="post-toc__list">
+                {toc.map((entry) => (
+                  <li>
+                    <a
+                      href={`#${entry.id}`}
+                      class:list={[
+                        "post-toc__link",
+                        entry.level === 3 && "post-toc__link--sub",
+                      ]}
+                    >
+                      {entry.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )
+        }
       </div>
-    </Container>
+
+      {
+        more.length > 0 && (
+          <section class="post-more" aria-labelledby="more-writing">
+            <div class="post-more__head">
+              <h2 id="more-writing" class="eyebrow-label">
+                More writing
+              </h2>
+              <a href="/blog" class="post-back">
+                All posts <span aria-hidden="true">&rarr;</span>
+              </a>
+            </div>
+            <ul role="list" class="blog-list">
+              {more.map((p, i) => (
+                <li>
+                  <a href={`/blog/${p.slug}`} class="blog-row">
+                    <span
+                      class="display-numeral blog-row__numeral"
+                      aria-hidden="true"
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <h3 class="blog-row__title">{p.title}</h3>
+                    </div>
+                    <div class="blog-row__meta">
+                      {p.publishedAt && (
+                        <time datetime={p.publishedAt}>
+                          {formatPostDate(p.publishedAt)}
+                        </time>
+                      )}
+                      <span class="blog-row__arrow" aria-hidden="true">
+                        &rarr;
+                      </span>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+    </article>
   </main>
 </RootLayout>
 
-<style>
-  /* Prose styles for the post body — heading/body/code typography */
-  .post-prose :global(h1),
-  .post-prose :global(h2),
-  .post-prose :global(h3),
-  .post-prose :global(h4),
-  .post-prose :global(h5),
-  .post-prose :global(h6) {
-    font-family: var(--font-display);
-    color: var(--color-text-primary);
-    margin-top: var(--spacing-8);
-    margin-bottom: var(--spacing-4);
-    line-height: var(--leading-tight);
-  }
+<script is:inline>
+  // JS marker first, so [data-reveal-item] only hides when it can be released.
+  document.documentElement.classList.add("js");
+</script>
 
-  .post-prose :global(h1) {
-    font-size: var(--text-4xl);
-    letter-spacing: var(--tracking-tight);
-  }
-  .post-prose :global(h2) {
-    font-size: var(--text-3xl);
-    letter-spacing: var(--tracking-tight);
-  }
-  .post-prose :global(h3) {
-    font-size: var(--text-2xl);
-  }
-  .post-prose :global(h4) {
-    font-size: var(--text-xl);
-  }
-
-  .post-prose :global(p) {
-    margin-bottom: var(--spacing-6);
-    color: var(--color-text-secondary);
-  }
-
-  .post-prose :global(a) {
-    color: var(--color-accent);
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-
-  .post-prose :global(ul),
-  .post-prose :global(ol) {
-    margin-bottom: var(--spacing-6);
-    padding-left: var(--spacing-6);
-    color: var(--color-text-secondary);
-  }
-
-  .post-prose :global(li) {
-    margin-bottom: var(--spacing-2);
-  }
-
-  .post-prose :global(blockquote) {
-    border-left: 3px solid var(--color-accent-muted);
-    padding-left: var(--spacing-6);
-    margin: var(--spacing-8) 0;
-    color: var(--color-text-muted);
-    font-style: italic;
-  }
-
-  .post-prose :global(code) {
-    font-family: var(--font-mono);
-    font-size: 0.875em;
-    background: var(--color-surface-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 0.1em 0.4em;
-    color: var(--color-accent);
-  }
-
-  /* Code blocks — bleed wider than the reading column */
-  .post-prose :global(pre) {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    background: var(--color-surface-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-6);
-    overflow-x: auto;
-    margin: var(--spacing-8) calc(-1 * var(--spacing-8));
-    line-height: var(--leading-relaxed);
-  }
-
-  .post-prose :global(pre code) {
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--color-text-primary);
-    font-size: inherit;
-  }
-
-  .post-prose :global(hr) {
-    border: none;
-    border-top: 1px solid var(--color-border-soft);
-    margin: var(--spacing-10) 0;
-  }
-
-  .post-prose :global(img) {
-    max-width: 100%;
-    border-radius: var(--radius-md);
-    margin: var(--spacing-8) auto;
-    display: block;
-  }
-
-  .post-prose :global(table) {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: var(--spacing-6);
-    font-size: var(--text-sm);
-  }
-
-  .post-prose :global(th),
-  .post-prose :global(td) {
-    border: 1px solid var(--color-border);
-    padding: var(--spacing-3) var(--spacing-4);
-    text-align: left;
-  }
-
-  .post-prose :global(th) {
-    background: var(--color-surface-elevated);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-</style>
+<script>
+  import "../../scripts/blog-client";
+</script>
