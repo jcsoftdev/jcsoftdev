@@ -4,7 +4,7 @@
  *
  * SSR (output: 'server' is the default for this project — astro.config.ts).
  * Renders a cursor-paginated list of published posts fetched from the API.
- * Styled with DSI design system components.
+ * Styled with the landing's display language (styles/blog.css).
  *
  * Route: /blog
  * Query params: ?cursor=<opaque>&limit=<number>
@@ -14,20 +14,15 @@
  * No auth — public route.
  */
 import RootLayout from "../../layouts/RootLayout.astro";
-import Card from "../../components/ui/Card.astro";
-import Container from "../../components/ui/Container.astro";
-import ErrorCard from "../../components/ui/ErrorCard.astro";
-import Heading from "../../components/ui/Heading.astro";
-import Mono from "../../components/ui/Mono.astro";
-import Section from "../../components/ui/Section.astro";
-import SectionHeader from "../../components/ui/SectionHeader.astro";
-import Text from "../../components/ui/Text.astro";
+import SplitHeading from "../../components/SplitHeading.astro";
 import { fetchBlogPosts, parseCursorFromUrl } from "../../lib/blog-fetch";
+import { formatPostDate, postNumeral } from "../../lib/post-date";
 import {
   buildBlogSchema,
   buildBreadcrumbSchema,
   SITE_URL,
 } from "../../lib/seo";
+import "../../styles/blog.css";
 
 // SSR — no prerender
 export const prerender = false;
@@ -69,6 +64,11 @@ const blogJsonLd = [
 
 // Paginated pages should not be indexed as duplicates of /blog.
 const isPaginated = cursor !== null;
+
+// The latest post leads as a featured row, but only on the first page.
+const featured = !isPaginated ? (items[0] ?? null) : null;
+const rows = featured ? items.slice(1) : items;
+const rowOffset = featured ? 2 : 1;
 ---
 
 <RootLayout
@@ -89,111 +89,143 @@ const isPaginated = cursor !== null;
   ]}
   jsonLd={blogJsonLd}
 >
-  <main>
-    <Container>
-      <Section>
-        <SectionHeader
-          slot="header"
-          number="01"
-          eyebrow="Writing"
-          title="Writing"
-        />
+  <main class="blog-page">
+    <div class="blog-shell">
+      <header data-reveal class="blog-head">
+        <span data-reveal-item class="eyebrow-label">Writing</span>
+        <SplitHeading as="h1" text="Notes & articles" accentFrom={2} />
+        <p data-reveal-item class="blog-lede">
+          Engineering articles, tutorials and notes on full-stack development.
+        </p>
+      </header>
 
-        {
-          fetchError ? (
-            <div style="margin-top: var(--spacing-8);">
-              <ErrorCard
-                title="Error loading posts"
-                message={fetchError}
-                retryHint="Try refreshing the page"
-                retryHref="/blog"
-              />
-            </div>
-          ) : items.length === 0 ? (
-            <div style="margin-top: var(--spacing-8);">
-              <ErrorCard
-                title="No posts yet"
-                message="Check back soon — articles are on the way."
-                retryHint="Return to home"
-                retryHref="/"
-              />
-            </div>
-          ) : (
-            <ul
-              role="list"
-              style="margin-top: var(--spacing-12); display: flex; flex-direction: column; gap: var(--spacing-6); list-style: none; padding: 0; margin-left: 0;"
-            >
-              {items.map((post) => (
-                <li>
-                  <Card hover>
-                    <article style="display: flex; flex-direction: column; gap: var(--spacing-3);">
-                      <Heading level={2} variant="h3">
-                        <a
-                          href={`/blog/${post.slug}`}
-                          style="color: inherit; text-decoration: none;"
-                        >
-                          {post.title}
-                        </a>
-                      </Heading>
-
-                      {post.excerpt && (
-                        <Text variant="muted">{post.excerpt}</Text>
-                      )}
-
-                      {post.publishedAt && (
-                        <Mono accent>
-                          <time datetime={post.publishedAt}>
-                            {new Date(post.publishedAt).toLocaleDateString(
-                              "en-US",
-                              {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              },
-                            )}
-                          </time>
-                        </Mono>
-                      )}
-                    </article>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          )
-        }
-
-        {/* Pagination controls */}
-        {
-          (prevUrl || nextUrl) && (
-            <nav
-              style="margin-top: var(--spacing-10); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--color-border-soft); padding-top: var(--spacing-8);"
-              aria-label="Blog pagination"
-            >
-              {prevUrl ? (
+      {
+        fetchError ? (
+          <section class="blog-notice blog-notice--error" role="alert">
+            <h2 class="blog-notice__title">Could not load posts</h2>
+            <p class="blog-notice__body">{fetchError}</p>
+            <a class="blog-link" href="/blog">
+              Try again
+            </a>
+          </section>
+        ) : items.length === 0 ? (
+          <section class="blog-notice">
+            <h2 class="blog-notice__title">No posts yet</h2>
+            <p class="blog-notice__body">
+              Nothing has been published here yet. Check back soon.
+            </p>
+            <a class="blog-link" href="/">
+              Back home
+            </a>
+          </section>
+        ) : (
+          <ol role="list" data-reveal class="blog-list">
+            {featured && (
+              <li data-reveal-item>
                 <a
-                  href={prevUrl}
-                  style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
+                  href={`/blog/${featured.slug}`}
+                  class:list={[
+                    "blog-featured",
+                    featured.heroImageUrl && "blog-featured--media",
+                  ]}
                 >
-                  &larr; <span>Previous</span>
+                  <div class="blog-featured__copy">
+                    <div>
+                      <span class="eyebrow-label">Latest</span>
+                      <h2
+                        class="blog-featured__title"
+                        style="margin-top: 1rem;"
+                      >
+                        {featured.title}
+                      </h2>
+                      {featured.excerpt && (
+                        <p class="blog-featured__excerpt">{featured.excerpt}</p>
+                      )}
+                    </div>
+                    <div class="blog-row__meta">
+                      {featured.publishedAt && (
+                        <time datetime={featured.publishedAt}>
+                          {formatPostDate(featured.publishedAt)}
+                        </time>
+                      )}
+                      <span class="blog-row__arrow" aria-hidden="true">
+                        &rarr;
+                      </span>
+                    </div>
+                  </div>
+                  {featured.heroImageUrl && (
+                    <img
+                      class="blog-featured__media"
+                      src={featured.heroImageUrl}
+                      alt=""
+                      loading="eager"
+                      decoding="async"
+                    />
+                  )}
                 </a>
-              ) : (
-                <span />
-              )}
+              </li>
+            )}
+            {rows.map((post, i) => (
+              <li data-reveal-item>
+                <a href={`/blog/${post.slug}`} class="blog-row">
+                  <span
+                    class="display-numeral blog-row__numeral"
+                    aria-hidden="true"
+                  >
+                    {postNumeral(i + rowOffset)}
+                  </span>
+                  <div>
+                    <h2 class="blog-row__title">{post.title}</h2>
+                    {post.excerpt && (
+                      <p class="blog-row__excerpt">{post.excerpt}</p>
+                    )}
+                  </div>
+                  <div class="blog-row__meta">
+                    {post.publishedAt && (
+                      <time datetime={post.publishedAt}>
+                        {formatPostDate(post.publishedAt)}
+                      </time>
+                    )}
+                    <span class="blog-row__arrow" aria-hidden="true">
+                      &rarr;
+                    </span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ol>
+        )
+      }
 
-              {nextUrl ? (
-                <a
-                  href={nextUrl}
-                  style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; display: inline-flex; align-items: center; gap: var(--spacing-2);"
-                >
-                  <span>Next</span> &rarr;
-                </a>
-              ) : (
-                <span />
-              )}
-            </nav>
-          )
-        }
-      </Section>
-    </Container>
+      {
+        (prevUrl || nextUrl) && (
+          <nav class="blog-pager" aria-label="Blog pagination">
+            {prevUrl ? (
+              <a class="blog-link" href={prevUrl}>
+                <span aria-hidden="true">&larr;</span> Latest
+              </a>
+            ) : (
+              <span />
+            )}
+            {nextUrl ? (
+              <a class="blog-link" href={nextUrl} rel="next">
+                Older <span aria-hidden="true">&rarr;</span>
+              </a>
+            ) : (
+              <span />
+            )}
+          </nav>
+        )
+      }
+    </div>
   </main>
 </RootLayout>
+
+<script is:inline>
+  // JS marker first, so [data-reveal-item] only hides when it can be released.
+  document.documentElement.classList.add("js");
+</script>
+
+<script>
+  import "../../scripts/blog-client";
+</script>

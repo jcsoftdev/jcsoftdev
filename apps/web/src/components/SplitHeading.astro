@@ -14,13 +14,20 @@ interface Props {
   /** Word index from which words take the accent colour. */
   accentFrom?: number;
   class?: string;
+  /** Heading level; a page title is an h1, section headings stay h2. */
+  as?: "h1" | "h2";
 }
 
-const { text, accentFrom, class: className } = Astro.props;
+const {
+  text,
+  accentFrom,
+  class: className,
+  as: Tag = "h2",
+}: Props = Astro.props;
 const words = splitLetters(text, accentFrom);
 ---
 
-<h2
+<Tag
   data-reveal-item
   aria-label={text}
   class:list={["display-heading", "letter-reveal", className]}
@@ -46,4 +53,4 @@ const words = splitLetters(text, accentFrom);
       </>
     ))
   }
-</h2>
+</Tag>
