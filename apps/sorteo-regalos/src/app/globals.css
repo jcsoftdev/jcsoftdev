@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import "@jcsoftdev/ui/styles/tokens.css";
+@import "@jcsoftdev/ui/styles/theme.css";
+@import "@jcsoftdev/ui/styles/base.css";
+@source "../../node_modules/@jcsoftdev/ui/dist";
+
+:root {
+  --page-backdrop:
+    radial-gradient(52rem 38rem at 8% -8%, rgb(255 140 180 / 0.55), transparent 62%),
+    radial-gradient(46rem 38rem at 100% 2%, rgb(140 160 255 / 0.5), transparent 58%),
+    radial-gradient(52rem 40rem at 45% 112%, rgb(120 235 190 / 0.5), transparent 62%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-backdrop:
+      radial-gradient(52rem 38rem at 8% -8%, rgb(200 60 120 / 0.5), transparent 62%),
+      radial-gradient(46rem 38rem at 100% 2%, rgb(70 90 220 / 0.5), transparent 58%),
+      radial-gradient(52rem 40rem at 45% 112%, rgb(30 150 110 / 0.45), transparent 62%);
+  }
+}
+
+:root[data-theme="dark"] {
+  --page-backdrop:
+    radial-gradient(52rem 38rem at 8% -8%, rgb(200 60 120 / 0.5), transparent 62%),
+    radial-gradient(46rem 38rem at 100% 2%, rgb(70 90 220 / 0.5), transparent 58%),
+    radial-gradient(52rem 40rem at 45% 112%, rgb(30 150 110 / 0.45), transparent 62%);
+}
+
+body {
+  min-height: 100dvh;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
