@@ -8,7 +8,7 @@ import { parseId, parseIdList } from './validation';
 
 export interface DrawCheck {
   readonly gives: boolean;
-  readonly receives: boolean;
+  readonly receives: boolean | null;
 }
 
 export interface AdminParticipant {
@@ -54,12 +54,19 @@ function drawChecks(
   for (const { target } of opened) {
     if (target) timesChosen.set(target, (timesChosen.get(target) ?? 0) + 1);
   }
-  return new Map(
+  const gives = new Map(
     opened.map(({ person, target }) => [
       person.id,
+      target !== null && target !== person.name && names.has(target),
+    ])
+  );
+  const everyResultReadable = [...gives.values()].every(Boolean);
+  return new Map(
+    people.map((person) => [
+      person.id,
       {
-        gives: target !== null && target !== person.name && names.has(target),
-        receives: timesChosen.get(person.name) === 1,
+        gives: gives.get(person.id) ?? false,
+        receives: everyResultReadable ? timesChosen.get(person.name) === 1 : null,
       },
     ])
   );
@@ -97,7 +104,8 @@ export async function getAdminView(
     minimumToDraw: MIN_PARTICIPANTS_FOR_DRAW,
     participants,
     soundCount: checks
-      ? participants.filter((person) => person.check?.gives && person.check.receives).length
+      ? participants.filter((person) => person.check?.gives && person.check.receives !== false)
+          .length
       : null,
   };
 }

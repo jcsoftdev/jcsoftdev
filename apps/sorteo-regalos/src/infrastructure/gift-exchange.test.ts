@@ -119,7 +119,7 @@ describe('who can see what', () => {
     }
   });
 
-  it('flags a person whose result cannot be read', async () => {
+  it('flags an unreadable result without revealing who that person gives to', async () => {
     const { roomId, adminSecret, people } = await roomWith(NAMES);
     await runDraw(context, roomId, adminSecret);
     const ana = people[0]?.participantId ?? '';
@@ -130,8 +130,8 @@ describe('who can see what', () => {
 
     const view = await getAdminView(context, roomId, adminSecret);
     expect(view.participants.find((person) => person.id === ana)?.check?.gives).toBe(false);
-    expect(view.participants.filter((person) => !person.check?.receives)).toHaveLength(1);
-    expect(view.soundCount).toBe(NAMES.length - 2);
+    expect(view.participants.every((person) => person.check?.receives === null)).toBe(true);
+    expect(view.soundCount).toBe(NAMES.length - 1);
   });
 
   it('rejects a wrong admin secret on every admin action', async () => {

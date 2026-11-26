@@ -6,7 +6,8 @@ interface DrawStatusProps {
   readonly soundCount: number | null;
 }
 
-function Mark({ ok, label }: { readonly ok: boolean; readonly label: string }) {
+function Mark({ ok, label }: { readonly ok: boolean | null; readonly label: string }) {
+  if (ok === null) return <span className="text-ink-3">– {label}</span>;
   return (
     <span className={ok ? 'text-accent-ink' : 'font-semibold text-danger'}>
       {ok ? '✓' : '✗'} {label}
@@ -30,7 +31,7 @@ export function DrawStatus({ participants, soundCount }: DrawStatusProps) {
             <span className="text-ink">{person.name}</span>
             <span className="flex gap-3">
               <Mark ok={person.check?.gives ?? false} label="regala" />
-              <Mark ok={person.check?.receives ?? false} label="le regalan" />
+              <Mark ok={person.check ? person.check.receives : false} label="le regalan" />
             </span>
           </li>
         ))}
