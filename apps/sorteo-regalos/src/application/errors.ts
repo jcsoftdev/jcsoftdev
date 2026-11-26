@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   'ALREADY_DRAWN',
   'NOT_ENOUGH_PEOPLE',
   'DRAW_IMPOSSIBLE',
+  'CANNOT_REMOVE',
+  'NOT_DRAWN',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

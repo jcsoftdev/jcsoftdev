@@ -47,7 +47,7 @@ export function ParticipantScreen({ roomId }: { readonly roomId: string }) {
     void load();
   }, [load]);
 
-  const waiting = view.kind === 'ready' && view.me !== null && view.me.status === 'open';
+  const waiting = view.kind === 'ready' && view.me !== null && view.me.receiverName === null;
   usePolling(() => void load(), POLL_MILLISECONDS, waiting);
 
   function entered(token: string) {

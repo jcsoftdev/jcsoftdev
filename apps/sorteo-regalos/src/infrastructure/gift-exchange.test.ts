@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getAdminView, removeParticipant, runDraw, setExclusions } from '../application/admin';
+import {
+  getAdminView,
+  removeParticipant,
+  reopenRegistration,
+  runDraw,
+  setExclusions,
+} from '../application/admin';
 import { AppError, type ErrorCode } from '../application/errors';
 import { getMe, joinRoom, recoverAccess } from '../application/participants';
 import { createRoom, deleteRoom, getPublicRoom, purgeExpiredRooms } from '../application/rooms';
@@ -86,6 +92,144 @@ describe('drawing', () => {
       'ALREADY_DRAWN'
     );
     await expectCode(runDraw(context, roomId, adminSecret), 'ALREADY_DRAWN');
+  });
+});
+
+async function resultsOf(roomId: string, people: readonly { name: string; token: string }[]) {
+  const results = new Map<string, string | null>();
+  for (const person of people) {
+    results.set(person.name, (await getMe(context, roomId, person.token)).receiverName);
+  }
+  return results;
+}
+
+describe('changing the room after the draw', () => {
+  const FIVE = ['Ana', 'Beto', 'Carla', 'Diego', 'Elena'];
+
+  it('removes a person and only their giver gets a new result', async () => {
+    const { roomId, adminSecret, people } = await roomWith(FIVE);
+    await runDraw(context, roomId, adminSecret);
+    const before = await resultsOf(roomId, people);
+    const [leaving, ...staying] = people as [(typeof people)[0], ...typeof people];
+
+    const outcome = await removeParticipant(context, roomId, adminSecret, leaving.participantId);
+    expect(outcome.existingResultChanged).toBe(true);
+
+    const after = await resultsOf(roomId, staying);
+    const changed = staying.filter((person) => after.get(person.name) !== before.get(person.name));
+    expect(changed).toHaveLength(1);
+    expect(before.get(changed[0]?.name ?? '')).toBe(leaving.name);
+    expect(after.get(changed[0]?.name ?? '')).toBe(before.get(leaving.name));
+    expect([...after.values()]).not.toContain(leaving.name);
+
+    const view = await getAdminView(context, roomId, adminSecret);
+    expect(view.soundCount).toBe(FIVE.length - 1);
+    expect(view.drawnCount).toBe(FIVE.length - 1);
+  });
+
+  it('refuses a removal the exclusions leave no room for, changing nothing', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    const [ana, beto, carla, diego] = people.map((person) => person.participantId);
+    await setExclusions(context, roomId, adminSecret, ana, [carla, diego]);
+    await setExclusions(context, roomId, adminSecret, beto, [carla, diego]);
+    await setExclusions(context, roomId, adminSecret, carla, [ana, beto]);
+    await setExclusions(context, roomId, adminSecret, diego, [ana, beto]);
+    await runDraw(context, roomId, adminSecret);
+
+    const before = await resultsOf(roomId, people);
+    await expectCode(removeParticipant(context, roomId, adminSecret, ana), 'CANNOT_REMOVE');
+    expect(await context.store.listParticipants(roomId)).toHaveLength(NAMES.length);
+    expect(await resultsOf(roomId, people)).toEqual(before);
+  });
+
+  it('refuses a removal that would leave fewer than three people drawn', async () => {
+    const { roomId, adminSecret, people } = await roomWith(['Ana', 'Beto', 'Carla']);
+    await runDraw(context, roomId, adminSecret);
+    await expectCode(
+      removeParticipant(context, roomId, adminSecret, people[0]?.participantId),
+      'NOT_ENOUGH_PEOPLE'
+    );
+    expect(await context.store.listParticipants(roomId)).toHaveLength(3);
+  });
+
+  it('threads late joiners into the chain, changing one earlier result', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    await runDraw(context, roomId, adminSecret);
+    const before = await resultsOf(roomId, people);
+
+    await expectCode(joinRoom(context, roomId, 'Elena'), 'ROOM_CLOSED');
+    await reopenRegistration(context, roomId, adminSecret);
+    const elena = await joinRoom(context, roomId, 'Elena');
+    const fabio = await joinRoom(context, roomId, 'Fabio');
+    const pendingView = await getAdminView(context, roomId, adminSecret);
+    expect(pendingView.participants.filter((person) => person.pending)).toHaveLength(2);
+
+    const outcome = await runDraw(context, roomId, adminSecret);
+    expect(outcome.existingResultChanged).toBe(true);
+    const after = await resultsOf(roomId, people);
+    expect(
+      people.filter((person) => after.get(person.name) !== before.get(person.name))
+    ).toHaveLength(1);
+    const newcomers = await resultsOf(roomId, [
+      { name: 'Elena', token: elena.token },
+      { name: 'Fabio', token: fabio.token },
+    ]);
+    expect(newcomers.get('Elena') === 'Fabio' && newcomers.get('Fabio') === 'Elena').toBe(false);
+
+    const view = await getAdminView(context, roomId, adminSecret);
+    expect(view.status).toBe('drawn');
+    expect(view.soundCount).toBe(NAMES.length + 2);
+  });
+
+  it('fits a single late joiner into the chain, changing one earlier result', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    await runDraw(context, roomId, adminSecret);
+    const before = await resultsOf(roomId, people);
+    await reopenRegistration(context, roomId, adminSecret);
+    const elena = await joinRoom(context, roomId, 'Elena');
+
+    const outcome = await runDraw(context, roomId, adminSecret);
+    expect(outcome.existingResultChanged).toBe(true);
+    const after = await resultsOf(roomId, people);
+    const changed = people.filter((person) => after.get(person.name) !== before.get(person.name));
+    expect(changed).toHaveLength(1);
+    expect(after.get(changed[0]?.name ?? '')).toBe('Elena');
+    expect((await getMe(context, roomId, elena.token)).receiverName).toBe(
+      before.get(changed[0]?.name ?? '')
+    );
+    expect((await getAdminView(context, roomId, adminSecret)).soundCount).toBe(NAMES.length + 1);
+  });
+
+  it('lets the admin edit exclusions only for late joiners', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    await runDraw(context, roomId, adminSecret);
+    await reopenRegistration(context, roomId, adminSecret);
+    const elena = await joinRoom(context, roomId, 'Elena');
+
+    await expectCode(
+      setExclusions(context, roomId, adminSecret, people[0]?.participantId, [
+        people[1]?.participantId,
+      ]),
+      'ALREADY_DRAWN'
+    );
+    await setExclusions(context, roomId, adminSecret, people[0]?.participantId, [
+      elena.participantId,
+    ]);
+    await setExclusions(context, roomId, adminSecret, elena.participantId, [
+      people[0]?.participantId,
+    ]);
+  });
+
+  it('removes a late joiner before their draw without changing anyone', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    await runDraw(context, roomId, adminSecret);
+    const before = await resultsOf(roomId, people);
+    await reopenRegistration(context, roomId, adminSecret);
+    const elena = await joinRoom(context, roomId, 'Elena');
+
+    const outcome = await removeParticipant(context, roomId, adminSecret, elena.participantId);
+    expect(outcome.existingResultChanged).toBe(false);
+    expect(await resultsOf(roomId, people)).toEqual(before);
   });
 });
 

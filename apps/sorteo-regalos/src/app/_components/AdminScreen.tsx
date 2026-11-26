@@ -3,10 +3,15 @@
 import { Button } from '@jcsoftdev/ui/atoms';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import type { AdminView } from '../../application/admin';
+import type { AdminView, ChangeOutcome } from '../../application/admin';
 import { api, hasCode } from '../_lib/api';
 import { clearAdminSecret, loadAdminSecret, saveAdminSecret } from '../_lib/device-storage';
-import { describeError } from '../_lib/messages';
+import {
+  describeError,
+  drawNewcomersLabel,
+  newcomersNote,
+  RESULT_CHANGED_NOTICE,
+} from '../_lib/messages';
 import { useOrigin } from '../_lib/use-origin';
 import { usePolling } from '../_lib/use-polling';
 import { CopyField } from './CopyField';
@@ -35,6 +40,7 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
   const [access, setAccess] = useState<Access>('resolving');
   const [view, setView] = useState<AdminView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -65,13 +71,19 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
     void load();
   }, [load]);
 
-  usePolling(() => void load(), POLL_MILLISECONDS, access === 'granted' && view?.status === 'open');
+  usePolling(
+    () => void load(),
+    POLL_MILLISECONDS,
+    access === 'granted' && view !== null && view.status !== 'drawn'
+  );
 
   async function act(work: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await work();
+      const outcome = (await work()) as Partial<ChangeOutcome> | undefined;
+      if (outcome?.existingResultChanged) setNotice(RESULT_CHANGED_NOTICE);
       await load();
     } catch (caught) {
       setError(describeError(caught));
@@ -98,7 +110,7 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
 
   function removePerson(participantId: string) {
     void act(() =>
-      api(`/rooms/${roomId}/admin/participants/${participantId}`, {
+      api<ChangeOutcome>(`/rooms/${roomId}/admin/participants/${participantId}`, {
         method: 'DELETE',
         headers: headers(),
       })
@@ -106,7 +118,13 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
   }
 
   function draw() {
-    void act(() => api(`/rooms/${roomId}/admin/draw`, { method: 'POST', headers: headers() }));
+    void act(() =>
+      api<ChangeOutcome>(`/rooms/${roomId}/admin/draw`, { method: 'POST', headers: headers() })
+    );
+  }
+
+  function reopen() {
+    void act(() => api(`/rooms/${roomId}/admin/reopen`, { method: 'POST', headers: headers() }));
   }
 
   async function deleteEverything() {
@@ -165,6 +183,8 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
   }
 
   const open = view.status === 'open';
+  const reopened = view.status === 'reopened';
+  const pendingCount = view.participants.filter((person) => person.pending).length;
   const missing = Math.max(0, view.minimumToDraw - view.participants.length);
   const participantLink = `${origin}/sala/${roomId}`;
   const adminLink = secret ? `${origin}/sala/${roomId}/admin#${secret}` : '';
@@ -175,6 +195,11 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
       subtitle={open ? 'Panel del administrador' : 'Sorteo hecho · panel del administrador'}
     >
       <ErrorNote message={error} />
+      {notice ? (
+        <p role="status" className="rounded-input bg-surface-2/60 px-3 py-2 text-sm text-ink">
+          {notice}
+        </p>
+      ) : null}
 
       <GlassPanel title="Invita a las personas">
         <CopyField
@@ -197,7 +222,15 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
                 key={person.id}
                 person={person}
                 others={view.participants.filter((other) => other.id !== person.id)}
-                editable={open && !busy}
+                canToggle={(otherId) =>
+                  !busy &&
+                  (open ||
+                    (reopened &&
+                      (person.pending ||
+                        view.participants.some((other) => other.id === otherId && other.pending))))
+                }
+                removable={!busy}
+                drawn={!open && !person.pending}
                 onToggle={(excludedId) => toggleExclusion(person.id, excludedId)}
                 onRemove={() => removePerson(person.id)}
               />
@@ -229,7 +262,23 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
               Listo. Cada persona ve a quién le toca abriendo su enlace. Tú no puedes ver los
               resultados de los demás.
             </p>
-            <DrawStatus participants={view.participants} soundCount={view.soundCount} />
+            <DrawStatus
+              participants={view.participants}
+              soundCount={view.soundCount}
+              drawnCount={view.drawnCount}
+            />
+            {reopened ? (
+              <>
+                <p className="text-sm text-ink-2">{newcomersNote(pendingCount)}</p>
+                <Button size="lg" onClick={draw} disabled={busy}>
+                  {drawNewcomersLabel(pendingCount)}
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" onClick={reopen} disabled={busy}>
+                Abrir inscripciones para más personas
+              </Button>
+            )}
           </>
         )}
       </GlassPanel>

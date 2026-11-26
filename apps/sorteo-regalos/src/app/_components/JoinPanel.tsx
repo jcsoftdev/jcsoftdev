@@ -5,6 +5,7 @@ import { Field, Input, PinInput } from '@jcsoftdev/ui/forms';
 import { type FormEvent, useState } from 'react';
 import type { Joined, Recovered } from '../../application/participants';
 import type { PublicRoom } from '../../application/rooms';
+import { acceptsNewPeople } from '../../domain/room';
 import { api } from '../_lib/api';
 import { describeError } from '../_lib/messages';
 import { ErrorNote, GlassPanel } from './GlassPanel';
@@ -20,7 +21,7 @@ type Mode = 'new' | 'returning';
 const CODE_LENGTH = 4;
 
 export function JoinPanel({ roomId, room, onEntered }: JoinPanelProps) {
-  const closed = room.status !== 'open';
+  const closed = !acceptsNewPeople(room.status);
   const [mode, setMode] = useState<Mode>(closed ? 'returning' : 'new');
   const [name, setName] = useState('');
   const [chosenId, setChosenId] = useState<string | null>(null);

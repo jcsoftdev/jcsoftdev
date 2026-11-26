@@ -17,6 +17,8 @@ const STATUS_BY_CODE: Readonly<Record<ErrorCode, number>> = {
   ALREADY_DRAWN: 409,
   NOT_ENOUGH_PEOPLE: 422,
   DRAW_IMPOSSIBLE: 422,
+  CANNOT_REMOVE: 409,
+  NOT_DRAWN: 409,
 };
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;

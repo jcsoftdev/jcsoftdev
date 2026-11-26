@@ -15,6 +15,18 @@ function operationsOn(db: Db): StoreOperations {
   const activeRoom = (roomId: string, now: Date) =>
     and(eq(rooms.id, roomId), gt(rooms.expiresAt, now));
 
+  const sealAssignments = async (
+    roomId: string,
+    sealedByParticipant: ReadonlyMap<string, string>
+  ): Promise<void> => {
+    for (const [participantId, sealed] of sealedByParticipant) {
+      await db
+        .update(participants)
+        .set({ assignmentSealed: sealed })
+        .where(and(eq(participants.id, participantId), eq(participants.roomId, roomId)));
+    }
+  };
+
   return {
     async insertRoom(room: NewRoom) {
       await db.insert(rooms).values(room);
@@ -121,14 +133,15 @@ function operationsOn(db: Db): StoreOperations {
         .values(excludedIds.map((excludedId) => ({ giverId, excludedId })));
     },
 
+    sealAssignments,
+
     async saveDraw(roomId, sealedByParticipant) {
-      for (const [participantId, sealed] of sealedByParticipant) {
-        await db
-          .update(participants)
-          .set({ assignmentSealed: sealed })
-          .where(and(eq(participants.id, participantId), eq(participants.roomId, roomId)));
-      }
+      await sealAssignments(roomId, sealedByParticipant);
       await db.update(rooms).set({ status: 'drawn' }).where(eq(rooms.id, roomId));
+    },
+
+    async setRoomStatus(roomId, status) {
+      await db.update(rooms).set({ status }).where(eq(rooms.id, roomId));
     },
   };
 }

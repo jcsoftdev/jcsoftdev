@@ -29,6 +29,9 @@ const MESSAGES: Readonly<Record<ApiErrorCode, (details: Details) => string>> = {
     `Se necesitan al menos ${String(details.minimum ?? 3)} personas para sortear.`,
   DRAW_IMPOSSIBLE: (details) =>
     `Con esas exclusiones no hay sorteo posible. Revisa a: ${namesText(details)}.`,
+  CANNOT_REMOVE: () =>
+    'No se puede quitar a esta persona sin cambiar más resultados. Habría que rehacer el sorteo.',
+  NOT_DRAWN: () => 'Primero haz el sorteo.',
   INTERNAL: () => 'Algo salió mal. Inténtalo otra vez.',
   NETWORK: () => 'Sin conexión. Revisa tu internet.',
 };
@@ -36,6 +39,26 @@ const MESSAGES: Readonly<Record<ApiErrorCode, (details: Details) => string>> = {
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) return MESSAGES[error.code](error.details);
   return MESSAGES.INTERNAL({});
+}
+
+export function newcomersNote(pending: number): string {
+  if (pending === 0)
+    return 'Aún no hay personas nuevas. Si ya no esperas a nadie, cierra las inscripciones.';
+  const people = pending === 1 ? '1 persona nueva' : `${pending} personas nuevas`;
+  return `Hay ${people}. Al sortear, entran a la cadena del sorteo y a una sola persona que ya tenía resultado le cambiará: después pide a todos que revisen su enlace.`;
+}
+
+export function drawNewcomersLabel(pending: number): string {
+  return pending === 0 ? 'Cerrar inscripciones' : `Sortear a los nuevos (${pending})`;
+}
+
+export const RESULT_CHANGED_NOTICE =
+  'Listo. A una persona que ya tenía resultado le cambió: pide en el grupo que todos vuelvan a abrir su enlace.';
+
+export function removalWarning(name: string, drawn: boolean): string {
+  return drawn
+    ? `Quien le regalaba a ${name} pasará a regalarle a quien le tocaba a ${name}. Nadie más cambia.`
+    : `${name} saldrá de la sala.`;
 }
 
 export function drawStatusSummary(soundCount: number, total: number): string {

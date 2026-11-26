@@ -31,6 +31,8 @@ export interface StoreOperations {
   listExclusions(roomId: string): Promise<ExclusionRecord[]>;
   replaceExclusions(giverId: string, excludedIds: readonly string[]): Promise<void>;
   saveDraw(roomId: string, sealedByParticipant: ReadonlyMap<string, string>): Promise<void>;
+  sealAssignments(roomId: string, sealedByParticipant: ReadonlyMap<string, string>): Promise<void>;
+  setRoomStatus(roomId: string, status: RoomRecord['status']): Promise<void>;
 }
 
 export interface Store extends StoreOperations {

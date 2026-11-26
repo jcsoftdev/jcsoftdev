@@ -1,3 +1,4 @@
+import { acceptsNewPeople } from '../domain/room';
 import type { AppContext } from './context';
 import { AppError } from './errors';
 import { LOCK_MINUTES, MAX_FAILED_CODE_ATTEMPTS, MAX_PARTICIPANTS } from './limits';
@@ -46,7 +47,7 @@ export async function joinRoom(
 
   const created = await context.store.transaction(async (operations) => {
     const room = requireRoom(await operations.lockRoom(roomId, context.now()));
-    if (room.status !== 'open') throw new AppError('ROOM_CLOSED');
+    if (!acceptsNewPeople(room.status)) throw new AppError('ROOM_CLOSED');
     const existing = await operations.listParticipants(roomId);
     if (existing.length >= MAX_PARTICIPANTS) throw new AppError('ROOM_FULL');
     if (existing.some((person) => person.nameKey === nameKey)) throw new AppError('NAME_TAKEN');
