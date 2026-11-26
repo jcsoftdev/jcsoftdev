@@ -49,10 +49,8 @@ El rol necesita `CREATE` en la base solo para crear su schema la primera vez. Co
 
 ## Despliegue en Dokploy
 
-Sin hacer todavía; requiere autorización explícita sobre el destino.
+Desplegada en el Dokploy de jcsoftdev: proyecto `jcsoftdev`, entorno `production`, aplicación `sorteo-regalos`.
 
-1. Crear el rol anterior en el Postgres de producción.
-2. Crear la aplicación con `apps/sorteo-regalos/Dockerfile` y contexto en la raíz del repositorio, puerto 3015.
-3. Definir `DATABASE_URL` y `DATABASE_DIRECT_URL` (ambas `postgresql://sorteo:<contraseña>@postgres:5432/jcsoftdev`), `ASSIGNMENT_KEY` y un dominio.
-
-El Dockerfile no se ha construido todavía.
+- Build con `apps/sorteo-regalos/Dockerfile` y contexto en la raíz del repositorio; puerto 3015.
+- Variables: `DATABASE_URL` y `DATABASE_DIRECT_URL` (ambas `postgresql://sorteo:<contraseña>@postgres:5432/jcsoftdev`) y `ASSIGNMENT_KEY`.
+- Dominio: `https://sorteo.jcsoftdev.com` (registro A en Cloudflare, solo DNS, hacia el VPS; certificado de Let's Encrypt emitido por Dokploy).

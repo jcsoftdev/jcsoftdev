@@ -2,14 +2,20 @@ import { drawAssignments } from '../domain/draw';
 import type { AppContext } from './context';
 import { AppError } from './errors';
 import { MIN_PARTICIPANTS_FOR_DRAW } from './limits';
-import type { RoomRecord } from './records';
+import type { ParticipantRecord, RoomRecord } from './records';
 import { lockAdminRoom, requireAdmin, requireRoom } from './rooms';
 import { parseId, parseIdList } from './validation';
+
+export interface DrawCheck {
+  readonly gives: boolean;
+  readonly receives: boolean;
+}
 
 export interface AdminParticipant {
   readonly id: string;
   readonly name: string;
   readonly excludedIds: readonly string[];
+  readonly check: DrawCheck | null;
 }
 
 export interface AdminView {
@@ -19,6 +25,44 @@ export interface AdminView {
   readonly expiresAt: string;
   readonly minimumToDraw: number;
   readonly participants: readonly AdminParticipant[];
+  readonly soundCount: number | null;
+}
+
+function openSafely(
+  context: AppContext,
+  sealed: string | null,
+  participantId: string
+): string | null {
+  if (!sealed) return null;
+  try {
+    return context.sealer.open(sealed, participantId);
+  } catch {
+    return null;
+  }
+}
+
+function drawChecks(
+  context: AppContext,
+  people: readonly ParticipantRecord[]
+): Map<string, DrawCheck> {
+  const names = new Set(people.map((person) => person.name));
+  const opened = people.map((person) => ({
+    person,
+    target: openSafely(context, person.assignmentSealed, person.id),
+  }));
+  const timesChosen = new Map<string, number>();
+  for (const { target } of opened) {
+    if (target) timesChosen.set(target, (timesChosen.get(target) ?? 0) + 1);
+  }
+  return new Map(
+    opened.map(({ person, target }) => [
+      person.id,
+      {
+        gives: target !== null && target !== person.name && names.has(target),
+        receives: timesChosen.get(person.name) === 1,
+      },
+    ])
+  );
 }
 
 function requireOpen(room: RoomRecord): void {
@@ -36,19 +80,25 @@ export async function getAdminView(
     context.store.listParticipants(roomId),
     context.store.listExclusions(roomId),
   ]);
+  const checks = room.status === 'drawn' ? drawChecks(context, people) : null;
+  const participants = people.map(({ id, name }) => ({
+    id,
+    name,
+    excludedIds: exclusions
+      .filter((exclusion) => exclusion.giverId === id)
+      .map((exclusion) => exclusion.excludedId),
+    check: checks?.get(id) ?? null,
+  }));
   return {
     id: room.id,
     name: room.name,
     status: room.status,
     expiresAt: room.expiresAt.toISOString(),
     minimumToDraw: MIN_PARTICIPANTS_FOR_DRAW,
-    participants: people.map(({ id, name }) => ({
-      id,
-      name,
-      excludedIds: exclusions
-        .filter((exclusion) => exclusion.giverId === id)
-        .map((exclusion) => exclusion.excludedId),
-    })),
+    participants,
+    soundCount: checks
+      ? participants.filter((person) => person.check?.gives && person.check.receives).length
+      : null,
   };
 }
 

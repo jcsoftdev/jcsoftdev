@@ -10,6 +10,7 @@ import { describeError } from '../_lib/messages';
 import { useOrigin } from '../_lib/use-origin';
 import { usePolling } from '../_lib/use-polling';
 import { CopyField } from './CopyField';
+import { DrawStatus } from './DrawStatus';
 import { ExclusionsRow } from './ExclusionsRow';
 import { ErrorNote, GlassPanel } from './GlassPanel';
 import { Page } from './Page';
@@ -223,10 +224,13 @@ export function AdminScreen({ roomId }: { readonly roomId: string }) {
             </Button>
           </>
         ) : (
-          <p className="text-ink-2">
-            Listo. Cada persona ve a quién le toca abriendo su enlace. Tú no puedes ver los
-            resultados de los demás.
-          </p>
+          <>
+            <p className="text-ink-2">
+              Listo. Cada persona ve a quién le toca abriendo su enlace. Tú no puedes ver los
+              resultados de los demás.
+            </p>
+            <DrawStatus participants={view.participants} soundCount={view.soundCount} />
+          </>
         )}
       </GlassPanel>
 

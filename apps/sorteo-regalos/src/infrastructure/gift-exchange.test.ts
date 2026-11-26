@@ -98,6 +98,42 @@ describe('who can see what', () => {
     expect(view).not.toMatch(/receiver|assignment/i);
   });
 
+  it('tells the admin each result is sound without revealing any pair', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    const before = await getAdminView(context, roomId, adminSecret);
+    expect(before.soundCount).toBeNull();
+    expect(before.participants.every((person) => person.check === null)).toBe(true);
+
+    await runDraw(context, roomId, adminSecret);
+    const after = await getAdminView(context, roomId, adminSecret);
+    expect(after.soundCount).toBe(NAMES.length);
+    for (const person of after.participants) {
+      expect(person.check).toEqual({ gives: true, receives: true });
+    }
+    const serialized = JSON.stringify(after);
+    for (const person of people) {
+      const me = await getMe(context, roomId, person.token);
+      const pair = `"name":"${person.name}"`;
+      expect(serialized).toContain(pair);
+      expect(serialized).not.toContain(`${person.name}${me.receiverName}`);
+    }
+  });
+
+  it('flags a person whose result cannot be read', async () => {
+    const { roomId, adminSecret, people } = await roomWith(NAMES);
+    await runDraw(context, roomId, adminSecret);
+    const ana = people[0]?.participantId ?? '';
+    const stored = await context.store.listParticipants(roomId);
+    const sealed = new Map(stored.map((person) => [person.id, person.assignmentSealed ?? '']));
+    sealed.set(ana, 'v1.broken.value.here');
+    await context.store.saveDraw(roomId, sealed);
+
+    const view = await getAdminView(context, roomId, adminSecret);
+    expect(view.participants.find((person) => person.id === ana)?.check?.gives).toBe(false);
+    expect(view.participants.filter((person) => !person.check?.receives)).toHaveLength(1);
+    expect(view.soundCount).toBe(NAMES.length - 2);
+  });
+
   it('rejects a wrong admin secret on every admin action', async () => {
     const { roomId, people } = await roomWith(NAMES);
     const wrong = 'not-the-secret';

@@ -37,3 +37,9 @@ export function describeError(error: unknown): string {
   if (error instanceof ApiError) return MESSAGES[error.code](error.details);
   return MESSAGES.INTERNAL({});
 }
+
+export function drawStatusSummary(soundCount: number, total: number): string {
+  return soundCount === total
+    ? `Todo conforme: ${soundCount} de ${total} personas tienen a quién regalar y alguien les regala.`
+    : `Revisar: solo ${soundCount} de ${total} personas están conformes.`;
+}
